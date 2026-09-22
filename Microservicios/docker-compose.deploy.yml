@@ -1,0 +1,274 @@
+# Despliegue de los microservicios Voltera en el Synology usando las
+# imagenes YA publicadas en Harbor (192.168.3.13/app-voltaire).
+#
+# Este compose NO construye: hace 'pull' de las imagenes del registry y
+# las ejecuta. Pensado para correr EN el Synology (via SSH), no en tu Mac.
+#
+# Requisitos en el Synology:
+#   1) Paquete "Container Manager" (Docker) instalado.
+#   2) Login al registry:  docker login 192.168.3.13 -u voltera-user
+#   3) Ejecutar:           docker compose -f docker-compose.deploy.yml up -d
+#
+# Los puertos 8081-8088 y 8761 quedan expuestos en la IP del Synology,
+# que es lo que consumira Postman (urlX = http://192.168.3.13:<puerto>).
+
+services:
+  service-registry:
+    image: 192.168.3.13/app-voltaire/service-registry:1.0.0
+    container_name: voltera-registry
+    restart: unless-stopped
+    ports:
+      - "8761:8761"
+    deploy:
+      resources:
+        limits:
+          memory: 400M
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8761/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  facturacion-service:
+    image: 192.168.3.13/app-voltaire/facturacion-service:1.0.0
+    container_name: voltera-facturacion
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      - EUREKA_ENABLED=true
+      - EUREKA_URL=http://service-registry:8761/eureka/
+    depends_on:
+      service-registry:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  liquidacion-service:
+    image: 192.168.3.13/app-voltaire/liquidacion-service:1.0.0
+    container_name: voltera-liquidacion
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    environment:
+      - EUREKA_ENABLED=true
+      - EUREKA_URL=http://service-registry:8761/eureka/
+    depends_on:
+      service-registry:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  volumetria-service:
+    image: 192.168.3.13/app-voltaire/volumetria-service:1.0.0
+    container_name: voltera-volumetria
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
+    environment:
+      - EUREKA_ENABLED=true
+      - EUREKA_URL=http://service-registry:8761/eureka/
+    depends_on:
+      service-registry:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  tarifas-service:
+    image: 192.168.3.13/app-voltaire/tarifas-service:1.0.0
+    container_name: voltera-tarifas
+    restart: unless-stopped
+    ports:
+      - "8084:8084"
+    environment:
+      - EUREKA_ENABLED=true
+      - EUREKA_URL=http://service-registry:8761/eureka/
+    depends_on:
+      service-registry:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  pagos-service:
+    image: 192.168.3.13/app-voltaire/pagos-service:1.0.0
+    container_name: voltera-pagos
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+    environment:
+      - EUREKA_ENABLED=true
+      - EUREKA_URL=http://service-registry:8761/eureka/
+    depends_on:
+      service-registry:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  notificaciones-service:
+    image: 192.168.3.13/app-voltaire/notificaciones-service:1.0.0
+    container_name: voltera-notificaciones
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    environment:
+      - EUREKA_ENABLED=true
+      - EUREKA_URL=http://service-registry:8761/eureka/
+    depends_on:
+      service-registry:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  reportes-service:
+    image: 192.168.3.13/app-voltaire/reportes-service:1.0.0
+    container_name: voltera-reportes
+    restart: unless-stopped
+    ports:
+      - "8087:8087"
+    environment:
+      - EUREKA_ENABLED=true
+      - EUREKA_URL=http://service-registry:8761/eureka/
+    depends_on:
+      service-registry:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  comunidades-service:
+    image: 192.168.3.13/app-voltaire/comunidades-service:1.0.0
+    container_name: voltera-comunidades
+    restart: unless-stopped
+    ports:
+      - "8088:8088"
+    environment:
+      - EUREKA_ENABLED=true
+      - EUREKA_URL=http://service-registry:8761/eureka/
+    depends_on:
+      service-registry:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ==========================================================================
+  # ENTREGA 3 (EDA) — Redpanda + servicios orientados a eventos
+  # ==========================================================================
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.1.1
+    container_name: voltera-redpanda
+    restart: unless-stopped
+    command:
+      - redpanda
+      - start
+      - --smp 1
+      - --memory 200M
+      - --reserve-memory 0M
+      - --overprovisioned
+      - --node-id 0
+      - --kafka-addr PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr PLAINTEXT://redpanda:9092
+    ports:
+      - "9092:9092"
+      - "9644:9644"
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+
+  siniestros-service:
+    image: 192.168.3.13/app-voltaire/siniestros-service:1.0.0
+    container_name: voltera-siniestros
+    restart: unless-stopped
+    ports:
+      - "8091:8091"
+    environment:
+      - EUREKA_ENABLED=true
+      - EUREKA_URL=http://service-registry:8761/eureka/
+      - KAFKA_BOOTSTRAP_SERVERS=redpanda:9092
+    depends_on:
+      service-registry:
+        condition: service_healthy
+      redpanda:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  reaseguro-service:
+    image: 192.168.3.13/app-voltaire/reaseguro-service:1.0.0
+    container_name: voltera-reaseguro
+    restart: unless-stopped
+    ports:
+      - "8092:8092"
+    environment:
+      - EUREKA_ENABLED=true
+      - EUREKA_URL=http://service-registry:8761/eureka/
+      - KAFKA_BOOTSTRAP_SERVERS=redpanda:9092
+    depends_on:
+      service-registry:
+        condition: service_healthy
+      redpanda:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # --------------------------------------------------------------------------
+  # Caso Telemetria (EDA): telemetria-service (emisor IoT) + tarifa-eventos
+  # --------------------------------------------------------------------------
+  telemetria-service:
+    image: 192.168.3.13/app-voltaire/telemetria-service:1.0.0
+    container_name: voltera-telemetria
+    restart: unless-stopped
+    ports:
+      - "8093:8093"
+    environment:
+      - EUREKA_ENABLED=true
+      - EUREKA_URL=http://service-registry:8761/eureka/
+      - KAFKA_BOOTSTRAP_SERVERS=redpanda:9092
+    depends_on:
+      service-registry:
+        condition: service_healthy
+      redpanda:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  tarifa-eventos-service:
+    image: 192.168.3.13/app-voltaire/tarifa-eventos-service:1.0.0
+    container_name: voltera-tarifa-eventos
+    restart: unless-stopped
+    ports:
+      - "8094:8094"
+    environment:
+      - EUREKA_ENABLED=true
+      - EUREKA_URL=http://service-registry:8761/eureka/
+      - KAFKA_BOOTSTRAP_SERVERS=redpanda:9092
+    depends_on:
+      service-registry:
+        condition: service_healthy
+      redpanda:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          memory: 512M

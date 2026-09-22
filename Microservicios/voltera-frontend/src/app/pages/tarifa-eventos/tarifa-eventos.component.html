@@ -1,0 +1,92 @@
+<div class="v-page v-fade">
+  <div class="v-page-head">
+    <span class="v-eyebrow">💰 EDA · CQRS</span>
+    <h1>Tarifa por Eventos</h1>
+    <p>
+      <span class="v-badge ok">Vista de lectura CQRS — alimentada por eventos</span>
+      &nbsp; El microservicio consume el evento <code>ConsumoRegistrado</code> del medidor. Si hubo <strong>consumo extra</strong> (sobre el umbral), calcula un cargo tarifario. La escritura y esta vista de lectura están separadas (Data-per-service).
+    </p>
+  </div>
+
+  <div class="stats-grid" *ngIf="stats">
+    <div class="metric v-card">
+      <div class="m-label">Total cargos</div>
+      <div class="big-num">{{ stats.totalCargos }}</div>
+    </div>
+    <div class="metric v-card">
+      <div class="m-label">Liquidados</div>
+      <div class="big-num">{{ stats.totalLiquidados }}</div>
+      <div class="m-sub">con consumo extra</div>
+    </div>
+    <div class="metric v-card">
+      <div class="m-label">Excedente total</div>
+      <div class="big-num">{{ stats.excedenteTotalKwh | number:'1.0-1' }}</div>
+      <div class="m-sub">kWh</div>
+    </div>
+    <div class="metric v-card">
+      <div class="m-label">Monto cargado</div>
+      <div class="big-num">{{ stats.montoTotalCargado | number:'1.0-0' }}</div>
+      <div class="m-sub">COP</div>
+    </div>
+  </div>
+
+  <div class="layout" style="margin-top:24px">
+    <form class="panel v-card" [formGroup]="formActivar" (ngSubmit)="activarMedidor()">
+      <h3>Activar medidor / prosumidor</h3>
+      <p class="sub">Transferencia de estado: al activar se genera y publica una <strong>notificación liquidada</strong> con factura y tarifas al tópico de notificación.</p>
+
+      <div class="v-field"><label>Medidor</label><input class="v-input" formControlName="medidorId" placeholder="MED-EDA-001" /></div>
+      <div class="v-field"><label>Prosumidor</label><input class="v-input" formControlName="prosumidorId" placeholder="PRO-EDA-001" /></div>
+      <div class="v-field"><label>Umbral contratado (kWh)</label><input class="v-input" type="number" formControlName="umbralKwh" /></div>
+
+      <div class="form-actions">
+        <button type="submit" class="v-btn primary">🧾 Activar y liquidar</button>
+      </div>
+      <p class="hint">POST <code>/tarifa-eventos/v1/api/v1/cargos/activar-medidor</code></p>
+
+      <div class="detail-box" *ngIf="ultimaNotificacion">
+        <h4>Notificación liquidada</h4>
+        <div class="kv"><span class="k">Notificación</span><span class="val" style="font-size:11px">{{ ultimaNotificacion.notificacionId }}</span></div>
+        <div class="kv"><span class="k">Cargo fijo</span><span class="val">{{ ultimaNotificacion.cargoFijoMensual | number:'1.0-0' }} COP</span></div>
+        <div class="kv"><span class="k">Precio base</span><span class="val">{{ ultimaNotificacion.precioBaseKwh | number:'1.0-0' }} COP/kWh</span></div>
+        <div class="kv"><span class="k">Precio extra</span><span class="val">{{ ultimaNotificacion.precioExtraKwh | number:'1.0-0' }} COP/kWh</span></div>
+      </div>
+    </form>
+
+    <div class="result v-card">
+      <div class="result-head">
+        <h3>Cargos tarifarios (lado lectura)</h3>
+        <div style="display:flex;gap:10px">
+          <button class="v-btn" (click)="cargar()">🔄 Refrescar</button>
+          <button class="v-btn" (click)="simular(false)" [disabled]="simulando">Simular sin extra</button>
+          <button class="v-btn primary" (click)="simular(true)" [disabled]="simulando">
+            <span class="v-spinner" *ngIf="simulando"></span>⚡ Simular consumo extra
+          </button>
+        </div>
+      </div>
+
+      <p class="hint">"Simular" envía un <code>ConsumoRegistrado</code> a <code>/cargos/simular-evento</code> (reenviar el mismo eventId no crea duplicados — idempotencia).</p>
+
+      <div class="v-empty" *ngIf="cargando">Cargando…</div>
+      <div class="v-empty" *ngIf="!cargando && cargos.length === 0">
+        <div class="ic">💰</div><p>Sin cargos. Ingesta consumo en Telemetría o simula un evento.</p>
+      </div>
+
+      <div class="v-table-wrap" *ngIf="!cargando && cargos.length" style="margin-top:16px">
+        <table class="v-table">
+          <thead><tr><th>Medidor</th><th>Consumo</th><th>Umbral</th><th>Excedente</th><th>Monto</th><th>Estado</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let c of cargos">
+              <td style="font-size:12px">{{ c.medidorId }}</td>
+              <td class="v-mono">{{ c.consumoKwh | number:'1.0-2' }}</td>
+              <td class="v-mono">{{ c.umbralKwh | number:'1.0-2' }}</td>
+              <td class="v-mono">{{ c.excedenteKwh | number:'1.0-2' }}</td>
+              <td class="v-mono"><strong>{{ c.montoCargo | number:'1.0-2' }}</strong></td>
+              <td><span class="v-badge" [ngClass]="badge(c.estado)">{{ c.estado }}</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

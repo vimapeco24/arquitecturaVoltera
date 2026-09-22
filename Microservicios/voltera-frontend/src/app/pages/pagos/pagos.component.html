@@ -1,0 +1,79 @@
+<div class="v-page v-fade">
+  <div class="v-page-head">
+    <span class="v-eyebrow">💳 Paso 6 · Cobro</span>
+    <h1>Pagos</h1>
+    <p>Procesa el cobro de una factura o el pago de excedentes. Idempotente por referencia.</p>
+  </div>
+
+  <div class="layout">
+    <form class="panel v-card" [formGroup]="form" (ngSubmit)="procesar()">
+      <h3>{{ editandoId ? 'Editar pago' : 'Procesar pago' }}</h3>
+      <p class="sub">Reenviar la misma referencia no duplica el cobro.</p>
+
+      <div class="v-field"><label>Prosumidor</label><input class="v-input" formControlName="prosumidorId" /></div>
+      <div class="v-field"><label>Referencia</label><input class="v-input" formControlName="referencia" placeholder="FAC-100" /></div>
+      <div class="row2">
+        <div class="v-field">
+          <label>Tipo</label>
+          <select class="v-select" formControlName="tipo">
+            <option value="COBRO_FACTURA">COBRO FACTURA</option>
+            <option value="PAGO_EXCEDENTE">PAGO EXCEDENTE</option>
+          </select>
+        </div>
+        <div class="v-field"><label>Monto (COP)</label><input class="v-input" type="number" formControlName="monto" /></div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="v-btn primary" [disabled]="enviando">
+          <span class="v-spinner" *ngIf="enviando"></span>{{ enviando ? 'Procesando…' : (editandoId ? 'Guardar cambios' : 'Procesar pago') }}
+        </button>
+        <button type="button" class="v-btn ghost" *ngIf="editandoId" (click)="cancelarEdicion()">Cancelar edición</button>
+      </div>
+      <p class="hint">POST <code>/pagos/v1/api/v1/pagos</code></p>
+    </form>
+
+    <div class="result v-card">
+      <div class="result-head">
+        <h3>Pagos del prosumidor</h3>
+        <span class="count">{{ pagos.length }}</span>
+      </div>
+
+      <div class="detail-box" *ngIf="ultimo">
+        <h4>Último pago</h4>
+        <div class="kv"><span class="k">Referencia</span><span class="val">{{ ultimo.referencia }}</span></div>
+        <div class="kv"><span class="k">Tipo</span><span class="val">{{ ultimo.tipo }}</span></div>
+        <div class="kv"><span class="k">Monto</span><span class="val">{{ ultimo.monto | number:'1.0-2' }} COP</span></div>
+        <div class="kv"><span class="k">Estado</span><span class="v-badge" [ngClass]="badge(ultimo.estado)">{{ ultimo.estado }}</span></div>
+        <div class="kv" *ngIf="ultimo.motivoFallo"><span class="k">Motivo fallo</span><span class="val" style="color:var(--v-danger)">{{ ultimo.motivoFallo }}</span></div>
+      </div>
+
+      <div class="inline-query">
+        <div class="v-field"><label>Prosumidor</label><input class="v-input" [(ngModel)]="filtroProsumidor" [ngModelOptions]="{ standalone: true }" /></div>
+        <button class="v-btn" (click)="buscar()">🔍 Buscar</button>
+      </div>
+
+      <div class="v-empty" *ngIf="cargando">Cargando…</div>
+      <div class="v-empty" *ngIf="!cargando && pagos.length === 0">
+        <div class="ic">💳</div><p>Sin pagos.</p>
+      </div>
+
+      <div class="v-table-wrap" *ngIf="!cargando && pagos.length" style="margin-top:16px">
+        <table class="v-table">
+          <thead><tr><th>Referencia</th><th>Tipo</th><th>Monto</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let p of pagos">
+              <td>{{ p.referencia }}</td>
+              <td style="font-size:13px">{{ p.tipo }}</td>
+              <td class="v-mono"><strong>{{ p.monto | number:'1.0-2' }}</strong></td>
+              <td><span class="v-badge" [ngClass]="badge(p.estado)">{{ p.estado }}</span></td>
+              <td style="white-space:nowrap">
+                <button class="v-btn ghost" (click)="editar(p)">✎ Editar</button>
+                <button class="v-btn ghost" (click)="eliminar(p)">🗑 Eliminar</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

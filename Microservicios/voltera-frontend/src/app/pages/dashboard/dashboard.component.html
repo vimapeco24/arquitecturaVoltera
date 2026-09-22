@@ -1,0 +1,73 @@
+<div class="v-page v-fade">
+  <!-- Hero -->
+  <section class="hero v-card">
+    <div class="hero-text">
+      <span class="v-eyebrow">⚡ Plataforma de Comunidades Energéticas</span>
+      <h1>Bienvenido a Voltera</h1>
+      <p>
+        Orquesta el ciclo completo de energía distribuida entre prosumidores: desde el precio
+        y la telemetría, hasta la liquidación entre pares, la facturación mensual y el pago.
+        Todo consumido a través del <strong>API Gateway WSO2</strong> con seguridad OAuth2.
+      </p>
+      <div class="hero-cta">
+        <a routerLink="/tarifas" class="v-btn primary">Empezar por Tarifas →</a>
+        <a routerLink="/facturacion" class="v-btn ghost">Ver Facturación</a>
+      </div>
+    </div>
+    <div class="hero-metric">
+      <div class="ring" [class.full]="activos === servicios.length && !cargando">
+        <div class="ring-num">{{ activos }}<span>/{{ servicios.length }}</span></div>
+        <div class="ring-lbl">Servicios activos</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Estado de salud -->
+  <section class="block">
+    <div class="block-head">
+      <div>
+        <h2>Estado de los microservicios</h2>
+        <p>Health check en vivo vía <code>{{ '{gw}' }}/&lt;servicio&gt;/v1/actuator/health</code></p>
+      </div>
+      <button class="v-btn" (click)="refrescar()" [disabled]="chequeando">
+        <span class="v-spinner" *ngIf="chequeando"></span>
+        {{ chequeando ? 'Verificando…' : '↻ Refrescar' }}
+      </button>
+    </div>
+
+    <div class="v-grid cols-3">
+      <div class="svc-card v-card" *ngFor="let s of servicios">
+        <div class="svc-top">
+          <div class="svc-name">{{ s.nombre }}</div>
+          <span class="v-badge" [ngClass]="{ ok: s.estado === 'UP', err: s.estado === 'DOWN', info: s.estado === 'CHECKING' }">
+            {{ s.estado === 'UP' ? 'Operativo' : s.estado === 'DOWN' ? 'Caído' : 'Comprobando' }}
+          </span>
+        </div>
+        <div class="svc-meta">
+          <span class="chip">/{{ s.servicio }}/v1</span>
+          <span class="port">:{{ s.puerto }}</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Flujo de negocio -->
+  <section class="block">
+    <div class="block-head">
+      <div>
+        <h2>Flujo de negocio</h2>
+        <p>El recorrido de la energía de un prosumidor, paso a paso.</p>
+      </div>
+    </div>
+
+    <div class="flow">
+      <a *ngFor="let f of flujo; let last = last" [routerLink]="f.ruta" class="flow-step v-card">
+        <div class="fs-badge">{{ f.n }}</div>
+        <div class="fs-ic">{{ f.ic }}</div>
+        <div class="fs-title">{{ f.t }}</div>
+        <div class="fs-desc">{{ f.d }}</div>
+        <span class="fs-arrow" *ngIf="!last">→</span>
+      </a>
+    </div>
+  </section>
+</div>

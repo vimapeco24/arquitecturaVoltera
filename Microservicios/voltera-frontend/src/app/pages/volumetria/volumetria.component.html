@@ -1,0 +1,86 @@
+<div class="v-page v-fade">
+  <div class="v-page-head">
+    <span class="v-eyebrow">📊 Paso 2 · Telemetría</span>
+    <h1>Volumetría</h1>
+    <p>Ingesta y valida lecturas de medidores. Lecturas &gt; 500 kWh se marcan como sospechosas.</p>
+  </div>
+
+  <div class="layout">
+    <form class="panel v-card" [formGroup]="form" (ngSubmit)="ingestar()">
+      <h3>{{ editandoId ? 'Editar lectura' : 'Ingestar lectura' }}</h3>
+      <p class="sub">Registra una medición de consumo o generación.</p>
+
+      <div class="v-field">
+        <label>Medidor</label>
+        <input class="v-input" formControlName="medidorId" placeholder="MED-001" />
+      </div>
+      <div class="row2">
+        <div class="v-field">
+          <label>Energía (kWh)</label>
+          <input class="v-input" type="number" step="0.1" formControlName="kwh" />
+        </div>
+        <div class="v-field">
+          <label>Dirección</label>
+          <select class="v-select" formControlName="direccion">
+            <option value="CONSUMO">CONSUMO</option>
+            <option value="GENERACION">GENERACIÓN</option>
+          </select>
+        </div>
+      </div>
+      <div class="v-field">
+        <label>Capturada en</label>
+        <input class="v-input" type="datetime-local" formControlName="capturadaEn" />
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="v-btn primary" [disabled]="enviando">
+          <span class="v-spinner" *ngIf="enviando"></span>
+          {{ enviando ? 'Enviando…' : (editandoId ? 'Guardar cambios' : 'Ingestar lectura') }}
+        </button>
+        <button type="button" class="v-btn ghost" *ngIf="editandoId" (click)="cancelarEdicion()">Cancelar edición</button>
+      </div>
+      <p class="hint">POST <code>/volumetria/v1/api/v1/lecturas</code></p>
+    </form>
+
+    <div class="result v-card">
+      <div class="result-head">
+        <h3>Lecturas por medidor</h3>
+        <span class="count">{{ lecturas.length }} lectura(s)</span>
+      </div>
+
+      <div class="inline-query">
+        <div class="v-field">
+          <label>Medidor</label>
+          <input class="v-input" [(ngModel)]="filtroMedidor" [ngModelOptions]="{ standalone: true }" placeholder="MED-001" />
+        </div>
+        <button class="v-btn" (click)="buscar()">🔍 Buscar</button>
+      </div>
+
+      <div class="v-empty" *ngIf="cargando">Cargando…</div>
+      <div class="v-empty" *ngIf="!cargando && lecturas.length === 0">
+        <div class="ic">📊</div>
+        <p>Sin lecturas para este medidor.</p>
+      </div>
+
+      <div class="v-table-wrap" *ngIf="!cargando && lecturas.length" style="margin-top:16px">
+        <table class="v-table">
+          <thead>
+            <tr><th>kWh</th><th>Dirección</th><th>Estado</th><th>Capturada</th><th>Acciones</th></tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let l of lecturas">
+              <td class="v-mono"><strong>{{ l.kwh | number:'1.0-2' }}</strong></td>
+              <td>{{ l.direccion }}</td>
+              <td><span class="v-badge" [ngClass]="badge(l.estado)">{{ l.estado }}</span></td>
+              <td style="color:var(--v-text-soft);font-size:13px">{{ l.capturadaEn | date:'short' }}</td>
+              <td style="white-space:nowrap">
+                <button class="v-btn ghost" (click)="editar(l)">✎ Editar</button>
+                <button class="v-btn ghost" (click)="eliminar(l)">🗑 Eliminar</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

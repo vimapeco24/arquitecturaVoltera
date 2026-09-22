@@ -1,0 +1,52 @@
+# Despliegue de los microservicios Voltera en Kubernetes (namespace voltera-app).
+# Imagenes desde Harbor: 192.168.3.13/app-voltaire/<servicio>:1.0.0
+# Exposicion: Gateway API (HTTPRoute) via el Gateway istio-ingress (192.168.3.220).
+# Ruta por servicio: http://192.168.3.220/<servicio>/...
+#
+# Generado para: k8s v1.37, Istio (Gateway API), CNI Cilium.
+---
+# Secret para que el kubelet haga pull de imagenes privadas desde Harbor.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: harbor-cred
+  namespace: voltera-app
+type: kubernetes.io/dockerconfigjson
+data:
+  # .dockerconfigjson se inyecta en el apply (ver script). Placeholder aqui.
+  .dockerconfigjson: PLACEHOLDER
+---
+################################################################################
+# service-registry (Eureka) - interno, no expuesto por Gateway
+################################################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-registry
+  namespace: voltera-app
+  labels: { app: service-registry }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: service-registry } }
+  template:
+    metadata: { labels: { app: service-registry } }
+    spec:
+      imagePullSecrets: [{ name: harbor-cred }]
+      containers:
+        - name: service-registry
+          image: 192.168.3.13/app-voltaire/service-registry:1.0.0
+          ports: [{ containerPort: 8761 }]
+          resources: { limits: { memory: "400Mi" }, requests: { memory: "200Mi" } }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8761 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-registry
+  namespace: voltera-app
+spec:
+  selector: { app: service-registry }
+  ports: [{ port: 8761, targetPort: 8761 }]

@@ -1,0 +1,414 @@
+# ============================================================================
+# VOLTERA — ENTREGA 3 (EDA: Event-Driven Architecture)
+# ----------------------------------------------------------------------------
+# Contiene TODO lo relacionado con la arquitectura orientada a eventos:
+#   a) Redpanda        -> broker compatible Kafka (single-node, demo)
+#   b) siniestros-service (8091) -> productor del evento SiniestroAprobado
+#   c) reaseguro-service  (8092) -> consumidor del topic siniestro-aprobado
+#   d) KEDA ScaledObject -> autoescala reaseguro por lag del consumer group
+#   e) Event Mesh (bloque conceptual comentado) -> expansión multi-región
+#
+# Aplicar:  kubectl apply -f voltera-eda.yaml
+# ============================================================================
+
+# ============================================================================
+# a) REDPANDA — broker compatible Kafka, bajo consumo de RAM (~200MB)
+# ----------------------------------------------------------------------------
+# Single-node para demo académica. Expone el protocolo Kafka en :9092.
+# El advertise-kafka-addr usa el DNS del Service (redpanda.voltera-app) para
+# que los clientes dentro del cluster resuelvan correctamente el broker.
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redpanda
+  namespace: voltera-app
+  labels: { app: redpanda }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: redpanda } }
+  template:
+    metadata: { labels: { app: redpanda } }
+    spec:
+      containers:
+        - name: redpanda
+          image: docker.redpanda.com/redpandadata/redpanda:v24.1.1
+          args:
+            - redpanda
+            - start
+            - --smp 1
+            - --memory 200M
+            - --reserve-memory 0M
+            - --overprovisioned
+            - --node-id 0
+            - --kafka-addr PLAINTEXT://0.0.0.0:9092
+            - --advertise-kafka-addr PLAINTEXT://redpanda.voltera-app:9092
+          ports:
+            - { containerPort: 9092, name: kafka }
+            - { containerPort: 8081, name: schema }
+            - { containerPort: 9644, name: admin }
+          resources:
+            limits: { cpu: "500m", memory: "300Mi" }
+            requests: { cpu: "100m", memory: "200Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redpanda
+  namespace: voltera-app
+spec:
+  selector: { app: redpanda }
+  ports:
+    - { name: kafka, port: 9092, targetPort: 9092 }
+    - { name: schema, port: 8081, targetPort: 8081 }
+    - { name: admin, port: 9644, targetPort: 9644 }
+---
+# ============================================================================
+# b) SINIESTROS-SERVICE (8091) — productor del evento SiniestroAprobado
+# ----------------------------------------------------------------------------
+# Sigue el mismo patrón que los servicios de voltera-services.yaml.
+# Al aprobar un siniestro publica el evento en el topic 'siniestro-aprobado'.
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: siniestros-service
+  namespace: voltera-app
+  labels: { app: siniestros-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: siniestros-service } }
+  # maxSurge=0: el worker tiene poca RAM y no admite un pod extra durante el
+  # rollout, así que se termina el pod viejo antes de crear el nuevo.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 0, maxUnavailable: 1 }
+  template:
+    metadata: { labels: { app: siniestros-service, version: v1 } }   # version -> Kiali/telemetria
+    spec:
+      imagePullSecrets: [{ name: harbor-cred }]
+      containers:
+        - name: siniestros-service
+          image: 192.168.3.13/app-voltaire/siniestros-service:1.0.0
+          ports: [{ containerPort: 8091 }]
+          env:
+            - { name: EUREKA_ENABLED, value: "true" }
+            - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
+            - { name: KAFKA_BOOTSTRAP_SERVERS, value: "redpanda.voltera-app:9092" }
+          resources:
+            limits: { cpu: "500m", memory: "512Mi" }        # cpu limit para acotar el pod
+            requests: { cpu: "50m", memory: "160Mi" }       # cpu request -> BASE del calculo del HPA
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8091 }
+            initialDelaySeconds: 25
+            periodSeconds: 10
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: siniestros-service
+  namespace: voltera-app
+spec:
+  selector: { app: siniestros-service }
+  ports: [{ port: 8091, targetPort: 8091 }]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: siniestros-service
+  namespace: voltera-app
+spec:
+  parentRefs:
+    - name: istio-ingress
+      namespace: istio-ingress
+  rules:
+    - matches:
+        - path: { type: PathPrefix, value: /siniestros }
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path: { type: ReplacePrefixMatch, replacePrefixMatch: "" }
+      backendRefs:
+        - name: siniestros-service
+          port: 8091
+---
+# ============================================================================
+# c) REASEGURO-SERVICE (8092) — consumidor del topic siniestro-aprobado
+# ----------------------------------------------------------------------------
+# Consumer group 'reaseguro-consumer'. KEDA lo autoescala (ver más abajo).
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reaseguro-service
+  namespace: voltera-app
+  labels: { app: reaseguro-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: reaseguro-service } }
+  # maxSurge=0: el worker tiene poca RAM y no admite un pod extra durante el
+  # rollout, así que se termina el pod viejo antes de crear el nuevo.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 0, maxUnavailable: 1 }
+  template:
+    metadata: { labels: { app: reaseguro-service, version: v1 } }   # version -> Kiali/telemetria
+    spec:
+      imagePullSecrets: [{ name: harbor-cred }]
+      containers:
+        - name: reaseguro-service
+          image: 192.168.3.13/app-voltaire/reaseguro-service:1.0.0
+          ports: [{ containerPort: 8092 }]
+          env:
+            - { name: EUREKA_ENABLED, value: "true" }
+            - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
+            - { name: KAFKA_BOOTSTRAP_SERVERS, value: "redpanda.voltera-app:9092" }
+          resources:
+            limits: { cpu: "500m", memory: "512Mi" }        # cpu limit para acotar el pod
+            requests: { cpu: "50m", memory: "160Mi" }       # cpu request -> BASE del calculo del HPA
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8092 }
+            initialDelaySeconds: 25
+            periodSeconds: 10
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: reaseguro-service
+  namespace: voltera-app
+spec:
+  selector: { app: reaseguro-service }
+  ports: [{ port: 8092, targetPort: 8092 }]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: reaseguro-service
+  namespace: voltera-app
+spec:
+  parentRefs:
+    - name: istio-ingress
+      namespace: istio-ingress
+  rules:
+    - matches:
+        - path: { type: PathPrefix, value: /reaseguro }
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path: { type: ReplacePrefixMatch, replacePrefixMatch: "" }
+      backendRefs:
+        - name: reaseguro-service
+          port: 8092
+---
+# ============================================================================
+# d) KEDA ScaledObject — autoescalado dirigido por eventos (event-driven)
+# ----------------------------------------------------------------------------
+# KEDA escala reaseguro-service según el LAG del consumer group
+# 'reaseguro-consumer' en el topic 'siniestro-aprobado'.
+#
+# REQUISITO: KEDA debe estar instalado en el cluster:
+#   helm repo add kedacore https://kedacore.github.io/charts
+#   helm repo update
+#   helm install keda kedacore/keda --namespace keda --create-namespace
+#
+# Sin KEDA instalado, este recurso simplemente NO se aplica (el CRD
+# keda.sh/v1alpha1 no existe) pero el resto del manifiesto funciona igual;
+# reaseguro-service seguiría con su replica fija (replicas: 1).
+# ============================================================================
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: reaseguro-scaledobject
+  namespace: voltera-app
+spec:
+  scaleTargetRef:
+    name: reaseguro-service
+  pollingInterval: 10
+  cooldownPeriod: 30
+  minReplicaCount: 0    # scale to zero cuando no hay eventos
+  maxReplicaCount: 5
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: redpanda.voltera-app:9092
+        consumerGroup: reaseguro-consumer
+        topic: siniestro-aprobado
+        lagThreshold: "10"     # umbral: >10 mensajes pendientes -> escala
+---
+# ============================================================================
+# CASO TELEMETRIA (EDA) — telemetria-service + tarifa-eventos-service
+# ----------------------------------------------------------------------------
+# telemetria-service (8093): emisor IoT. Ingesta consumo de prosumidores con
+#   procesamiento offline (store-and-forward) y publica el evento
+#   ConsumoRegistrado en el topic 'consumo-registrado'.
+# tarifa-eventos-service (8094): consumidor CQRS. Consume 'consumo-registrado',
+#   calcula el cargo por consumo extra y proyecta a la vista de lectura.
+#   KEDA lo autoescala por el lag del consumer group 'tarifa-eventos-consumer'.
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telemetria-service
+  namespace: voltera-app
+  labels: { app: telemetria-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: telemetria-service } }
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 0, maxUnavailable: 1 }
+  template:
+    metadata: { labels: { app: telemetria-service, version: v1 } }
+    spec:
+      imagePullSecrets: [{ name: harbor-cred }]
+      containers:
+        - name: telemetria-service
+          image: 192.168.3.13/app-voltaire/telemetria-service:1.0.0
+          ports: [{ containerPort: 8093 }]
+          env:
+            - { name: EUREKA_ENABLED, value: "true" }
+            - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
+            - { name: KAFKA_BOOTSTRAP_SERVERS, value: "redpanda.voltera-app:9092" }
+          resources:
+            limits: { cpu: "500m", memory: "512Mi" }
+            requests: { cpu: "50m", memory: "160Mi" }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8093 }
+            initialDelaySeconds: 25
+            periodSeconds: 10
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: telemetria-service
+  namespace: voltera-app
+spec:
+  selector: { app: telemetria-service }
+  ports: [{ port: 8093, targetPort: 8093 }]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: telemetria-service
+  namespace: voltera-app
+spec:
+  parentRefs:
+    - name: istio-ingress
+      namespace: istio-ingress
+  rules:
+    - matches:
+        - path: { type: PathPrefix, value: /telemetria }
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path: { type: ReplacePrefixMatch, replacePrefixMatch: "" }
+      backendRefs:
+        - name: telemetria-service
+          port: 8093
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tarifa-eventos-service
+  namespace: voltera-app
+  labels: { app: tarifa-eventos-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: tarifa-eventos-service } }
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 0, maxUnavailable: 1 }
+  template:
+    metadata: { labels: { app: tarifa-eventos-service, version: v1 } }
+    spec:
+      imagePullSecrets: [{ name: harbor-cred }]
+      containers:
+        - name: tarifa-eventos-service
+          image: 192.168.3.13/app-voltaire/tarifa-eventos-service:1.0.0
+          ports: [{ containerPort: 8094 }]
+          env:
+            - { name: EUREKA_ENABLED, value: "true" }
+            - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
+            - { name: KAFKA_BOOTSTRAP_SERVERS, value: "redpanda.voltera-app:9092" }
+          resources:
+            limits: { cpu: "500m", memory: "512Mi" }
+            requests: { cpu: "50m", memory: "160Mi" }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8094 }
+            initialDelaySeconds: 25
+            periodSeconds: 10
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tarifa-eventos-service
+  namespace: voltera-app
+spec:
+  selector: { app: tarifa-eventos-service }
+  ports: [{ port: 8094, targetPort: 8094 }]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: tarifa-eventos-service
+  namespace: voltera-app
+spec:
+  parentRefs:
+    - name: istio-ingress
+      namespace: istio-ingress
+  rules:
+    - matches:
+        - path: { type: PathPrefix, value: /tarifa-eventos }
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path: { type: ReplacePrefixMatch, replacePrefixMatch: "" }
+      backendRefs:
+        - name: tarifa-eventos-service
+          port: 8094
+---
+# KEDA ScaledObject — autoescala tarifa-eventos por el lag del topic 'consumo-registrado'.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: tarifa-eventos-scaledobject
+  namespace: voltera-app
+spec:
+  scaleTargetRef:
+    name: tarifa-eventos-service
+  pollingInterval: 10
+  cooldownPeriod: 30
+  minReplicaCount: 0    # scale to zero cuando no hay eventos de consumo
+  maxReplicaCount: 5
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: redpanda.voltera-app:9092
+        consumerGroup: tarifa-eventos-consumer
+        topic: consumo-registrado
+        lagThreshold: "10"     # umbral: >10 lecturas pendientes -> escala
+---
+# ============================================================================
+# e) EVENT MESH — Expansión multi-región
+# ----------------------------------------------------------------------------
+# Para la expansión de Voltera a México, Chile y Perú, los eventos
+# (SiniestroAprobado, etc.) deben cruzar regiones sin acoplar servicios.
+#
+# Un event mesh (ej. Solace PubSub+, Confluent Cluster Linking, o
+# Redpanda con cross-cluster replication) interconecta los brokers
+# regionales. Cada región tiene su broker local; el mesh replica los
+# topics entre regiones de forma transparente.
+#
+# Topología:
+#   Colombia (Synology)  <-->  México (cloud)  <-->  Chile (cloud)
+#          \                                        /
+#           <----------->  Perú (cloud)  <-------->
+#
+# El productor publica en su broker local; el mesh garantiza que los
+# consumidores de cualquier región reciban el evento. Zero Trust: cada
+# región define qué topics puede publicar/suscribir (ACLs por principal).
+# ============================================================================

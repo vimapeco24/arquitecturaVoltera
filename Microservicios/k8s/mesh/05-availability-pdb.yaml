@@ -1,0 +1,72 @@
+# ============================================================================
+# Voltera - Service Mesh (Istio) | Paso 5: Disponibilidad (HA)
+# ----------------------------------------------------------------------------
+# ESTRATEGIA (activo-activo, no activo-pasivo):
+#   - >=2 replicas por servicio (ya en el Deployment / HPA minReplicas).
+#   - PodDisruptionBudget: garantiza que SIEMPRE quede >=1 pod disponible
+#     durante disrupciones voluntarias (drenaje de nodo, rollout, etc.).
+#   - El mesh (retries + outlierDetection del paso 2) reenvia el trafico a las
+#     replicas sanas cuando una cae => FAILOVER sin downtime perceptible.
+#
+# Esto responde a "si un micro cae, el otro sigue operando". En activo-activo
+# las 2 replicas atienden a la vez; si una muere, la otra absorbe el 100%.
+#
+# DEMO (ver demos/demo-availability.sh):
+#   - se genera trafico continuo,
+#   - se mata 1 pod (kubectl delete pod),
+#   - se mide cuantas peticiones fallan (idealmente 0) y el tiempo de
+#     recuperacion => "failover en X ms".
+# ============================================================================
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-facturacion-service
+  namespace: voltera-app
+spec:
+  minAvailable: 1
+  selector: { matchLabels: { app: facturacion-service } }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-liquidacion-mensual-service
+  namespace: voltera-app
+spec:
+  minAvailable: 1
+  selector: { matchLabels: { app: liquidacion-mensual-service } }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-liquidacion-p2p-service
+  namespace: voltera-app
+spec:
+  minAvailable: 1
+  selector: { matchLabels: { app: liquidacion-p2p-service } }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-volumetria-service
+  namespace: voltera-app
+spec:
+  minAvailable: 1
+  selector: { matchLabels: { app: volumetria-service } }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-tarifas-service
+  namespace: voltera-app
+spec:
+  minAvailable: 1
+  selector: { matchLabels: { app: tarifas-service } }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-pagos-service
+  namespace: voltera-app
+spec:
+  minAvailable: 1
+  selector: { matchLabels: { app: pagos-service } }

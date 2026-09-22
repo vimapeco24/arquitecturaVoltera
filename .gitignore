@@ -1,0 +1,46 @@
+# ==== Dependencias / build ====
+**/node_modules/
+**/dist/
+**/out-tsc/
+**/.angular/
+**/target/
+**/.mvn/wrapper/maven-wrapper.jar
+
+# ==== Vercel / entornos ====
+**/.vercel/
+**/.env
+**/.env.*
+
+# ==== SO / editor ====
+**/.DS_Store
+*.log
+npm-debug.log*
+
+# ==== Documentación pesada / binarios (no es código) ====
+*.pdf
+*.pptx
+*.docx
+*.png
+*.jpg
+*.jpeg
+*.drawio
+*.archimate
+
+# ==== Backups de sesiones / conversaciones (posible info sensible) ====
+conversaciones/
+DDD/
+Voltera_Archi_Model/
+Modificados/
+ExamenArquitectura/
+
+# ==== Colecciones Postman con secretos ====
+Microservicios/Voltera_Postman_Collection*.json
+Microservicios/Voltera_Postman_APIGateway.json
+
+# ==== Diagramas / imágenes sueltas en la raíz ====
+Vista*.drawio
+Voltera_*.drawio
+*.md.bak
+
+# Cuadernos/notas con credenciales
+Microservicios/eventos/

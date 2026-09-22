@@ -1,0 +1,104 @@
+<div class="v-page v-fade">
+  <div class="v-page-head">
+    <span class="v-eyebrow">⚡ Paso 1 · Precio</span>
+    <h1>Tarifas</h1>
+    <p>Define esquemas de precio dinámico por franjas horarias. Las franjas no deben solaparse.</p>
+  </div>
+
+  <div class="layout">
+    <!-- Formulario -->
+    <form class="panel v-card" [formGroup]="form" (ngSubmit)="crear()">
+      <h3>{{ editandoId ? 'Editar tarifa' : 'Nueva tarifa' }}</h3>
+      <p class="sub">Cada franja cubre un rango de horas [inicio, fin) con su precio por kWh.</p>
+
+      <div class="v-field">
+        <label>Nombre</label>
+        <input class="v-input" formControlName="nombre" placeholder="Ej. Residencial" />
+      </div>
+
+      <div formArrayName="franjas">
+        <div class="franja-row" *ngFor="let f of franjas.controls; let i = index" [formGroupName]="i">
+          <div class="v-field" style="margin:0">
+            <label>Hora inicio</label>
+            <input class="v-input" type="number" min="0" max="23" formControlName="horaInicio" />
+          </div>
+          <div class="v-field" style="margin:0">
+            <label>Hora fin</label>
+            <input class="v-input" type="number" min="1" max="24" formControlName="horaFin" />
+          </div>
+          <div class="v-field" style="margin:0">
+            <label>Precio kWh (COP)</label>
+            <input class="v-input" type="number" min="0" formControlName="precioKwh" />
+          </div>
+          <button type="button" class="del" (click)="quitarFranja(i)" title="Quitar franja">✕</button>
+        </div>
+      </div>
+
+      <button type="button" class="add-link" (click)="agregarFranja()">+ Añadir franja</button>
+
+      <div class="form-actions">
+        <button type="submit" class="v-btn primary" [disabled]="enviando">
+          <span class="v-spinner" *ngIf="enviando"></span>
+          {{ enviando ? (editandoId ? 'Guardando…' : 'Creando…') : (editandoId ? 'Guardar cambios' : 'Crear tarifa') }}
+        </button>
+        <button type="button" class="v-btn ghost" *ngIf="editandoId" (click)="cancelarEdicion()">Cancelar edición</button>
+      </div>
+      <p class="hint">POST <code>/tarifas/v1/api/v1/tarifas</code></p>
+    </form>
+
+    <!-- Listado + consulta de precio -->
+    <div class="result v-card">
+      <div class="result-head">
+        <h3>Tarifas registradas</h3>
+        <span class="count">{{ tarifas.length }} tarifa(s)</span>
+      </div>
+
+      <div class="v-empty" *ngIf="cargando">Cargando…</div>
+      <div class="v-empty" *ngIf="!cargando && tarifas.length === 0">
+        <div class="ic">⚡</div>
+        <p>Aún no hay tarifas. Crea la primera a la izquierda.</p>
+      </div>
+
+      <div class="v-table-wrap" *ngIf="!cargando && tarifas.length">
+        <table class="v-table">
+          <thead>
+            <tr><th>Nombre</th><th>Franjas</th><th>ID</th><th>Acciones</th></tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let t of tarifas">
+              <td><strong>{{ t.nombre }}</strong></td>
+              <td class="v-mono">{{ t.franjas.length }}</td>
+              <td class="v-mono" style="color:var(--v-text-dim);font-size:12px">{{ t.id }}</td>
+              <td style="white-space:nowrap">
+                <button class="v-btn ghost" (click)="seleccionar(t)">Ver precio →</button>
+                <button class="v-btn ghost" (click)="editar(t)">✎ Editar</button>
+                <button class="v-btn ghost" (click)="eliminar(t)">🗑 Eliminar</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="detail-box" *ngIf="seleccion">
+        <h4>Consulta de precio · {{ seleccion.nombre }}</h4>
+        <div class="inline-query">
+          <div class="v-field">
+            <label>Hora (0–23)</label>
+            <input class="v-input" type="number" min="0" max="23" [(ngModel)]="horaConsulta" [ngModelOptions]="{ standalone: true }" />
+          </div>
+          <button class="v-btn primary" (click)="consultarPrecio()">Consultar</button>
+        </div>
+        <div *ngIf="precioConsultado !== undefined" style="margin-top:14px">
+          <span class="k" style="color:var(--v-text-soft)">Precio a las {{ horaConsulta }}:00 →</span>
+          <div class="big-num">{{ precioConsultado | number:'1.0-2' }} <span style="font-size:16px">COP/kWh</span></div>
+        </div>
+        <div class="detail-box" style="margin-top:14px;background:var(--v-surface)">
+          <div class="kv" *ngFor="let fr of seleccion.franjas">
+            <span class="k">{{ fr.horaInicio }}:00 – {{ fr.horaFin }}:00</span>
+            <span class="val">{{ fr.precioKwh | number:'1.0-2' }} COP</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

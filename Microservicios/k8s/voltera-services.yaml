@@ -1,0 +1,353 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: facturacion-service
+  namespace: voltera-app
+  labels: { app: facturacion-service }
+spec:
+  replicas: 2                                   # HA: 2 replicas base (el HPA ajusta entre min/max)
+  selector: { matchLabels: { app: facturacion-service } }
+  template:
+    metadata: { labels: { app: facturacion-service, version: v1 } }   # version -> Kiali/telemetria
+    spec:
+      imagePullSecrets: [{ name: harbor-cred }]
+      containers:
+        - name: facturacion-service
+          image: 192.168.3.13/app-voltaire/facturacion-service:1.0.1
+          ports: [{ containerPort: 8088 }]
+          env:
+            - { name: EUREKA_ENABLED, value: "true" }
+            - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
+          resources:
+            limits: { cpu: "500m", memory: "512Mi" }        # cpu limit para acotar el pod
+            requests: { cpu: "50m", memory: "160Mi" }       # cpu request -> BASE del calculo del HPA
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8088 }
+            initialDelaySeconds: 25
+            periodSeconds: 10
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: facturacion-service
+  namespace: voltera-app
+spec:
+  selector: { app: facturacion-service }
+  ports: [{ port: 8088, targetPort: 8088 }]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: facturacion-service
+  namespace: voltera-app
+spec:
+  parentRefs:
+    - name: istio-ingress
+      namespace: istio-ingress
+  rules:
+    - matches:
+        - path: { type: PathPrefix, value: /facturacion }
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path: { type: ReplacePrefixMatch, replacePrefixMatch: "" }
+      backendRefs:
+        - name: facturacion-service
+          port: 8088
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: liquidacion-mensual-service
+  namespace: voltera-app
+  labels: { app: liquidacion-mensual-service }
+spec:
+  replicas: 2                                   # HA: 2 replicas base (el HPA ajusta entre min/max)
+  selector: { matchLabels: { app: liquidacion-mensual-service } }
+  template:
+    metadata: { labels: { app: liquidacion-mensual-service, version: v1 } }   # version -> Kiali/telemetria
+    spec:
+      imagePullSecrets: [{ name: harbor-cred }]
+      containers:
+        - name: liquidacion-mensual-service
+          image: 192.168.3.13/app-voltaire/liquidacion-mensual-service:1.0.1
+          ports: [{ containerPort: 8082 }]
+          env:
+            - { name: EUREKA_ENABLED, value: "true" }
+            - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
+          resources:
+            limits: { cpu: "500m", memory: "512Mi" }        # cpu limit para acotar el pod
+            requests: { cpu: "50m", memory: "160Mi" }       # cpu request -> BASE del calculo del HPA
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8082 }
+            initialDelaySeconds: 25
+            periodSeconds: 10
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: liquidacion-mensual-service
+  namespace: voltera-app
+spec:
+  selector: { app: liquidacion-mensual-service }
+  ports: [{ port: 8082, targetPort: 8082 }]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: liquidacion-mensual-service
+  namespace: voltera-app
+spec:
+  parentRefs:
+    - name: istio-ingress
+      namespace: istio-ingress
+  rules:
+    - matches:
+        - path: { type: PathPrefix, value: /liquidacion-mensual }
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path: { type: ReplacePrefixMatch, replacePrefixMatch: "" }
+      backendRefs:
+        - name: liquidacion-mensual-service
+          port: 8082
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: liquidacion-p2p-service
+  namespace: voltera-app
+  labels: { app: liquidacion-p2p-service }
+spec:
+  replicas: 2                                   # HA: 2 replicas base (el HPA ajusta entre min/max)
+  selector: { matchLabels: { app: liquidacion-p2p-service } }
+  template:
+    metadata: { labels: { app: liquidacion-p2p-service, version: v1 } }   # version -> Kiali/telemetria
+    spec:
+      imagePullSecrets: [{ name: harbor-cred }]
+      containers:
+        - name: liquidacion-p2p-service
+          image: 192.168.3.13/app-voltaire/liquidacion-p2p-service:1.0.1
+          ports: [{ containerPort: 8081 }]
+          env:
+            - { name: EUREKA_ENABLED, value: "true" }
+            - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
+          resources:
+            limits: { cpu: "500m", memory: "512Mi" }        # cpu limit para acotar el pod
+            requests: { cpu: "50m", memory: "160Mi" }       # cpu request -> BASE del calculo del HPA
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8081 }
+            initialDelaySeconds: 25
+            periodSeconds: 10
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: liquidacion-p2p-service
+  namespace: voltera-app
+spec:
+  selector: { app: liquidacion-p2p-service }
+  ports: [{ port: 8081, targetPort: 8081 }]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: liquidacion-p2p-service
+  namespace: voltera-app
+spec:
+  parentRefs:
+    - name: istio-ingress
+      namespace: istio-ingress
+  rules:
+    - matches:
+        - path: { type: PathPrefix, value: /liquidacion-p2p }
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path: { type: ReplacePrefixMatch, replacePrefixMatch: "" }
+      backendRefs:
+        - name: liquidacion-p2p-service
+          port: 8081
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: volumetria-service
+  namespace: voltera-app
+  labels: { app: volumetria-service }
+spec:
+  replicas: 2                                   # HA: 2 replicas base (el HPA ajusta entre min/max)
+  selector: { matchLabels: { app: volumetria-service } }
+  template:
+    metadata: { labels: { app: volumetria-service, version: v1 } }   # version -> Kiali/telemetria
+    spec:
+      imagePullSecrets: [{ name: harbor-cred }]
+      containers:
+        - name: volumetria-service
+          image: 192.168.3.13/app-voltaire/volumetria-service:1.0.1
+          ports: [{ containerPort: 8083 }]
+          env:
+            - { name: EUREKA_ENABLED, value: "true" }
+            - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
+          resources:
+            limits: { cpu: "500m", memory: "512Mi" }        # cpu limit para acotar el pod
+            requests: { cpu: "50m", memory: "160Mi" }       # cpu request -> BASE del calculo del HPA
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8083 }
+            initialDelaySeconds: 25
+            periodSeconds: 10
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: volumetria-service
+  namespace: voltera-app
+spec:
+  selector: { app: volumetria-service }
+  ports: [{ port: 8083, targetPort: 8083 }]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: volumetria-service
+  namespace: voltera-app
+spec:
+  parentRefs:
+    - name: istio-ingress
+      namespace: istio-ingress
+  rules:
+    - matches:
+        - path: { type: PathPrefix, value: /volumetria }
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path: { type: ReplacePrefixMatch, replacePrefixMatch: "" }
+      backendRefs:
+        - name: volumetria-service
+          port: 8083
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tarifas-service
+  namespace: voltera-app
+  labels: { app: tarifas-service }
+spec:
+  replicas: 2                                   # HA: 2 replicas base (el HPA ajusta entre min/max)
+  selector: { matchLabels: { app: tarifas-service } }
+  template:
+    metadata: { labels: { app: tarifas-service, version: v1 } }   # version -> Kiali/telemetria
+    spec:
+      imagePullSecrets: [{ name: harbor-cred }]
+      containers:
+        - name: tarifas-service
+          image: 192.168.3.13/app-voltaire/tarifas-service:1.0.1
+          ports: [{ containerPort: 8084 }]
+          env:
+            - { name: EUREKA_ENABLED, value: "true" }
+            - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
+          resources:
+            limits: { cpu: "500m", memory: "512Mi" }        # cpu limit para acotar el pod
+            requests: { cpu: "50m", memory: "160Mi" }       # cpu request -> BASE del calculo del HPA
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8084 }
+            initialDelaySeconds: 25
+            periodSeconds: 10
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tarifas-service
+  namespace: voltera-app
+spec:
+  selector: { app: tarifas-service }
+  ports: [{ port: 8084, targetPort: 8084 }]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: tarifas-service
+  namespace: voltera-app
+spec:
+  parentRefs:
+    - name: istio-ingress
+      namespace: istio-ingress
+  rules:
+    - matches:
+        - path: { type: PathPrefix, value: /tarifas }
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path: { type: ReplacePrefixMatch, replacePrefixMatch: "" }
+      backendRefs:
+        - name: tarifas-service
+          port: 8084
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pagos-service
+  namespace: voltera-app
+  labels: { app: pagos-service }
+spec:
+  replicas: 2                                   # HA: 2 replicas base (el HPA ajusta entre min/max)
+  selector: { matchLabels: { app: pagos-service } }
+  # maxSurge=0: el worker tiene poca RAM y no admite un pod extra durante el rollout,
+  # así que se termina el pod viejo antes de crear el nuevo (evita quedar Pending).
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 0, maxUnavailable: 1 }
+  template:
+    metadata: { labels: { app: pagos-service, version: v1 } }   # version -> Kiali/telemetria
+    spec:
+      imagePullSecrets: [{ name: harbor-cred }]
+      containers:
+        - name: pagos-service
+          image: 192.168.3.13/app-voltaire/pagos-service:1.0.1
+          ports: [{ containerPort: 8085 }]
+          env:
+            - { name: EUREKA_ENABLED, value: "true" }
+            - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
+          resources:
+            limits: { cpu: "500m", memory: "512Mi" }        # cpu limit para acotar el pod
+            requests: { cpu: "50m", memory: "160Mi" }       # cpu request -> BASE del calculo del HPA
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8085 }
+            initialDelaySeconds: 25
+            periodSeconds: 10
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pagos-service
+  namespace: voltera-app
+spec:
+  selector: { app: pagos-service }
+  ports: [{ port: 8085, targetPort: 8085 }]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: pagos-service
+  namespace: voltera-app
+spec:
+  parentRefs:
+    - name: istio-ingress
+      namespace: istio-ingress
+  rules:
+    - matches:
+        - path: { type: PathPrefix, value: /pagos }
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path: { type: ReplacePrefixMatch, replacePrefixMatch: "" }
+      backendRefs:
+        - name: pagos-service
+          port: 8085

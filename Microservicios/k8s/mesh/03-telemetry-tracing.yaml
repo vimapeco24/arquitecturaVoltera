@@ -1,0 +1,65 @@
+# ============================================================================
+# Voltera - Service Mesh (Istio) | Paso 3: Trazabilidad y latencia por salto
+# ----------------------------------------------------------------------------
+# Istio genera automaticamente por cada peticion la metrica:
+#   istio_request_duration_milliseconds{source_workload, destination_workload}
+# es decir, la LATENCIA DE CADA SALTO (source -> destination). Con eso Kiali
+# dibuja el grafo con los ms de cada arista y Grafana muestra los percentiles.
+#
+# Este recurso Telemetry ademas:
+#   - tracing: sube el muestreo a 100% (solo para la demo; en prod se baja).
+#   - accessLogging: activa logs de acceso en Envoy (evidencia por request).
+#
+# REQUISITO para el tracing distribuido:
+#   1) Debe existir un extensionProvider de tracing en el meshConfig (ver bloque
+#      comentado al final) apuntando al colector (Jaeger via zipkin/otel).
+#   2) Para que la traza NO se corte en el salto entre micros, la app debe
+#      PROPAGAR las cabeceras de contexto (b3 / traceparent). Los servicios
+#      Voltera aun no propagan; ver nota en el script demos/README-notes.txt.
+#      La LATENCIA POR SALTO (metrica) NO necesita propagacion; funciona ya.
+#
+# Verificar:
+#   kubectl -n voltera-app get telemetry
+# ============================================================================
+apiVersion: telemetry.istio.io/v1
+kind: Telemetry
+metadata:
+  name: voltera-telemetry
+  namespace: voltera-app
+spec:
+  # Trazas: 100% de muestreo para la demostracion.
+  tracing:
+    - providers:
+        - name: otel-tracing        # debe coincidir con el extensionProvider del meshConfig
+      randomSamplingPercentage: 100.0
+  # Logs de acceso de Envoy (una linea por request en stdout del sidecar).
+  accessLogging:
+    - providers:
+        - name: envoy
+  # Metricas: se recogen por defecto. Aqui se dejan explicitas y se puede
+  # anadir dimensiones extra si el profesor las pide.
+  metrics:
+    - providers:
+        - name: prometheus
+
+# ----------------------------------------------------------------------------
+# NOTA: registrar el proveedor de tracing en el meshConfig (una sola vez).
+# Si instalaron Istio con IstioOperator, anadir a spec.meshConfig:
+#
+# meshConfig:
+#   enableTracing: true
+#   extensionProviders:
+#     - name: otel-tracing
+#       opentelemetry:
+#         service: jaeger-collector.istio-system.svc.cluster.local
+#         port: 4317
+#     - name: envoy           # proveedor de access logs por defecto
+#       envoyFileAccessLog:
+#         path: /dev/stdout
+#
+# O aplicar en caliente:
+#   istioctl install --set meshConfig.enableTracing=true \
+#     --set meshConfig.extensionProviders[0].name=otel-tracing \
+#     --set meshConfig.extensionProviders[0].opentelemetry.service=jaeger-collector.istio-system.svc.cluster.local \
+#     --set meshConfig.extensionProviders[0].opentelemetry.port=4317
+# ----------------------------------------------------------------------------

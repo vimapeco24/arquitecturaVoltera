@@ -1,0 +1,247 @@
+<div [class.v-page]="mostrarHeader" [class.v-fade]="mostrarHeader">
+  <div class="v-page-head" *ngIf="mostrarHeader">
+    <span class="v-eyebrow">📚 EDA · Fundamentos</span>
+    <h1>Patrones &amp; Tecnología</h1>
+    <p>El flujo de eventos de Voltera, de forma gráfica. Los patrones definen la arquitectura
+      (<strong>CQRS, Idempotencia</strong>) y tres tecnologías la sostienen
+      (<strong>Kafka, Event Mesh, KEDA</strong>). Cada una aterrizada al caso de Telemetría.</p>
+  </div>
+
+  <!-- ============ WIDGET 1: PATRONES ============ -->
+  <div class="widget v-card">
+    <div class="widget-head">
+      <span class="widget-tag">PATRONES</span>
+      <h3>Patrones que definen una arquitectura de eventos</h3>
+      <button class="emit-btn" (click)="emitirPatron()">▶ Emitir evento</button>
+    </div>
+    <p class="widget-intro">Cuando el estado se maneja como eventos, aparecen patrones que lo formalizan. Explóralos:</p>
+
+    <div class="flujo-real" *ngIf="flujoReal" [class.ok]="flujoReal.ok === true" [class.run]="flujoReal.activo">
+      <span class="fr-dot"></span>
+      <span class="fr-text">{{ flujoReal.texto }}</span>
+    </div>
+
+    <div class="tabs">
+      <button class="tab" [class.active]="tabPatron === 'cqrs'" (click)="setPatron('cqrs')">CQRS</button>
+      <button class="tab" [class.active]="tabPatron === 'idempotencia'" (click)="setPatron('idempotencia')">Idempotencia</button>
+    </div>
+
+    <!-- CQRS -->
+    <div class="panel-tab" *ngIf="tabPatron === 'cqrs'">
+      <div class="split">
+        <div class="diagram">
+          <svg viewBox="0 0 340 200" class="svg-flow">
+            <!-- comando -> escritura -->
+            <rect x="8" y="20" width="70" height="32" rx="8" class="box cmd"/>
+            <text x="43" y="40" class="lbl">Comando</text>
+            <line x1="78" y1="36" x2="110" y2="36" class="edge anim"/>
+            <rect x="110" y="20" width="66" height="32" rx="8" class="box wr"/>
+            <text x="143" y="40" class="lbl light">escritura</text>
+            <!-- escritura -> eventos -->
+            <text x="255" y="14" class="cap">eventos</text>
+            <rect x="196" y="20" width="22" height="32" rx="4" class="evt e1"/>
+            <rect x="222" y="20" width="22" height="32" rx="4" class="evt e2"/>
+            <rect x="248" y="20" width="22" height="32" rx="4" class="evt e3"/>
+            <line x1="176" y1="36" x2="196" y2="36" class="edge anim"/>
+            <!-- proyeccion a vistas -->
+            <path d="M143 52 L143 100" class="edge"/>
+            <path d="M230 52 Q230 90 176 100" class="edge dashed"/>
+            <rect x="110" y="100" width="120" height="30" rx="8" class="box rd"/>
+            <text x="170" y="119" class="lbl light">Vista lectura 1</text>
+            <rect x="110" y="138" width="120" height="30" rx="8" class="box rd"/>
+            <text x="170" y="157" class="lbl light">Vista lectura 2</text>
+            <!-- consulta -->
+            <rect x="8" y="118" width="70" height="32" rx="8" class="box qry"/>
+            <text x="43" y="138" class="lbl">Consulta</text>
+            <line x1="110" y1="115" x2="80" y2="128" class="edge anim rev"/>
+
+            <!-- partícula-evento viajera (al emitir) -->
+            <circle r="6" class="particle" *ngIf="playPatron">
+              <animateMotion dur="2.4s" repeatCount="1" rotate="auto"
+                path="M43 36 L143 36 L230 36 L230 100 L170 115 L43 134"/>
+              <animate attributeName="opacity" values="0;1;1;1;0" dur="2.4s" repeatCount="1"/>
+            </circle>
+          </svg>
+        </div>
+        <div class="text">
+          <p><strong>CQRS</strong> (Greg Young, sobre CQS de Meyer): separar el <strong>modelo de escritura</strong> (comandos que cambian estado) del <strong>modelo de lectura</strong> (consultas). Desde los eventos se materializan una o varias vistas, cada una optimizada para consultar.</p>
+          <div class="key"><span>IDEA CLAVE</span> Un lado escribe (comandos → eventos); otro lee (vistas materializadas). Se pueden tener varias vistas de los mismos datos.</div>
+          <div class="nota">
+            <b>En Voltera:</b> <code>tarifa-eventos-service</code> escribe en <code>CargoTarifa</code> (write) y consulta desde <code>CargoVista</code> (read). El <code>GET /cargos</code> lee solo del lado de lectura — separado del que procesa el evento.
+          </div>
+          <div class="warn"><b>Cuidado:</b> más complejidad y consistencia eventual (la lectura puede ir un poco atrás). No exige Event Sourcing.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Idempotencia -->
+    <div class="panel-tab" *ngIf="tabPatron === 'idempotencia'">
+      <div class="split">
+        <div class="diagram">
+          <svg viewBox="0 0 340 190" class="svg-flow">
+            <!-- mismo evento llega 2 veces -->
+            <rect x="10" y="30" width="90" height="30" rx="8" class="evt e1"/>
+            <text x="55" y="49" class="lbl light">evt #42</text>
+            <rect x="10" y="95" width="90" height="30" rx="8" class="evt e1 dup"/>
+            <text x="55" y="114" class="lbl light">evt #42 (dup)</text>
+            <line x1="100" y1="45" x2="150" y2="75" class="edge anim"/>
+            <line x1="100" y1="110" x2="150" y2="80" class="edge anim"/>
+            <!-- dedup por eventId -->
+            <rect x="150" y="58" width="90" height="40" rx="10" class="box wr"/>
+            <text x="195" y="75" class="lbl light">dedup</text>
+            <text x="195" y="90" class="lbl light small">por eventId</text>
+            <line x1="240" y1="78" x2="290" y2="78" class="edge anim"/>
+            <!-- resultado unico -->
+            <rect x="290" y="60" width="40" height="36" rx="8" class="box rd ok1"/>
+            <text x="310" y="82" class="lbl light">1</text>
+            <text x="310" y="120" class="cap">un solo efecto</text>
+          </svg>
+        </div>
+        <div class="text">
+          <p><strong>Idempotencia:</strong> producir el mismo resultado aunque el evento llegue más de una vez. <strong>No es opcional</strong>: los brokers entregan <em>al menos una vez</em>.</p>
+          <div class="key"><span>IDEA CLAVE</span> Clave de dedup <strong>estable y del negocio</strong> (la genera el emisor, no el consumidor) + registrar la clave y el efecto en la misma transacción.</div>
+          <div class="nota">
+            <b>En Voltera:</b> <code>tarifa-eventos-service</code> deduplica por <code>eventId</code>. Si <code>ConsumoRegistrado</code> llega dos veces, no crea un cargo duplicado (verificado en el Experimento 3).
+          </div>
+          <div class="warn"><b>Mito:</b> "el exactly-once de Kafka la hace innecesaria". No: exactly-once solo cubre dentro de Kafka; el efecto externo (cobrar) queda fuera → idempotencia es la única defensa e2e.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ WIDGET 2: TECNOLOGÍA ============ -->
+  <div class="widget v-card">
+    <div class="widget-head">
+      <span class="widget-tag">TECNOLOGÍA</span>
+      <h3>La tecnología detrás de los eventos</h3>
+      <button class="emit-btn" (click)="emitirTec()">▶ Emitir evento</button>
+    </div>
+    <p class="widget-intro">Un <strong>broker</strong> para mover eventos, una <strong>malla</strong> para distribuirlos a escala, y un mecanismo para <strong>escalar por eventos</strong>. Explóralas:</p>
+
+    <div class="flujo-real" *ngIf="flujoReal" [class.ok]="flujoReal.ok === true" [class.run]="flujoReal.activo">
+      <span class="fr-dot"></span>
+      <span class="fr-text">{{ flujoReal.texto }}</span>
+    </div>
+
+    <div class="tabs">
+      <button class="tab" [class.active]="tabTec === 'kafka'" (click)="setTec('kafka')">Kafka</button>
+      <button class="tab" [class.active]="tabTec === 'event-mesh'" (click)="setTec('event-mesh')">Event Mesh</button>
+      <button class="tab" [class.active]="tabTec === 'keda'" (click)="setTec('keda')">KEDA</button>
+    </div>
+
+    <!-- Kafka -->
+    <div class="panel-tab" *ngIf="tabTec === 'kafka'">
+      <div class="split">
+        <div class="diagram">
+          <svg viewBox="0 0 340 190" class="svg-flow">
+            <!-- productor -->
+            <rect x="8" y="76" width="66" height="34" rx="8" class="box cmd"/>
+            <text x="41" y="97" class="lbl">productor</text>
+            <line x1="74" y1="93" x2="104" y2="93" class="edge anim"/>
+            <!-- topic (particion con offsets) -->
+            <text x="180" y="52" class="cap">topic · consumo-registrado</text>
+            <g>
+              <rect x="104" y="70" width="24" height="46" rx="4" class="evt e1"/>
+              <rect x="130" y="70" width="24" height="46" rx="4" class="evt e2"/>
+              <rect x="156" y="70" width="24" height="46" rx="4" class="evt e3"/>
+              <rect x="182" y="70" width="24" height="46" rx="4" class="evt e4"/>
+              <rect x="208" y="70" width="24" height="46" rx="4" class="evt e5"/>
+            </g>
+            <text x="116" y="130" class="off">0</text><text x="142" y="130" class="off">1</text>
+            <text x="168" y="130" class="off">2</text><text x="194" y="130" class="off">3</text><text x="220" y="130" class="off">4</text>
+            <!-- consumer group -->
+            <line x1="232" y1="93" x2="262" y2="93" class="edge anim"/>
+            <rect x="262" y="72" width="70" height="42" rx="8" class="box rd"/>
+            <text x="297" y="90" class="lbl light">consumer</text>
+            <text x="297" y="104" class="lbl light small">group (pull)</text>
+
+            <!-- partícula-evento viajera (al emitir) -->
+            <circle r="6" class="particle" *ngIf="playTec">
+              <animateMotion dur="2.4s" repeatCount="1" rotate="auto"
+                path="M41 93 L116 93 L220 93 L297 93"/>
+              <animate attributeName="opacity" values="0;1;1;1;0" dur="2.4s" repeatCount="1"/>
+            </circle>
+          </svg>
+        </div>
+        <div class="text">
+          <p><strong>Kafka</strong> (aquí <strong>Redpanda</strong>, compatible): el broker de streaming. Los eventos se guardan en un <strong>topic</strong> particionado con offsets; los consumidores <strong>halan</strong> (pull) a su ritmo.</p>
+          <div class="key"><span>IDEA CLAVE</span> Con <strong>consumer groups</strong> hace de tema y de cola: entre grupos = fan-out (todos reciben); dentro del grupo = reparto (cada partición a un worker). La clave de partición conserva el orden.</div>
+          <div class="nota">
+            <b>En Voltera:</b> <code>telemetria-service</code> publica en el topic <code>consumo-registrado</code> (clave = <code>medidorId</code>). El grupo <code>tarifa-eventos-consumer</code> lo consume por pull, con contrapresión.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Event Mesh -->
+    <div class="panel-tab" *ngIf="tabTec === 'event-mesh'">
+      <div class="split">
+        <div class="diagram">
+          <svg viewBox="0 0 340 190" class="svg-flow">
+            <!-- nubes -->
+            <ellipse cx="70" cy="35" rx="52" ry="20" class="cloud"/>
+            <text x="70" y="40" class="lbl light small">Región A · CO</text>
+            <ellipse cx="270" cy="35" rx="52" ry="20" class="cloud"/>
+            <text x="270" y="40" class="lbl light small">Región B · MX</text>
+            <!-- brokers de la malla -->
+            <circle cx="70" cy="110" r="12" class="node-b"/>
+            <circle cx="140" cy="135" r="12" class="node-b"/>
+            <circle cx="200" cy="120" r="12" class="node-b"/>
+            <circle cx="270" cy="110" r="12" class="node-b"/>
+            <!-- enlaces malla -->
+            <line x1="70" y1="110" x2="140" y2="135" class="mesh anim"/>
+            <line x1="140" y1="135" x2="200" y2="120" class="mesh anim"/>
+            <line x1="200" y1="120" x2="270" y2="110" class="mesh anim"/>
+            <line x1="70" y1="110" x2="200" y2="120" class="mesh anim"/>
+            <line x1="140" y1="135" x2="270" y2="110" class="mesh anim"/>
+            <!-- nube->broker -->
+            <line x1="70" y1="55" x2="70" y2="98" class="edge dashed"/>
+            <line x1="270" y1="55" x2="270" y2="98" class="edge dashed"/>
+            <text x="170" y="175" class="cap">malla de brokers de eventos (replicación cross-región)</text>
+          </svg>
+        </div>
+        <div class="text">
+          <span class="badge-int">INTEGRACIÓN · DISPONIBILIDAD</span>
+          <p>Una <strong>red interconectada de brokers</strong> que distribuye eventos entre servicios, nubes y regiones. Análogo al Service Mesh, pero para eventos: cada región tiene su broker local y la malla replica los topics de forma transparente.</p>
+          <div class="nota">
+            <b>En Voltera:</b> al expandirse a <strong>México, Chile y Perú</strong>, los eventos (<code>ConsumoRegistrado</code>, <code>NotificacionLiquidada</code>) cruzan regiones sin recablear cada integración. Zero Trust: ACLs por principal (quién publica/suscribe cada topic).
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- KEDA -->
+    <div class="panel-tab" *ngIf="tabTec === 'keda'">
+      <div class="split">
+        <div class="diagram">
+          <svg viewBox="0 0 340 190" class="svg-flow">
+            <!-- backlog / lag -->
+            <rect x="8" y="70" width="80" height="46" rx="8" class="box neutral"/>
+            <text x="48" y="90" class="lbl light">lag / backlog</text>
+            <text x="48" y="104" class="lbl light small">de la cola</text>
+            <text x="118" y="80" class="cap">observa</text>
+            <line x1="88" y1="93" x2="140" y2="93" class="edge anim"/>
+            <!-- KEDA scaler -->
+            <rect x="140" y="70" width="72" height="46" rx="8" class="box keda"/>
+            <text x="176" y="90" class="lbl">KEDA</text>
+            <text x="176" y="104" class="lbl small">scaler</text>
+            <text x="242" y="126" class="cap">0 → N</text>
+            <line x1="212" y1="93" x2="256" y2="93" class="edge anim"/>
+            <!-- replicas -->
+            <rect x="288" y="58" width="44" height="34" rx="7" class="box rd r3"/>
+            <rect x="280" y="66" width="44" height="34" rx="7" class="box rd r2"/>
+            <rect x="272" y="74" width="44" height="34" rx="7" class="box rd r1"/>
+            <text x="294" y="95" class="lbl light">réplicas</text>
+          </svg>
+        </div>
+        <div class="text">
+          <span class="badge-int esc">ESCALABILIDAD</span>
+          <p><strong>KEDA</strong> (Kubernetes Event-Driven Autoscaling): escala los servicios <strong>según los eventos</strong>, no por CPU. Un "scaler" observa la fuente (el <strong>lag</strong> de la cola) y ajusta las réplicas — puede <strong>escalar a cero</strong> en reposo y crecer cuando llegan eventos.</p>
+          <div class="nota">
+            <b>En Voltera:</b> un <code>ScaledObject</code> escala <code>tarifa-eventos-service</code> por el lag del grupo <code>tarifa-eventos-consumer</code> en <code>consumo-registrado</code> (umbral 10, min 0, max 5). Un pico de telemetría agrega réplicas; en reposo baja a cero.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,74 @@
+<div class="v-page v-fade">
+  <div class="v-page-head">
+    <span class="v-eyebrow">🔥 Entrega 3 · EDA</span>
+    <h1>Siniestros</h1>
+    <p>Reporta y aprueba siniestros. Al aprobar, siniestros-service publica el evento <code>SiniestroAprobado</code> al broker, que consume reaseguro-service (arquitectura orientada a eventos).</p>
+  </div>
+
+  <div class="layout">
+    <form class="panel v-card" [formGroup]="form" (ngSubmit)="reportar()">
+      <h3>Reportar siniestro</h3>
+      <p class="sub">Crea un siniestro en estado REPORTADO.</p>
+
+      <div class="v-field"><label>Póliza</label><input class="v-input" formControlName="polizaId" placeholder="POL-EDA-001" /></div>
+      <div class="v-field"><label>Prosumidor</label><input class="v-input" formControlName="prosumidorId" placeholder="PRO-EDA-001" /></div>
+      <div class="v-field"><label>Descripción</label><input class="v-input" formControlName="descripcion" /></div>
+      <div class="row2">
+        <div class="v-field"><label>Monto reclamación (COP)</label><input class="v-input" type="number" formControlName="montoReclamacion" /></div>
+        <div class="v-field"><label>Fecha ocurrencia</label><input class="v-input" formControlName="fechaOcurrencia" placeholder="2026-09-14T10:00:00" /></div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="v-btn primary" [disabled]="enviando">
+          <span class="v-spinner" *ngIf="enviando"></span>{{ enviando ? 'Reportando…' : 'Reportar siniestro' }}
+        </button>
+      </div>
+      <p class="hint">POST <code>/siniestros/v1/api/v1/siniestros</code></p>
+    </form>
+
+    <div class="result v-card">
+      <div class="result-head">
+        <h3>Siniestros</h3>
+        <span class="count">{{ siniestros.length }}</span>
+      </div>
+
+      <div class="detail-box" *ngIf="ultimo">
+        <h4>Último siniestro</h4>
+        <div class="kv"><span class="k">ID</span><span class="val">{{ ultimo.id }}</span></div>
+        <div class="kv"><span class="k">Póliza</span><span class="val">{{ ultimo.polizaId }}</span></div>
+        <div class="kv"><span class="k">Monto</span><span class="val">{{ ultimo.montoReclamacion | number:'1.0-2' }} COP</span></div>
+        <div class="kv"><span class="k">Estado</span><span class="v-badge" [ngClass]="badge(ultimo.estado)">{{ ultimo.estado }}</span></div>
+        <div class="event-badge" *ngIf="ultimoAprobadoId === ultimo.id">
+          <span class="v-badge ok">✓ Evento SiniestroAprobado emitido</span>
+        </div>
+      </div>
+
+      <div class="inline-query">
+        <button class="v-btn" (click)="listar()">🔄 Listar</button>
+      </div>
+
+      <div class="v-empty" *ngIf="cargando">Cargando…</div>
+      <div class="v-empty" *ngIf="!cargando && siniestros.length === 0">
+        <div class="ic">🔥</div><p>Sin siniestros.</p>
+      </div>
+
+      <div class="v-table-wrap" *ngIf="!cargando && siniestros.length" style="margin-top:16px">
+        <table class="v-table">
+          <thead><tr><th>Póliza</th><th>Descripción</th><th>Monto</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let s of siniestros">
+              <td>{{ s.polizaId }}</td>
+              <td style="font-size:13px">{{ s.descripcion }}</td>
+              <td class="v-mono"><strong>{{ s.montoReclamacion | number:'1.0-2' }}</strong></td>
+              <td><span class="v-badge" [ngClass]="badge(s.estado)">{{ s.estado }}</span></td>
+              <td style="white-space:nowrap">
+                <button class="v-btn ghost" *ngIf="puedeAprobar(s)" (click)="aprobar(s)">✓ Aprobar</button>
+                <span *ngIf="!puedeAprobar(s)" style="color:var(--v-text-dim);font-size:12px">—</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,94 @@
+<div class="v-page v-fade">
+  <div class="v-page-head">
+    <span class="v-eyebrow">🔁 Paso 3 · Mercado en tiempo real</span>
+    <h1>Liquidación P2P</h1>
+    <p>Empareja una orden de venta con una de compra. Precio de casación = promedio; energía = mínimo.</p>
+  </div>
+
+  <div class="layout">
+    <form class="panel v-card" [formGroup]="form" (ngSubmit)="emparejar()">
+      <h3>{{ editandoId ? 'Editar transacción' : 'Emparejar órdenes' }}</h3>
+      <p class="sub">Casación entre un vendedor y un comprador.</p>
+
+      <div class="detail-box" style="margin:0 0 14px">
+        <h4>🟢 Vendedor</h4>
+        <div class="v-field"><label>ID</label><input class="v-input" formControlName="vendedorId" /></div>
+        <div class="row2">
+          <div class="v-field"><label>kWh venta</label><input class="v-input" type="number" formControlName="kwhVenta" /></div>
+          <div class="v-field"><label>Precio venta</label><input class="v-input" type="number" formControlName="precioVenta" /></div>
+        </div>
+      </div>
+
+      <div class="detail-box" style="margin:0 0 14px">
+        <h4>🔵 Comprador</h4>
+        <div class="v-field"><label>ID</label><input class="v-input" formControlName="compradorId" /></div>
+        <div class="row2">
+          <div class="v-field"><label>kWh compra</label><input class="v-input" type="number" formControlName="kwhCompra" /></div>
+          <div class="v-field"><label>Precio compra</label><input class="v-input" type="number" formControlName="precioCompra" /></div>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="v-btn primary" [disabled]="enviando">
+          <span class="v-spinner" *ngIf="enviando"></span>
+          {{ enviando ? 'Casando…' : (editandoId ? 'Guardar cambios' : 'Emparejar') }}
+        </button>
+        <button type="button" class="v-btn ghost" *ngIf="editandoId" (click)="cancelarEdicion()">Cancelar edición</button>
+      </div>
+      <p class="hint">POST <code>/liquidacion-p2p/v1/api/v1/transacciones/emparejar</code></p>
+    </form>
+
+    <div class="result v-card">
+      <div class="result-head">
+        <h3>Transacciones</h3>
+        <span class="count">{{ transacciones.length }}</span>
+      </div>
+
+      <div class="detail-box" *ngIf="ultima">
+        <h4>Última casación
+          <span class="v-badge" [ngClass]="ultima.casacionTotal ? 'ok' : 'warn'" style="margin-left:8px">{{ ultima.tipoCasacion }}</span>
+        </h4>
+        <div class="kv"><span class="k">Energía casada</span><span class="val">{{ ultima.energiaKwh | number:'1.0-2' }} kWh</span></div>
+        <div class="kv"><span class="k">Precio casación</span><span class="val">{{ ultima.precioCasacionKwh | number:'1.0-2' }} COP/kWh</span></div>
+        <div class="kv"><span class="k">Valor total</span><span class="val" style="color:var(--v-primary)">{{ ultima.valorTotal | number:'1.0-2' }} COP</span></div>
+        <div class="kv"><span class="k">Vendedor: solicitó / pendiente</span><span class="val">{{ ultima.energiaSolicitadaVentaKwh | number:'1.0-2' }} / {{ ultima.pendienteVentaKwh | number:'1.0-2' }} kWh</span></div>
+        <div class="kv"><span class="k">Comprador: solicitó / pendiente</span><span class="val">{{ ultima.energiaSolicitadaCompraKwh | number:'1.0-2' }} / {{ ultima.pendienteCompraKwh | number:'1.0-2' }} kWh</span></div>
+      </div>
+
+      <div class="inline-query">
+        <div class="v-field">
+          <label>Prosumidor</label>
+          <input class="v-input" [(ngModel)]="filtroProsumidor" [ngModelOptions]="{ standalone: true }" />
+        </div>
+        <button class="v-btn" (click)="buscar()">🔍 Buscar</button>
+      </div>
+
+      <div class="v-empty" *ngIf="cargando">Cargando…</div>
+      <div class="v-empty" *ngIf="!cargando && transacciones.length === 0">
+        <div class="ic">🔁</div><p>Sin transacciones.</p>
+      </div>
+
+      <div class="v-table-wrap" *ngIf="!cargando && transacciones.length" style="margin-top:16px">
+        <table class="v-table">
+          <thead>
+            <tr><th>Vendedor</th><th>Comprador</th><th>kWh</th><th>Precio</th><th>Total</th><th>Casación</th><th>Acciones</th></tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let t of transacciones">
+              <td>{{ t.vendedorId }}</td>
+              <td>{{ t.compradorId }}</td>
+              <td class="v-mono">{{ t.energiaKwh | number:'1.0-2' }}</td>
+              <td class="v-mono">{{ t.precioCasacionKwh | number:'1.0-2' }}</td>
+              <td class="v-mono"><strong>{{ t.valorTotal | number:'1.0-2' }}</strong></td>
+              <td><span class="v-badge" [ngClass]="t.casacionTotal ? 'ok' : 'warn'">{{ t.tipoCasacion }}</span></td>
+              <td style="white-space:nowrap">
+                <button class="v-btn ghost" (click)="editar(t)">✎ Editar</button>
+                <button class="v-btn ghost" (click)="eliminar(t)">🗑 Eliminar</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

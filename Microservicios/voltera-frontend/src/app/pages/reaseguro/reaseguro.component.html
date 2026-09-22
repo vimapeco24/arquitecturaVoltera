@@ -1,0 +1,68 @@
+<div class="v-page v-fade">
+  <div class="v-page-head">
+    <span class="v-eyebrow">🛡️ Entrega 3 · CQRS</span>
+    <h1>Reaseguro</h1>
+    <p>
+      <span class="v-badge ok">Vista de lectura CQRS — alimentada por eventos</span>
+      &nbsp; Las cesiones de riesgo se proyectan a partir de los eventos <code>SiniestroAprobado</code>
+      consumidos del broker. El lado escritura (comando) y el lado lectura (esta vista) están separados.
+    </p>
+  </div>
+
+  <div class="stats-grid" *ngIf="stats">
+    <div class="metric v-card">
+      <div class="m-label">Total cesiones</div>
+      <div class="big-num">{{ stats.totalCesiones }}</div>
+      <div class="m-sub">{{ stats.totalCedidas }} cedidas · {{ stats.totalPendientes }} pend. · {{ stats.totalRechazadas }} rech.</div>
+    </div>
+    <div class="metric v-card">
+      <div class="m-label">Monto aprobado</div>
+      <div class="big-num">{{ stats.montoTotalAprobado | number:'1.0-0' }}</div>
+      <div class="m-sub">COP</div>
+    </div>
+    <div class="metric v-card">
+      <div class="m-label">Monto cedido</div>
+      <div class="big-num">{{ stats.montoTotalCedido | number:'1.0-0' }}</div>
+      <div class="m-sub">COP</div>
+    </div>
+    <div class="metric v-card">
+      <div class="m-label">% promedio cedido</div>
+      <div class="big-num">{{ porcentajePromedioCedido | number:'1.0-1' }}%</div>
+    </div>
+  </div>
+
+  <div class="result v-card" style="margin-top:24px">
+    <div class="result-head">
+      <h3>Cesiones de riesgo (lado lectura)</h3>
+      <div style="display:flex;gap:10px">
+        <button class="v-btn" (click)="cargar()">🔄 Refrescar</button>
+        <button class="v-btn primary" (click)="simular()" [disabled]="simulando">
+          <span class="v-spinner" *ngIf="simulando"></span>{{ simulando ? 'Simulando…' : '⚡ Simular evento' }}
+        </button>
+      </div>
+    </div>
+
+    <p class="hint">El botón "Simular evento" envía un <code>SiniestroAprobado</code> a POST <code>/reaseguro/v1/api/v1/cesiones/simular-evento</code> (reenviar el mismo eventId no crea duplicados — idempotencia).</p>
+
+    <div class="v-empty" *ngIf="cargando">Cargando…</div>
+    <div class="v-empty" *ngIf="!cargando && cesiones.length === 0">
+      <div class="ic">🛡️</div><p>Sin cesiones. Aprueba un siniestro para generar eventos.</p>
+    </div>
+
+    <div class="v-table-wrap" *ngIf="!cargando && cesiones.length" style="margin-top:16px">
+      <table class="v-table">
+        <thead><tr><th>Siniestro</th><th>Póliza</th><th>Aprobado</th><th>Cedido</th><th>%</th><th>Estado</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let c of cesiones">
+            <td style="font-size:13px">{{ c.siniestroId }}</td>
+            <td>{{ c.polizaId }}</td>
+            <td class="v-mono">{{ c.montoAprobado | number:'1.0-2' }}</td>
+            <td class="v-mono"><strong>{{ c.montoCedido | number:'1.0-2' }}</strong></td>
+            <td class="v-mono">{{ c.porcentajeCedido | number:'1.0-1' }}%</td>
+            <td><span class="v-badge" [ngClass]="badge(c.estado)">{{ c.estado }}</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

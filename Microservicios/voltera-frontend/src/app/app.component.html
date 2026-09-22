@@ -1,0 +1,67 @@
+<div class="shell" [class.collapsed]="collapsed">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">
+        <span class="bolt">⚡</span>
+      </div>
+      <div class="brand-text" *ngIf="!collapsed">
+        <div class="name">Voltera</div>
+        <div class="tag">Comunidades Energéticas</div>
+      </div>
+    </div>
+
+    <nav class="menu">
+      <a
+        *ngFor="let item of nav"
+        [routerLink]="item.path"
+        routerLinkActive="active"
+        class="menu-item"
+        [title]="item.label"
+      >
+        <span class="ic">{{ item.icon }}</span>
+        <span class="lbl" *ngIf="!collapsed">{{ item.label }}</span>
+        <span class="step" *ngIf="!collapsed && item.step">{{ item.step }}</span>
+      </a>
+    </nav>
+
+    <div class="side-foot" *ngIf="!collapsed">
+      <div class="uni">Universidad de los Andes</div>
+      <div class="course">ARTI4208 · Arquitectura de Nueva Generación</div>
+    </div>
+  </aside>
+
+  <!-- Contenido -->
+  <div class="main">
+    <header class="topbar">
+      <button class="hamb" (click)="toggle()" aria-label="Menú">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="crumbs">
+        <span class="crumb-root">Plataforma</span>
+        <span class="sep">/</span>
+        <span class="crumb-cur">Comunidades Energéticas</span>
+      </div>
+      <div class="top-actions">
+        <span class="gw-chip">
+          <span class="dot"></span> API Gateway WSO2 · OAuth2
+        </span>
+      </div>
+    </header>
+
+    <main class="content">
+      <router-outlet></router-outlet>
+    </main>
+  </div>
+</div>
+
+<!-- Toasts -->
+<div class="v-toast-stack">
+  <div *ngFor="let t of toastSvc.toasts()" class="v-toast" [class.ok]="t.type === 'ok'" [class.err]="t.type === 'err'">
+    <div class="t-body">
+      <div class="t-title">{{ t.title }}</div>
+      <div class="t-msg" *ngIf="t.msg">{{ t.msg }}</div>
+    </div>
+    <button class="t-close" (click)="toastSvc.dismiss(t.id)">✕</button>
+  </div>
+</div>

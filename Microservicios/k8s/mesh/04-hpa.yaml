@@ -1,0 +1,114 @@
+# ============================================================================
+# Voltera - Service Mesh (Istio) | Paso 4: Escalabilidad (HPA)
+# ----------------------------------------------------------------------------
+# El HorizontalPodAutoscaler crea/elimina replicas segun el uso de CPU.
+# Es la evidencia de ESCALABILIDAD que pide el profesor: "las transacciones
+# subieron un 20% y en X ms se crearon 2 pods mas".
+#
+# COMO SE MIDE (base del calculo):
+#   deseadas = ceil( replicas_actuales * (uso_cpu_actual / target) )
+#   target = 50% del CPU request (=50m) => ~25m por pod.
+#
+# REQUISITOS:
+#   - metrics-server instalado en el cluster:
+#       kubectl top pods -n voltera-app     # debe devolver datos
+#   - los Deployments deben tener CPU requests (ya anadidos en gen-services.sh).
+#
+# EVIDENCIA para la demo (ver demos/demo-scalability.sh):
+#   kubectl -n voltera-app get hpa -w
+#   kubectl -n voltera-app get pods -w
+#   -> se anota el timestamp del primer pod nuevo (segundos/ms hasta escalar).
+# ============================================================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: hpa-facturacion-service
+  namespace: voltera-app
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: facturacion-service
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0     # reacciona rapido (bueno para la demo)
+      policies:
+        - { type: Pods, value: 2, periodSeconds: 15 }   # hasta +2 pods cada 15s
+    scaleDown:
+      stabilizationWindowSeconds: 60    # baja mas despacio para no oscilar
+      policies:
+        - { type: Pods, value: 1, periodSeconds: 30 }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: hpa-liquidacion-mensual-service
+  namespace: voltera-app
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: liquidacion-mensual-service }
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 60 } }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: hpa-liquidacion-p2p-service
+  namespace: voltera-app
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: liquidacion-p2p-service }
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 60 } }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: hpa-volumetria-service
+  namespace: voltera-app
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: volumetria-service }
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 60 } }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: hpa-tarifas-service
+  namespace: voltera-app
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: tarifas-service }
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 60 } }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: hpa-pagos-service
+  namespace: voltera-app
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: pagos-service }
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 60 } }

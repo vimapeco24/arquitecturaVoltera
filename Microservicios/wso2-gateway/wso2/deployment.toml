@@ -1,0 +1,28 @@
+# Config minima de WSO2 API Manager 4.7.0 para el gateway de Voltera.
+# Basado en el deployment.toml por defecto; ajusta solo lo esencial.
+
+[server]
+hostname = "localhost"
+node_ip = "127.0.0.1"
+offset = 0
+
+[user_store]
+type = "database_unique_id"
+
+[super_admin]
+username = "admin"
+password = "admin"
+create_admin_account = true
+
+[apim.devportal]
+enable_application_sharing = true
+
+# CORS abierto para pruebas desde Postman/navegador (ajustar en produccion).
+[apim.cors]
+allow_origins = "*"
+allow_methods = ["GET","PUT","POST","DELETE","PATCH","OPTIONS"]
+allow_headers = ["authorization","Access-Control-Allow-Origin","Content-Type","SOAPAction","apikey","Internal-Key"]
+allow_credentials = false
+
+# Base de datos embebida H2 por defecto (para dev). Para produccion usar
+# PostgreSQL/MySQL externa.

@@ -1,0 +1,15 @@
+{
+  "/gw": {
+    "target": "https://192.168.3.13:8243",
+    "secure": false,
+    "changeOrigin": true,
+    "pathRewrite": { "^/gw": "" },
+    "logLevel": "debug"
+  },
+  "/oauth2": {
+    "target": "https://192.168.3.13:9443",
+    "secure": false,
+    "changeOrigin": true,
+    "logLevel": "debug"
+  }
+}

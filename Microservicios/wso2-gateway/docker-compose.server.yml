@@ -1,0 +1,45 @@
+# WSO2 API Manager como API Gateway de Voltera - VERSION PERSISTENTE.
+# Desplegado en el servidor 192.168.3.13 (atiesia-registry), independiente de la Mac.
+#
+# Persistencia: volumenes Docker para la BD H2, el repositorio de artefactos
+# (APIs desplegadas) y las soluciones del gateway. Asi las APIs, aplicaciones,
+# suscripciones y keys SOBREVIVEN a reinicios y recreacion del contenedor.
+#
+# Nota de recursos: el host tiene ~3.8GB RAM. Se usa H2 persistente (no PostgreSQL)
+# para no agregar un segundo servicio pesado. H2 en volumen es suficiente para
+# desarrollo/demo con persistencia real.
+#
+# Puertos (no chocan con Harbor 80/443):
+#   9443 -> consola   8243 -> gateway https   8280 -> gateway http
+
+services:
+  wso2am:
+    image: 192.168.3.13/app-voltaire/wso2am:4.7.0
+    container_name: voltera-wso2am
+    hostname: wso2am
+    ports:
+      - "9443:9443"
+      - "8243:8243"
+      - "8280:8280"
+    environment:
+      - JVM_MEM_OPTS=-Xms512m -Xmx1536m
+    restart: unless-stopped
+    volumes:
+      # BD H2 (APIs, apps, suscripciones, tokens) persistente
+      - wso2-db:/home/wso2carbon/wso2am-4.7.0/repository/database
+      # Artefactos de APIs desplegadas al gateway (Synapse config)
+      - wso2-deployment:/home/wso2carbon/wso2am-4.7.0/repository/deployment
+      # Solr indexes (busqueda de APIs en portales)
+      - wso2-solr:/home/wso2carbon/wso2am-4.7.0/solr
+    healthcheck:
+      test: ["CMD", "sh", "-c", "curl -sk https://localhost:9443/services/Version || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 300s
+    mem_limit: 3g
+
+volumes:
+  wso2-db:
+  wso2-deployment:
+  wso2-solr:

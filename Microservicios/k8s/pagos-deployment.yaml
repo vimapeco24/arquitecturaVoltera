@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pagos-service
+  namespace: voltera-app
+  labels: { app: pagos-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: pagos-service } }
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 0, maxUnavailable: 1 }
+  template:
+    metadata:
+      labels: { app: pagos-service, version: v1 }
+    spec:
+      # el worker está en disk-pressure; permitir agendar en el master
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      imagePullSecrets: [{ name: harbor-cred }]
+      containers:
+        - name: pagos-service
+          image: 192.168.3.13/app-voltaire/pagos-service:1.0.0
+          ports: [{ containerPort: 8085 }]
+          env:
+            - { name: EUREKA_ENABLED, value: "true" }
+            - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
+          resources:
+            limits: { cpu: "500m", memory: "512Mi" }
+            requests: { cpu: "50m", memory: "160Mi" }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8085 }
+            initialDelaySeconds: 25
+            periodSeconds: 10
+            failureThreshold: 6

@@ -1,0 +1,145 @@
+<div class="v-page v-fade">
+  <div class="v-page-head">
+    <span class="v-eyebrow">🔭 Observabilidad &amp; Service Mesh</span>
+    <h1>Observabilidad</h1>
+    <p>Trazabilidad, métricas y resiliencia del mesh Istio de Voltera — evidencia para la sustentación.</p>
+  </div>
+
+  <!-- ===== Banner de modo ===== -->
+  <div class="mode-banner" [ngClass]="mode">
+    <ng-container [ngSwitch]="mode">
+      <span *ngSwitchCase="'live'">● EN VIVO · datos reales del clúster</span>
+      <span *ngSwitchCase="'offline'">● Sin conexión con el backend · pulsa Actualizar</span>
+      <span *ngSwitchDefault>Cargando…</span>
+    </ng-container>
+    <span class="ts" *ngIf="generatedAt">actualizado: {{ generatedAt | date: 'HH:mm:ss' }}</span>
+    <button class="v-btn ghost sm" (click)="cargar()" [disabled]="cargando">↻ Actualizar</button>
+  </div>
+
+  <!-- ===== Tableros del clúster ===== -->
+  <div class="tools-head">
+    <span class="tools-title">Tableros del clúster</span>
+    <button class="v-btn ghost sm" (click)="editandoUrls = !editandoUrls">⚙ Endpoints</button>
+  </div>
+  <div class="tools-grid">
+    <div class="tool-card v-card" *ngFor="let t of tools" (click)="abrirTool(t)" [class.disabled]="!t.url" [title]="'Abrir ' + t.nombre">
+      <span class="tool-ic" [style.color]="t.color" [style.borderColor]="t.color + '55'">{{ t.icon }}</span>
+      <div class="tool-txt">
+        <span class="tool-name">{{ t.nombre }}</span>
+        <span class="tool-sub">{{ subtituloTool(t.clave) }}</span>
+      </div>
+      <span class="tool-arrow">↗</span>
+    </div>
+  </div>
+
+  <div class="v-card url-editor" *ngIf="editandoUrls">
+    <h3>URLs de los tableros del clúster (LAN)</h3>
+    <p class="sub">Ajusta si usas otra IP/puerto (NodePort). Se guardan en este navegador.</p>
+    <div class="url-grid">
+      <div class="v-field" *ngFor="let t of tools">
+        <label>{{ t.icon }} {{ t.nombre }}</label>
+        <input class="v-input" [(ngModel)]="t.url" [ngModelOptions]="{ standalone: true }" />
+      </div>
+    </div>
+    <div class="form-actions"><button class="v-btn primary" (click)="guardarUrls()">Guardar</button></div>
+  </div>
+
+  <!-- ===== Dashboard de métricas (siempre operativo) ===== -->
+  <h2 class="section-title">Métricas del mesh</h2>
+  <div class="kpi-row">
+    <div class="kpi v-card"><span class="kpi-ic">🔐</span><span class="kpi-num">{{ mtlsPct }}%</span><span class="kpi-lbl">Tráfico con mTLS (STRICT)</span></div>
+    <div class="kpi v-card"><span class="kpi-ic">✅</span><span class="kpi-num">{{ serviciosUp }}/{{ services.length || 6 }}</span><span class="kpi-lbl">Servicios UP</span></div>
+    <div class="kpi v-card"><span class="kpi-ic">⏱️</span><span class="kpi-num">{{ latenciaMedia }}<small> ms</small></span><span class="kpi-lbl">Latencia media (edge)</span></div>
+    <div class="kpi v-card"><span class="kpi-ic">🔗</span><span class="kpi-num">{{ latencyHops.length }}</span><span class="kpi-lbl">Saltos medidos</span></div>
+  </div>
+
+  <div class="metric-grid">
+    <div class="v-card metric">
+      <h3>⏱️ Latencia por salto (medida en vivo)</h3>
+      <div class="v-table-wrap">
+        <table class="v-table">
+          <thead><tr><th>Origen → Destino</th><th>p50 (ms)</th><th>p95 (ms)</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let h of latencyHops">
+              <td>{{ h.src }} → <b>{{ h.dst }}</b></td>
+              <td class="v-mono">{{ h.p50 }}</td>
+              <td class="v-mono">{{ h.p95 }}</td>
+            </tr>
+            <tr *ngIf="!latencyHops.length"><td colspan="3" class="empty">Sin datos.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="v-card metric">
+      <h3>✅ Estado y latencia por servicio (medido en vivo)</h3>
+      <div class="v-table-wrap">
+        <table class="v-table">
+          <thead><tr><th>Servicio</th><th>Estado</th><th>Latencia</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let s of services">
+              <td>{{ s.svc }}</td>
+              <td><span class="v-badge" [ngClass]="s.status === 'UP' ? 'ok' : (s.status === 'DOWN' ? 'err' : 'info')">{{ s.status }}</span></td>
+              <td class="v-mono">{{ s.ms }} ms</td>
+            </tr>
+            <tr *ngIf="!services.length"><td colspan="3" class="empty">Sin datos.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="hint">Medido por el BFF a través del API Gateway público. mTLS interno = STRICT.</p>
+    </div>
+  </div>
+
+  <!-- ===== Circuit Breaker (malla + app) ===== -->
+  <h2 class="section-title">Circuit Breaker · aplicado en todo el backend</h2>
+  <div class="cb-grid">
+    <div class="v-card cb-app">
+      <div class="cb-app-head">
+        <h3>Nivel aplicación · Resilience4j</h3>
+        <span class="cb-state" [ngClass]="breakerApp.estado">
+          <span class="dot" [ngClass]="breakerApp.estado === 'CLOSED' ? 'CONECTADO' : 'DESCONECTADO'"></span>
+          {{ breakerLabel }}
+        </span>
+      </div>
+      <p class="cb-sub">Instancia <code>tarifas</code> en <b>facturacion-service</b> (llamada facturación → tarifas).</p>
+      <div class="cb-kvs">
+        <div class="kv"><span class="k">Estado</span><span class="val">{{ breakerLabel }}</span></div>
+        <div class="kv"><span class="k">Tasa de fallo</span><span class="val">{{ breakerApp.failureRate || '—' }}</span></div>
+        <div class="kv"><span class="k">Llamadas en ventana</span><span class="val">{{ breakerApp.buffered ?? '—' }}</span></div>
+        <div class="kv"><span class="k">Umbral / ventana</span><span class="val">50% / 10 llamadas</span></div>
+        <div class="kv"><span class="k">Espera en OPEN</span><span class="val">10 s → HALF_OPEN</span></div>
+      </div>
+      <p class="hint">CLOSED = sano · OPEN = corta y hace fail-fast (503) · HALF_OPEN = probando. Fuente: <code>/actuator/circuitbreakers</code>.</p>
+    </div>
+
+    <div class="v-card cb-mesh">
+      <h3>Nivel malla · Istio DestinationRule (los 6 servicios)</h3>
+      <p class="cb-sub">connectionPool + outlierDetection en cada servicio. Facturación con umbral más agresivo.</p>
+      <div class="v-table-wrap">
+        <table class="v-table cb-table">
+          <thead><tr><th>Servicio</th><th>maxConn</th><th>pending</th><th>5xx seguidos</th><th>Ejection</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let b of breakersMesh" [class.hot]="b.agresivo">
+              <td>{{ b.servicio }} <span class="tag-cb" *ngIf="b.agresivo">agresivo</span></td>
+              <td class="v-mono">{{ b.maxConn }}</td>
+              <td class="v-mono">{{ b.pending }}</td>
+              <td class="v-mono">{{ b.consecutive5xx }}</td>
+              <td class="v-mono">{{ b.ejection }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="hint">Al superar los límites, Envoy responde <b>503 “UO”</b> (fail-fast) y expulsa instancias con 5xx. El resto de micros sigue operando.</p>
+    </div>
+  </div>
+
+  <!-- ===== 5 evidencias ===== -->
+  <h2 class="section-title">Lo que se evalúa · 5 evidencias del service mesh</h2>
+  <div class="pilares-grid">
+    <div class="pilar v-card" *ngFor="let p of pilares">
+      <div class="pilar-head"><span class="pilar-ic">{{ p.icon }}</span><h3>{{ p.titulo }}</h3></div>
+      <p class="pilar-que">{{ p.que }}</p>
+      <div class="pilar-donde"><span class="k">Dónde verlo</span><span>{{ p.donde }}</span></div>
+    </div>
+  </div>
+</div>

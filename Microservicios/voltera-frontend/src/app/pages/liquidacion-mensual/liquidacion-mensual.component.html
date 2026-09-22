@@ -1,0 +1,108 @@
+<div class="v-page v-fade">
+  <div class="v-page-head">
+    <span class="v-eyebrow">🗓️ Paso 4 · Totalización</span>
+    <h1>Liquidación Mensual</h1>
+    <p>Abre un periodo, registra movimientos de consumo/excedente y ciérralo para totalizar el neto.</p>
+  </div>
+
+  <div class="layout">
+    <div>
+      <form class="panel v-card" [formGroup]="form" (ngSubmit)="abrir()" style="margin-bottom:20px">
+        <h3>{{ editandoId ? 'Editar liquidación' : 'Abrir liquidación' }}</h3>
+        <p class="sub">Crea el periodo mensual de un prosumidor.</p>
+        <div class="v-field"><label>Prosumidor</label><input class="v-input" formControlName="prosumidorId" /></div>
+        <div class="row2">
+          <div class="v-field"><label>Año</label><input class="v-input" type="number" formControlName="anio" /></div>
+          <div class="v-field"><label>Mes</label><input class="v-input" type="number" min="1" max="12" formControlName="mes" /></div>
+        </div>
+        <div class="row2">
+          <div class="v-field"><label>Precio consumo (COP/kWh)</label><input class="v-input" type="number" formControlName="precioConsumoKwh" /></div>
+          <div class="v-field"><label>Precio excedente (COP/kWh)</label><input class="v-input" type="number" formControlName="precioExcedenteKwh" /></div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="v-btn primary" [disabled]="enviando">
+            <span class="v-spinner" *ngIf="enviando"></span>{{ enviando ? 'Abriendo…' : (editandoId ? 'Guardar cambios' : 'Abrir periodo') }}
+          </button>
+          <button type="button" class="v-btn ghost" *ngIf="editandoId" (click)="cancelarEdicion()">Cancelar edición</button>
+        </div>
+        <p class="hint">POST <code>/liquidacion-mensual/v1/api/v1/liquidaciones</code></p>
+      </form>
+
+      <div class="panel v-card" *ngIf="actual">
+        <h3>Registrar movimiento</h3>
+        <p class="sub">Estado: <span class="v-badge" [ngClass]="actual.estado === 'ABIERTA' ? 'info' : 'ok'">{{ actual.estado }}</span></p>
+        <div class="row2">
+          <div class="v-field">
+            <label>Tipo</label>
+            <select class="v-select" [(ngModel)]="movTipo">
+              <option value="CONSUMO">CONSUMO</option>
+              <option value="EXCEDENTE">EXCEDENTE</option>
+            </select>
+          </div>
+          <div class="v-field"><label>kWh</label><input class="v-input" type="number" [(ngModel)]="movKwh" /></div>
+        </div>
+        <div class="form-actions">
+          <button class="v-btn" (click)="registrar()" [disabled]="actual.estado !== 'ABIERTA'">+ Registrar</button>
+          <button class="v-btn primary" (click)="cerrar()" [disabled]="actual.estado !== 'ABIERTA'">Cerrar y totalizar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="result v-card">
+      <div class="result-head">
+        <h3>Resumen del periodo</h3>
+        <span class="count" *ngIf="actual">{{ actual.periodo }}</span>
+      </div>
+
+      <div class="v-empty" *ngIf="!actual">
+        <div class="ic">🗓️</div><p>Abre una liquidación para ver su totalización.</p>
+      </div>
+
+      <div *ngIf="actual">
+        <div class="v-grid cols-2" style="margin-bottom:16px">
+          <div class="detail-box" style="margin:0;text-align:center">
+            <div class="k" style="color:var(--v-text-soft);font-size:13px">Neto energía</div>
+            <div class="big-num" [class.neg]="actual.saldoAFavor">{{ actual.netoKwh | number:'1.0-2' }}</div>
+            <div style="font-size:12px;color:var(--v-text-dim)">kWh · {{ actual.saldoAFavor ? 'saldo a favor' : 'consumo neto' }}</div>
+          </div>
+          <div class="detail-box" style="margin:0;text-align:center">
+            <div class="k" style="color:var(--v-text-soft);font-size:13px">Neto a pagar</div>
+            <div class="big-num" [class.neg]="actual.saldoAFavor" [style.color]="actual.saldoAFavor ? 'var(--v-solar)' : 'var(--v-primary)'">{{ actual.netoCop | number:'1.0-2' }}</div>
+            <div style="font-size:12px;color:var(--v-text-dim)">COP</div>
+          </div>
+        </div>
+        <div class="detail-box" style="margin-bottom:16px">
+          <div class="kv"><span class="k">Consumo total</span><span class="val">{{ actual.totalConsumoKwh | number:'1.0-2' }} kWh</span></div>
+          <div class="kv"><span class="k">Excedente total</span><span class="val">{{ actual.totalExcedenteKwh | number:'1.0-2' }} kWh</span></div>
+          <div class="kv"><span class="k">Cargo por consumo ({{ actual.precioConsumoKwh | number:'1.0-0' }} COP/kWh)</span><span class="val">{{ actual.cargoConsumo | number:'1.0-2' }} COP</span></div>
+          <div class="kv"><span class="k">Crédito por excedente ({{ actual.precioExcedenteKwh | number:'1.0-0' }} COP/kWh)</span><span class="val">{{ actual.creditoExcedente | number:'1.0-2' }} COP</span></div>
+          <div class="kv"><span class="k">Movimientos</span><span class="val">{{ actual.cantidadMovimientos }}</span></div>
+        </div>
+      </div>
+
+      <div class="inline-query">
+        <div class="v-field"><label>Prosumidor</label><input class="v-input" [(ngModel)]="filtroProsumidor" [ngModelOptions]="{ standalone: true }" /></div>
+        <button class="v-btn" (click)="buscar()">🔍 Histórico</button>
+      </div>
+
+      <div class="v-table-wrap" *ngIf="historico.length" style="margin-top:16px">
+        <table class="v-table">
+          <thead><tr><th>Periodo</th><th>Estado</th><th>Neto kWh</th><th>Neto COP</th><th>Movs</th><th>Acciones</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let l of historico">
+              <td>{{ l.periodo }}</td>
+              <td><span class="v-badge" [ngClass]="l.estado === 'ABIERTA' ? 'info' : 'ok'">{{ l.estado }}</span></td>
+              <td class="v-mono">{{ l.netoKwh | number:'1.0-2' }}</td>
+              <td class="v-mono"><strong>{{ l.netoCop | number:'1.0-2' }}</strong></td>
+              <td class="v-mono">{{ l.cantidadMovimientos }}</td>
+              <td style="white-space:nowrap">
+                <button class="v-btn ghost" (click)="editar(l)">✎ Editar</button>
+                <button class="v-btn ghost" (click)="eliminar(l)">🗑 Eliminar</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

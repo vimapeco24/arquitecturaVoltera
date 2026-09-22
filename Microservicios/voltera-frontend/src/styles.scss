@@ -1,0 +1,178 @@
+/* ============================================================
+   Voltera · Sistema de diseño global
+   Tema: Comunidades energéticas — energía renovable
+   ============================================================ */
+
+:root {
+  /* Paleta base */
+  --v-bg: #0b1220;
+  --v-bg-2: #0e1729;
+  --v-surface: #121c30;
+  --v-surface-2: #16223a;
+  --v-surface-3: #1c2c49;
+  --v-border: rgba(148, 163, 184, 0.14);
+  --v-border-strong: rgba(148, 163, 184, 0.28);
+
+  /* Marca — verde energía + solar */
+  --v-primary: #22c98a;
+  --v-primary-600: #16a874;
+  --v-primary-glow: rgba(34, 201, 138, 0.35);
+  --v-accent: #38bdf8;
+  --v-solar: #fbbf24;
+  --v-danger: #f87171;
+  --v-warn: #f59e0b;
+
+  /* Texto */
+  --v-text: #e8eef7;
+  --v-text-soft: #9fb0c7;
+  --v-text-dim: #6b7c96;
+
+  /* Sombras y radios */
+  --v-radius: 16px;
+  --v-radius-sm: 10px;
+  --v-shadow: 0 20px 45px -18px rgba(0, 0, 0, 0.7);
+  --v-shadow-glow: 0 0 0 1px var(--v-border), 0 18px 40px -20px rgba(34, 201, 138, 0.25);
+
+  --v-sidebar-w: 268px;
+  --v-topbar-h: 68px;
+
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  color: var(--v-text);
+  background:
+    radial-gradient(1200px 700px at 88% -8%, rgba(56, 189, 248, 0.10), transparent 60%),
+    radial-gradient(1000px 600px at -6% 4%, rgba(34, 201, 138, 0.12), transparent 55%),
+    var(--v-bg);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4 { font-family: 'Sora', 'Inter', sans-serif; margin: 0; letter-spacing: -0.02em; }
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--v-surface-3); border-radius: 20px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: #2a3a5c; }
+
+/* ---------- Utilidades reutilizables ---------- */
+
+.v-card {
+  background: linear-gradient(180deg, var(--v-surface) 0%, var(--v-surface-2) 100%);
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius);
+  box-shadow: var(--v-shadow);
+}
+
+.v-page { padding: 28px 34px 60px; max-width: 1320px; }
+
+.v-page-head { margin-bottom: 26px; }
+.v-page-head h1 { font-size: 26px; font-weight: 800; }
+.v-page-head p { color: var(--v-text-soft); margin: 6px 0 0; font-size: 14.5px; }
+
+.v-eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--v-primary);
+}
+
+/* Grid helpers */
+.v-grid { display: grid; gap: 20px; }
+.v-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+.v-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.v-grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 1100px) { .v-grid.cols-4 { grid-template-columns: repeat(2, 1fr); } .v-grid.cols-3 { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 720px) { .v-grid.cols-2, .v-grid.cols-3, .v-grid.cols-4 { grid-template-columns: 1fr; } }
+
+/* Botones */
+.v-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+  border: 1px solid var(--v-border-strong);
+  background: var(--v-surface-3);
+  color: var(--v-text);
+  padding: 11px 18px; border-radius: 11px; font-weight: 600; font-size: 14px;
+  cursor: pointer; transition: all 0.18s ease; white-space: nowrap;
+}
+.v-btn:hover { border-color: var(--v-primary); transform: translateY(-1px); }
+.v-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.v-btn.primary {
+  background: linear-gradient(135deg, var(--v-primary) 0%, var(--v-primary-600) 100%);
+  border-color: transparent; color: #04140d;
+  box-shadow: 0 10px 28px -12px var(--v-primary-glow);
+}
+.v-btn.primary:hover { box-shadow: 0 14px 34px -10px var(--v-primary-glow); }
+.v-btn.ghost { background: transparent; }
+
+/* Formularios */
+.v-field { display: flex; flex-direction: column; gap: 7px; margin-bottom: 16px; }
+.v-field label { font-size: 13px; font-weight: 600; color: var(--v-text-soft); }
+.v-input, .v-select {
+  background: var(--v-bg-2);
+  border: 1px solid var(--v-border);
+  color: var(--v-text);
+  padding: 11px 13px; border-radius: 10px; font-size: 14px; outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s; width: 100%;
+}
+.v-input:focus, .v-select:focus { border-color: var(--v-primary); box-shadow: 0 0 0 3px var(--v-primary-glow); }
+.v-input::placeholder { color: var(--v-text-dim); }
+
+/* Tablas */
+.v-table-wrap { overflow-x: auto; border-radius: var(--v-radius); }
+.v-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.v-table thead th {
+  text-align: left; font-size: 11.5px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--v-text-dim); font-weight: 700; padding: 13px 16px;
+  border-bottom: 1px solid var(--v-border);
+}
+.v-table tbody td { padding: 13px 16px; border-bottom: 1px solid var(--v-border); color: var(--v-text); }
+.v-table tbody tr { transition: background 0.15s; }
+.v-table tbody tr:hover { background: rgba(56, 189, 248, 0.05); }
+.v-table tbody tr:last-child td { border-bottom: none; }
+.v-mono { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; }
+
+/* Badges de estado */
+.v-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 11px; border-radius: 999px; font-size: 12px; font-weight: 700;
+  border: 1px solid transparent;
+}
+.v-badge::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.v-badge.ok { color: var(--v-primary); background: rgba(34, 201, 138, 0.12); border-color: rgba(34, 201, 138, 0.3); }
+.v-badge.info { color: var(--v-accent); background: rgba(56, 189, 248, 0.12); border-color: rgba(56, 189, 248, 0.3); }
+.v-badge.warn { color: var(--v-warn); background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.3); }
+.v-badge.err { color: var(--v-danger); background: rgba(248, 113, 113, 0.12); border-color: rgba(248, 113, 113, 0.3); }
+.v-badge.solar { color: var(--v-solar); background: rgba(251, 191, 36, 0.12); border-color: rgba(251, 191, 36, 0.3); }
+
+/* Toast / notificaciones */
+.v-toast-stack { position: fixed; top: 84px; right: 24px; z-index: 1000; display: flex; flex-direction: column; gap: 12px; }
+.v-toast {
+  min-width: 280px; max-width: 380px; padding: 14px 16px; border-radius: 12px;
+  background: var(--v-surface-2); border: 1px solid var(--v-border-strong);
+  box-shadow: var(--v-shadow); animation: toastIn 0.25s ease;
+  display: flex; gap: 12px; align-items: flex-start;
+}
+.v-toast.ok { border-left: 3px solid var(--v-primary); }
+.v-toast.err { border-left: 3px solid var(--v-danger); }
+.v-toast .t-title { font-weight: 700; font-size: 14px; }
+.v-toast .t-msg { font-size: 13px; color: var(--v-text-soft); margin-top: 2px; }
+@keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: none; } }
+
+/* Estados vacíos */
+.v-empty { text-align: center; padding: 46px 20px; color: var(--v-text-dim); }
+.v-empty .ic { font-size: 34px; opacity: 0.6; }
+
+/* Spinner */
+.v-spinner { width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.25); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.v-fade { animation: fade 0.3s ease; }
+@keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }

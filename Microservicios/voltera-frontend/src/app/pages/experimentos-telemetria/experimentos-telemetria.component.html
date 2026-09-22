@@ -1,0 +1,158 @@
+<div class="v-page v-fade">
+  <div class="v-page-head">
+    <span class="v-eyebrow">🧪 EDA · Telemetría</span>
+    <h1>Telemetría · Experimentos y Patrones</h1>
+    <p>
+      Muestra y ejecuta el flujo EDA de Telemetría: los <strong>experimentos</strong> corren
+      contra los microservicios reales (<code>telemetria-service</code> 8093 y
+      <code>tarifa-eventos-service</code> 8094), y los <strong>patrones/tecnología</strong>
+      lo explican con diagramas animados.
+    </p>
+  </div>
+
+  <!-- Pestañas principales -->
+  <div class="vista-tabs">
+    <button class="vtab" [class.active]="vista === 'experimentos'" (click)="vista = 'experimentos'">🧪 Ejecutar experimentos</button>
+    <button class="vtab" [class.active]="vista === 'patrones'" (click)="vista = 'patrones'">📚 Patrones &amp; Tecnología</button>
+  </div>
+
+  <!-- ============ VISTA: EXPERIMENTOS ============ -->
+  <div *ngIf="vista === 'experimentos'">
+
+  <!-- ====== DIAGRAMA DE FLUJO ANIMADO ====== -->
+  <div class="flow v-card">
+    <div class="flow-node" [ngClass]="flujo.medidor">
+      <div class="node-ic">📡</div>
+      <div class="node-title">Medidor IoT</div>
+      <div class="node-svc">telemetria-service</div>
+      <div class="node-data" *ngIf="flujoDatos.medidor">{{ flujoDatos.medidor }}</div>
+    </div>
+
+    <div class="flow-arrow" [class.on]="flujo.broker !== 'idle'">
+      <span class="a-label">ConsumoRegistrado</span>
+      <div class="a-line"><span class="a-pulse"></span></div>
+      <span class="a-head">▶</span>
+    </div>
+
+    <div class="flow-node" [ngClass]="flujo.broker">
+      <div class="node-ic">⚡</div>
+      <div class="node-title">Broker</div>
+      <div class="node-svc">Redpanda / Kafka</div>
+      <div class="node-data" *ngIf="flujoDatos.broker">{{ flujoDatos.broker }}</div>
+    </div>
+
+    <div class="flow-arrow" [class.on]="flujo.consumidor !== 'idle'">
+      <span class="a-label">consume (pull)</span>
+      <div class="a-line"><span class="a-pulse"></span></div>
+      <span class="a-head">▶</span>
+    </div>
+
+    <div class="flow-node" [ngClass]="flujo.consumidor">
+      <div class="node-ic">💰</div>
+      <div class="node-title">Tarifa (CQRS)</div>
+      <div class="node-svc">tarifa-eventos-service</div>
+      <div class="node-data" *ngIf="flujoDatos.consumidor">{{ flujoDatos.consumidor }}</div>
+    </div>
+
+    <div class="flow-arrow" [class.on]="flujo.cargo !== 'idle'">
+      <span class="a-label">proyecta</span>
+      <div class="a-line"><span class="a-pulse"></span></div>
+      <span class="a-head">▶</span>
+    </div>
+
+    <div class="flow-node" [ngClass]="flujo.cargo">
+      <div class="node-ic">🧾</div>
+      <div class="node-title">Cargo</div>
+      <div class="node-svc">vista de lectura</div>
+      <div class="node-data" *ngIf="flujoDatos.cargo">{{ flujoDatos.cargo }}</div>
+    </div>
+  </div>
+
+  <!-- ====== LOG EN VIVO ====== -->
+  <div class="flow-log v-card" *ngIf="logVivo.length">
+    <div class="log-head">📜 Flujo en vivo</div>
+    <div class="log-lines">
+      <div class="log-line" *ngFor="let l of logVivo">{{ l }}</div>
+    </div>
+  </div>
+
+  <!-- ====== TIMELINE GLOBAL DE EVENTOS EDA ====== -->
+  <div class="eventos v-card">
+    <div class="eventos-head">
+      <div>
+        <div class="ev-title">🛰️ Todos los eventos EDA</div>
+        <div class="ev-sub">Cada evento que ocurre a partir de los experimentos: emitidos al broker y proyectados (CQRS lectura).</div>
+      </div>
+      <div class="ev-actions">
+        <span class="ev-count">{{ eventos.length }} eventos</span>
+        <button class="v-btn" (click)="cargarTodosLosEventos()" [disabled]="cargandoEventos">
+          <span class="v-spinner" *ngIf="cargandoEventos"></span>
+          {{ cargandoEventos ? 'Cargando…' : '⟳ Cargar todos' }}
+        </button>
+        <button class="v-btn ghost" (click)="limpiarEventos()" [disabled]="!eventos.length">🗑 Limpiar</button>
+      </div>
+    </div>
+
+    <div class="ev-empty" *ngIf="!eventos.length">
+      Aún no hay eventos. Ejecuta un experimento o pulsa <strong>“⟳ Cargar todos”</strong> para traer los eventos ya proyectados por el backend.
+    </div>
+
+    <div class="ev-list" *ngIf="eventos.length">
+      <div class="ev-item" *ngFor="let e of eventos" [ngClass]="e.fase">
+        <span class="ev-dot"></span>
+        <span class="ev-ts">{{ e.ts | date: 'HH:mm:ss' }}</span>
+        <span class="ev-fase" [ngClass]="e.fase">{{ e.fase }}</span>
+        <span class="ev-tipo">{{ e.tipo }}</span>
+        <span class="ev-svc">{{ e.servicio }}</span>
+        <span class="ev-detalle">{{ e.detalle }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="run-all-bar">
+    <button class="v-btn primary big" (click)="ejecutarTodos()" [disabled]="corriendoAlguno">▶ Ejecutar todos</button>
+    <span class="hint">Tip: ejecuta el <strong>Experimento 1</strong> para ver el flujo completo animarse etapa por etapa.</span>
+  </div>
+
+  <div class="exp-grid">
+    <div class="exp-card v-card" *ngFor="let exp of experimentos"
+         [class.ok]="exp.resultado?.ok === true"
+         [class.err]="exp.resultado?.ok === false"
+         [class.running]="exp.ejecutando">
+      <div class="exp-head">
+        <span class="exp-num">{{ exp.num }}</span>
+        <h3>{{ exp.nombre }}</h3>
+      </div>
+
+      <div class="exp-body">
+        <p><strong>Hipótesis:</strong> {{ exp.hipotesis }}</p>
+        <p><strong>Métrica:</strong> {{ exp.metrica }}</p>
+        <p><strong>Criterio:</strong> {{ exp.criterio }}</p>
+      </div>
+
+      <div class="exp-actions">
+        <button class="v-btn primary" (click)="ejecutarExperimento(exp)" [disabled]="exp.ejecutando || corriendoAlguno">
+          <span class="v-spinner" *ngIf="exp.ejecutando"></span>
+          {{ exp.ejecutando ? 'Ejecutando…' : '▶ Ejecutar' }}
+        </button>
+        <span class="verdict" *ngIf="exp.resultado" [class.ok]="exp.resultado.ok" [class.err]="!exp.resultado.ok">
+          {{ exp.resultado.ok ? '✓ CUMPLE' : '✗ NO CUMPLE' }}
+        </span>
+      </div>
+
+      <div class="exp-result" *ngIf="exp.resultado">
+        <p class="detalle">{{ exp.resultado.detalle }}</p>
+        <ol class="pasos" *ngIf="exp.resultado.pasos?.length">
+          <li *ngFor="let p of exp.resultado.pasos">{{ p }}</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  </div><!-- /vista experimentos -->
+
+  <!-- ============ VISTA: PATRONES & TECNOLOGÍA ============ -->
+  <div *ngIf="vista === 'patrones'">
+    <app-patrones [mostrarHeader]="false" [flujoReal]="flujoReal" (emitirEventoReal)="emitirEventoReal()"></app-patrones>
+  </div>
+</div>

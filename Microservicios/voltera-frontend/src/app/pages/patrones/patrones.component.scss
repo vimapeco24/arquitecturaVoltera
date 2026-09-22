@@ -1,0 +1,164 @@
+:host { display: block; }
+
+.widget {
+  padding: 26px 28px;
+  margin-bottom: 28px;
+}
+.widget-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.widget-tag {
+  background: #6d28d9; color: #fff; font-weight: 800; font-size: 11px;
+  letter-spacing: 0.5px; padding: 5px 10px; border-radius: 7px;
+}
+.widget-head h3 { font-size: 18px; font-weight: 800; }
+
+.emit-btn {
+  margin-left: auto; background: var(--v-primary); color: #04241a; border: none;
+  font-weight: 800; font-size: 13px; padding: 8px 16px; border-radius: 20px; cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.12s; box-shadow: 0 4px 14px rgba(34,201,138,0.25);
+}
+.emit-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(34,201,138,0.4); }
+.emit-btn:active { transform: translateY(0); }
+
+/* partícula-evento que recorre el diagrama al emitir */
+.particle { fill: var(--v-solar); filter: drop-shadow(0 0 6px rgba(251,191,36,0.9)); }
+
+/* banner del flujo REAL (resultado de ejecutar el experimento de Telemetría) */
+.flujo-real {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 16px;
+  padding: 10px 14px; border-radius: 10px; font-size: 13px; font-weight: 600;
+  background: var(--v-bg-2); border: 1px solid var(--v-border); color: var(--v-text-soft);
+}
+.flujo-real.run { border-color: var(--v-solar); background: rgba(251,191,36,0.08); }
+.flujo-real.ok { border-color: var(--v-primary); background: rgba(34,201,138,0.08); color: var(--v-text); }
+.flujo-real .fr-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--v-text-dim); flex: none; }
+.flujo-real.run .fr-dot { background: var(--v-solar); animation: frBlink 0.8s ease-in-out infinite; }
+.flujo-real.ok .fr-dot { background: var(--v-primary); }
+@keyframes frBlink { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
+.widget-intro { font-size: 14px; color: var(--v-text-soft); margin-bottom: 18px; line-height: 1.5; }
+
+.tabs { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+.tab {
+  background: var(--v-bg-2); border: 1px solid var(--v-border); color: var(--v-text-soft);
+  padding: 9px 18px; border-radius: 22px; cursor: pointer; font-weight: 700; font-size: 13.5px;
+  transition: all 0.18s;
+}
+.tab:hover { border-color: var(--v-primary); color: var(--v-text); }
+.tab.active { background: #6d28d9; border-color: #6d28d9; color: #fff; }
+
+.panel-tab {
+  border: 1px solid var(--v-border); border-left: 4px solid #6d28d9;
+  border-radius: 14px; padding: 22px; animation: fadeIn 0.35s ease;
+}
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+.split { display: grid; grid-template-columns: 360px 1fr; gap: 26px; align-items: center; }
+@media (max-width: 940px) { .split { grid-template-columns: 1fr; } }
+
+.diagram {
+  background: var(--v-bg-2); border: 1px solid var(--v-border); border-radius: 14px;
+  padding: 16px; overflow: hidden;
+}
+.svg-flow { width: 100%; height: auto; display: block; }
+
+.text p { font-size: 14.5px; line-height: 1.6; margin-bottom: 12px; }
+.text code { background: var(--v-surface); padding: 1px 6px; border-radius: 5px; color: var(--v-accent); font-size: 0.9em; }
+
+.key {
+  font-size: 13px; color: var(--v-text-soft); background: var(--v-bg-2);
+  border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; line-height: 1.55;
+}
+.key span { display: block; font-size: 10.5px; font-weight: 800; letter-spacing: 0.5px; color: var(--v-accent); margin-bottom: 4px; }
+
+.nota {
+  font-size: 13.5px; line-height: 1.55; background: rgba(34, 201, 138, 0.08);
+  border: 1px solid rgba(34, 201, 138, 0.25); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px;
+}
+.warn {
+  font-size: 12.5px; line-height: 1.5; background: rgba(251, 191, 36, 0.08);
+  border-left: 3px solid var(--v-solar); border-radius: 8px; padding: 10px 14px; color: var(--v-text-soft);
+}
+.badge-int {
+  display: inline-block; font-size: 10.5px; font-weight: 800; letter-spacing: 0.5px;
+  color: #6d28d9; background: rgba(109, 40, 217, 0.14); padding: 4px 10px; border-radius: 6px; margin-bottom: 10px;
+}
+.badge-int.esc { color: var(--v-primary); background: rgba(34, 201, 138, 0.14); }
+
+/* ===================== ELEMENTOS SVG ===================== */
+.box { stroke-width: 1.5; }
+.box.cmd { fill: #ef4444; stroke: #ef4444; }
+.box.qry { fill: #6d28d9; stroke: #6d28d9; }
+.box.wr { fill: #0f172a; stroke: var(--v-border-strong); }
+.box.rd { fill: #0e7c5a; stroke: #22c98a; }
+.box.neutral { fill: var(--v-surface); stroke: var(--v-border-strong); }
+.box.keda { fill: #6d28d9; stroke: #8b5cf6; }
+.lbl { fill: #fff; font-size: 11px; font-weight: 700; text-anchor: middle; }
+.lbl.light { fill: #e5edf7; }
+.lbl.small { font-size: 9px; }
+.cap { fill: var(--v-text-dim); font-size: 9.5px; text-anchor: middle; }
+.off { fill: var(--v-text-dim); font-size: 9px; text-anchor: middle; }
+
+.edge { stroke: var(--v-border-strong); stroke-width: 2; fill: none; }
+.edge.dashed { stroke-dasharray: 4 4; opacity: 0.6; }
+
+/* ---- eventos (sobres) ---- */
+.evt { fill: rgba(56,189,248,0.16); stroke: var(--v-accent); stroke-width: 1.3; }
+
+/* =============================================================
+   ANIMACIONES — el diagrama se mueve solo según el flujo
+   ============================================================= */
+
+/* Partícula que viaja por una arista (se dibuja como dash que corre). */
+.edge.anim {
+  stroke: var(--v-primary);
+  stroke-dasharray: 6 10;
+  animation: dashMove 0.9s linear infinite;
+}
+.edge.anim.rev { animation: dashMoveRev 0.9s linear infinite; }
+@keyframes dashMove { to { stroke-dashoffset: -32; } }
+@keyframes dashMoveRev { to { stroke-dashoffset: 32; } }
+
+/* Eventos que "laten" en secuencia (log / topic llenándose). */
+.evt-seq .evt, .evt {
+  animation: evtGlow 2.4s ease-in-out infinite;
+}
+.evt.e1 { animation-delay: 0s; }
+.evt.e2 { animation-delay: 0.3s; }
+.evt.e3 { animation-delay: 0.6s; }
+.evt.e4 { animation-delay: 0.9s; }
+.evt.e5 { animation-delay: 1.2s; }
+@keyframes evtGlow {
+  0%, 100% { fill: rgba(56,189,248,0.10); }
+  40% { fill: rgba(56,189,248,0.42); }
+}
+
+/* Evento duplicado: parpadea en rojo (idempotencia). */
+.evt.dup { stroke: var(--v-danger); animation: dupBlink 1.6s ease-in-out infinite; }
+@keyframes dupBlink {
+  0%, 100% { fill: rgba(248,113,113,0.10); opacity: 0.5; }
+  50% { fill: rgba(248,113,113,0.35); opacity: 1; }
+}
+.box.ok1 { animation: okPulse 2s ease-in-out infinite; }
+@keyframes okPulse {
+  0%, 100% { fill: #0e7c5a; }
+  50% { fill: #22c98a; }
+}
+
+/* Malla event-mesh: enlaces con pulso viajero. */
+.node-b { fill: #6d28d9; stroke: #8b5cf6; stroke-width: 2; animation: nodeBeat 2.2s ease-in-out infinite; }
+@keyframes nodeBeat { 0%,100% { r: 11; opacity: 0.85; } 50% { r: 13; opacity: 1; } }
+.mesh { stroke: #8b5cf6; stroke-width: 1.6; opacity: 0.5; }
+.mesh.anim {
+  stroke-dasharray: 4 8; animation: dashMove 1.4s linear infinite;
+  stroke: var(--v-accent); opacity: 0.9;
+}
+.cloud { fill: rgba(109,40,217,0.10); stroke: #8b5cf6; stroke-width: 1.3; }
+
+/* KEDA: réplicas que aparecen (escalado). */
+.box.r1 { animation: repIn 3s ease-in-out infinite; }
+.box.r2 { animation: repIn 3s ease-in-out infinite 0.5s; }
+.box.r3 { animation: repIn 3s ease-in-out infinite 1s; }
+@keyframes repIn {
+  0%, 20% { opacity: 0.15; transform: translateX(-6px); }
+  50%, 80% { opacity: 1; transform: none; }
+  100% { opacity: 0.15; transform: translateX(-6px); }
+}

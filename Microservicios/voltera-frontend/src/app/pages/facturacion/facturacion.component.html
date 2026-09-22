@@ -1,0 +1,86 @@
+<div class="v-page v-fade">
+  <div class="v-page-head">
+    <span class="v-eyebrow">🧾 Paso 5 · Factura</span>
+    <h1>Facturación</h1>
+    <p>Emite la factura mensual del prosumidor combinando consumo, excedentes y precios.</p>
+  </div>
+
+  <div class="layout">
+    <form class="panel v-card" [formGroup]="form" (ngSubmit)="emitir()">
+      <h3>{{ editandoId ? 'Editar factura' : 'Emitir factura' }}</h3>
+      <p class="sub">Calcula cargo, crédito y total del periodo.</p>
+
+      <div class="v-field"><label>Prosumidor</label><input class="v-input" formControlName="prosumidorId" /></div>
+      <div class="row2">
+        <div class="v-field"><label>Periodo inicio</label><input class="v-input" type="date" formControlName="periodoInicio" /></div>
+        <div class="v-field"><label>Periodo fin</label><input class="v-input" type="date" formControlName="periodoFin" /></div>
+      </div>
+      <div class="row2">
+        <div class="v-field"><label>kWh consumidos</label><input class="v-input" type="number" formControlName="kwhConsumidos" /></div>
+        <div class="v-field"><label>kWh inyectados</label><input class="v-input" type="number" formControlName="kwhInyectados" /></div>
+      </div>
+      <div class="row2">
+        <div class="v-field"><label>Precio consumo</label><input class="v-input" type="number" formControlName="precioConsumoKwh" /></div>
+        <div class="v-field"><label>Precio excedente</label><input class="v-input" type="number" formControlName="precioExcedenteKwh" /></div>
+      </div>
+      <div class="row2">
+        <div class="v-field"><label>Tarifa ID (opcional)</label><input class="v-input" formControlName="tarifaId" placeholder="ej. TAR-001 → consulta a tarifas" /></div>
+        <div class="v-field"><label>Hora (0–23)</label><input class="v-input" type="number" formControlName="hora" /></div>
+      </div>
+      <p class="hint">Si indicas <b>Tarifa ID</b>, facturación llama a <code>tarifas-service</code> para el precio (salto real entre micros, visible en Jaeger).</p>
+
+      <div class="form-actions">
+        <button type="submit" class="v-btn primary" [disabled]="enviando">
+          <span class="v-spinner" *ngIf="enviando"></span>{{ enviando ? 'Emitiendo…' : (editandoId ? 'Guardar cambios' : 'Emitir factura') }}
+        </button>
+        <button type="button" class="v-btn ghost" *ngIf="editandoId" (click)="cancelarEdicion()">Cancelar edición</button>
+      </div>
+      <p class="hint">POST <code>/facturacion/v1/api/v1/facturas</code></p>
+    </form>
+
+    <div class="result v-card">
+      <div class="result-head">
+        <h3>Facturas del prosumidor</h3>
+        <span class="count">{{ facturas.length }}</span>
+      </div>
+
+      <div class="detail-box" *ngIf="ultima">
+        <h4>Última factura · {{ ultima.periodoInicio }} → {{ ultima.periodoFin }}</h4>
+        <div class="kv"><span class="k">Consumo neto</span><span class="val">{{ ultima.consumoNetoKwh | number:'1.0-2' }} kWh</span></div>
+        <div class="kv"><span class="k">Excedente</span><span class="val">{{ ultima.excedenteKwh | number:'1.0-2' }} kWh</span></div>
+        <div class="kv"><span class="k">Cargo consumo</span><span class="val">{{ ultima.cargoConsumo | number:'1.0-2' }} COP</span></div>
+        <div class="kv"><span class="k">Crédito excedente</span><span class="val">{{ ultima.creditoExcedente | number:'1.0-2' }} COP</span></div>
+        <div class="kv"><span class="k">Total</span><span class="val" [style.color]="ultima.saldoAFavor ? 'var(--v-solar)' : 'var(--v-primary)'">{{ ultima.total | number:'1.0-2' }} COP</span></div>
+        <div class="kv"><span class="k">Estado</span><span class="v-badge" [ngClass]="badge(ultima.estado)">{{ ultima.estado }}</span></div>
+      </div>
+
+      <div class="inline-query">
+        <div class="v-field"><label>Prosumidor</label><input class="v-input" [(ngModel)]="filtroProsumidor" [ngModelOptions]="{ standalone: true }" /></div>
+        <button class="v-btn" (click)="buscar()">🔍 Buscar</button>
+      </div>
+
+      <div class="v-empty" *ngIf="cargando">Cargando…</div>
+      <div class="v-empty" *ngIf="!cargando && facturas.length === 0">
+        <div class="ic">🧾</div><p>Sin facturas.</p>
+      </div>
+
+      <div class="v-table-wrap" *ngIf="!cargando && facturas.length" style="margin-top:16px">
+        <table class="v-table">
+          <thead><tr><th>Periodo</th><th>Neto kWh</th><th>Total COP</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let f of facturas">
+              <td style="font-size:13px">{{ f.periodoInicio }} → {{ f.periodoFin }}</td>
+              <td class="v-mono">{{ f.consumoNetoKwh | number:'1.0-2' }}</td>
+              <td class="v-mono"><strong>{{ f.total | number:'1.0-2' }}</strong></td>
+              <td><span class="v-badge" [ngClass]="badge(f.estado)">{{ f.estado }}</span></td>
+              <td style="white-space:nowrap">
+                <button class="v-btn ghost" (click)="editar(f)">✎ Editar</button>
+                <button class="v-btn ghost" (click)="eliminar(f)">🗑 Eliminar</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

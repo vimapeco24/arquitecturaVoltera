@@ -1,0 +1,135 @@
+{
+  "dashboard": {
+    "uid": "voltera-telemetria-eda",
+    "title": "Voltera — Telemetría EDA",
+    "tags": ["voltera", "telemetria", "eda"],
+    "timezone": "browser",
+    "schemaVersion": 39,
+    "refresh": "5s",
+    "style": "dark",
+    "time": { "from": "now-15m", "to": "now" },
+    "templating": {
+      "list": [
+        { "name": "DS_PROMETHEUS", "type": "datasource", "query": "prometheus", "current": { "text": "Prometheus", "value": "PBFA97CFB590B2093" } }
+      ]
+    },
+    "panels": [
+      { "id": 100, "type": "row", "title": "Estado de los microservicios", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 } },
+      {
+        "id": 10, "type": "stat", "title": "Telemetría",
+        "description": "telemetria-service · :8093 · ingesta IoT",
+        "gridPos": { "h": 5, "w": 8, "x": 0, "y": 1 },
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "fieldConfig": { "defaults": {
+          "mappings": [ { "type": "value", "options": { "0": { "text": "● Caído", "color": "red" } } }, { "type": "range", "options": { "from": 1, "to": 100, "result": { "text": "● Operativo", "color": "green" } } } ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] },
+          "unit": "none"
+        } },
+        "options": { "colorMode": "background", "graphMode": "none", "textMode": "value", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] } },
+        "targets": [ { "refId": "A", "expr": "count(kube_pod_status_ready{namespace=\"voltera-app\",pod=~\"telemetria-service.*\",condition=\"true\"} == 1) or vector(0)" } ]
+      },
+      {
+        "id": 11, "type": "stat", "title": "Tarifa por Eventos",
+        "description": "tarifa-eventos-service · :8094 · CQRS",
+        "gridPos": { "h": 5, "w": 8, "x": 8, "y": 1 },
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "fieldConfig": { "defaults": {
+          "mappings": [ { "type": "value", "options": { "0": { "text": "● Caído", "color": "red" } } }, { "type": "range", "options": { "from": 1, "to": 100, "result": { "text": "● Operativo", "color": "green" } } } ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] }
+        } },
+        "options": { "colorMode": "background", "graphMode": "none", "textMode": "value", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] } },
+        "targets": [ { "refId": "A", "expr": "count(kube_pod_status_ready{namespace=\"voltera-app\",pod=~\"tarifa-eventos-service.*\",condition=\"true\"} == 1) or vector(0)" } ]
+      },
+      {
+        "id": 12, "type": "stat", "title": "Broker (Redpanda)",
+        "description": "redpanda · :9092 · bus de eventos",
+        "gridPos": { "h": 5, "w": 8, "x": 16, "y": 1 },
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "fieldConfig": { "defaults": {
+          "mappings": [ { "type": "value", "options": { "0": { "text": "● Caído", "color": "red" } } }, { "type": "range", "options": { "from": 1, "to": 100, "result": { "text": "● Operativo", "color": "green" } } } ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] }
+        } },
+        "options": { "colorMode": "background", "graphMode": "none", "textMode": "value", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] } },
+        "targets": [ { "refId": "A", "expr": "count(kube_pod_status_ready{namespace=\"voltera-app\",pod=~\"redpanda.*\",condition=\"true\"} == 1) or vector(0)" } ]
+      },
+
+      { "id": 101, "type": "row", "title": "Tráfico y disponibilidad", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 6 } },
+      {
+        "id": 1, "type": "stat", "title": "Ingesta · req/s",
+        "gridPos": { "h": 6, "w": 6, "x": 0, "y": 7 },
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "fieldConfig": { "defaults": { "unit": "reqps", "decimals": 2, "color": { "mode": "fixed", "fixedColor": "green" } } },
+        "options": { "colorMode": "value", "graphMode": "area", "textMode": "value_and_name", "reduceOptions": { "calcs": ["lastNotNull"] } },
+        "targets": [ { "refId": "A", "expr": "sum(rate(istio_requests_total{destination_workload=\"telemetria-service\"}[2m]))", "legendFormat": "telemetría" } ]
+      },
+      {
+        "id": 2, "type": "stat", "title": "Cargos · req/s",
+        "gridPos": { "h": 6, "w": 6, "x": 6, "y": 7 },
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "fieldConfig": { "defaults": { "unit": "reqps", "decimals": 2, "color": { "mode": "fixed", "fixedColor": "blue" } } },
+        "options": { "colorMode": "value", "graphMode": "area", "textMode": "value_and_name", "reduceOptions": { "calcs": ["lastNotNull"] } },
+        "targets": [ { "refId": "A", "expr": "sum(rate(istio_requests_total{destination_workload=\"tarifa-eventos-service\"}[2m]))", "legendFormat": "tarifa-eventos" } ]
+      },
+      {
+        "id": 3, "type": "gauge", "title": "Éxito de peticiones",
+        "gridPos": { "h": 6, "w": 6, "x": 12, "y": 7 },
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "yellow", "value": 90 }, { "color": "green", "value": 99 } ] } } },
+        "options": { "showThresholdLabels": false, "showThresholdMarkers": true, "reduceOptions": { "calcs": ["lastNotNull"] } },
+        "targets": [ { "refId": "A", "expr": "100 * sum(rate(istio_requests_total{destination_workload=~\"telemetria-service|tarifa-eventos-service\",response_code!~\"5..\"}[5m])) / clamp_min(sum(rate(istio_requests_total{destination_workload=~\"telemetria-service|tarifa-eventos-service\"}[5m])),0.0001)" } ]
+      },
+      {
+        "id": 4, "type": "stat", "title": "Errores 5xx (15m)",
+        "gridPos": { "h": 6, "w": 6, "x": 18, "y": 7 },
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } } },
+        "options": { "colorMode": "background", "graphMode": "area", "textMode": "value", "reduceOptions": { "calcs": ["lastNotNull"] } },
+        "targets": [ { "refId": "A", "expr": "sum(increase(istio_requests_total{destination_workload=~\"telemetria-service|tarifa-eventos-service\",response_code=~\"5..\"}[15m])) or vector(0)" } ]
+      },
+
+      { "id": 102, "type": "row", "title": "Latencia y rendimiento", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 13 } },
+      {
+        "id": 5, "type": "timeseries", "title": "Latencia p95 (ms)",
+        "gridPos": { "h": 9, "w": 12, "x": 0, "y": 14 },
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "fieldConfig": { "defaults": { "unit": "ms", "custom": { "drawStyle": "line", "fillOpacity": 18, "lineWidth": 2, "gradientMode": "opacity", "showPoints": "never" } } },
+        "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"] }, "tooltip": { "mode": "multi" } },
+        "targets": [
+          { "refId": "A", "expr": "histogram_quantile(0.95, sum by (le) (istio_request_duration_milliseconds_bucket{destination_workload=\"telemetria-service\"}))", "legendFormat": "telemetría p95" },
+          { "refId": "B", "expr": "histogram_quantile(0.95, sum by (le) (istio_request_duration_milliseconds_bucket{destination_workload=\"tarifa-eventos-service\"}))", "legendFormat": "tarifa-eventos p95" }
+        ]
+      },
+      {
+        "id": 6, "type": "timeseries", "title": "Throughput por servicio (req/s)",
+        "gridPos": { "h": 9, "w": 12, "x": 12, "y": 14 },
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 18, "lineWidth": 2, "gradientMode": "opacity", "showPoints": "never" } } },
+        "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"] }, "tooltip": { "mode": "multi" } },
+        "targets": [
+          { "refId": "A", "expr": "sum(rate(istio_requests_total{destination_workload=\"telemetria-service\"}[2m]))", "legendFormat": "telemetría" },
+          { "refId": "B", "expr": "sum(rate(istio_requests_total{destination_workload=\"tarifa-eventos-service\"}[2m]))", "legendFormat": "tarifa-eventos" }
+        ]
+      },
+      {
+        "id": 7, "type": "timeseries", "title": "Réplicas de los servicios EDA (KEDA)",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 23 },
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "custom": { "drawStyle": "line", "lineInterpolation": "stepAfter", "fillOpacity": 15, "lineWidth": 2, "showPoints": "always" } } },
+        "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"] } },
+        "targets": [
+          { "refId": "A", "expr": "count(kube_pod_status_ready{namespace=\"voltera-app\",pod=~\"telemetria-service.*\",condition=\"true\"} == 1) or vector(0)", "legendFormat": "telemetría réplicas" },
+          { "refId": "B", "expr": "count(kube_pod_status_ready{namespace=\"voltera-app\",pod=~\"tarifa-eventos-service.*\",condition=\"true\"} == 1) or vector(0)", "legendFormat": "tarifa-eventos réplicas" }
+        ]
+      },
+      {
+        "id": 8, "type": "piechart", "title": "Códigos de respuesta (15m)",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 23 },
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "options": { "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] }, "pieType": "donut" },
+        "targets": [ { "refId": "A", "expr": "sum by (response_code) (increase(istio_requests_total{destination_workload=~\"telemetria-service|tarifa-eventos-service\"}[15m]))", "legendFormat": "HTTP {{response_code}}" } ]
+      }
+    ]
+  },
+  "overwrite": true,
+  "message": "Voltera Telemetria EDA — rediseno profesional"
+}

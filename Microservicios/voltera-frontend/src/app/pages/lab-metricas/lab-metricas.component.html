@@ -1,0 +1,63 @@
+<div class="v-page v-fade">
+  <div class="v-page-head">
+    <span class="v-eyebrow">🔬 EDA · Laboratorio</span>
+    <h1>Métricas · Latencia y Percentiles</h1>
+    <p>Mide en vivo la latencia real de las peticiones a los microservicios de Telemetría
+      (<code>telemetria-service</code> y <code>tarifa-eventos-service</code>) y calcula los
+      percentiles p50 / p95 / p99, con objetivo <strong>p95 &lt; {{ objetivoP95 }} ms</strong>.</p>
+  </div>
+
+  <div class="lab-bar">
+    <button class="v-btn primary" (click)="iniciar()" [disabled]="corriendo">▶ Iniciar medición</button>
+    <button class="v-btn" (click)="detener()" [disabled]="!corriendo">⏸ Detener</button>
+    <button class="v-btn ghost" (click)="limpiar()">🗑 Limpiar</button>
+    <span class="muestras">muestras: <strong>{{ total }}</strong> · última: <strong>{{ ultima }} ms</strong>
+      <span class="live" *ngIf="corriendo">● en vivo</span>
+    </span>
+  </div>
+
+  <div class="lab-grid">
+    <!-- Latencia temporal -->
+    <div class="v-card lab-card">
+      <div class="lab-card-head">
+        <h3>Latencia temporal (ms)</h3>
+        <span class="obj">objetivo p95 = {{ objetivoP95 }} ms</span>
+      </div>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" class="spark">
+        <line x1="0" [attr.y1]="objetivoY" x2="100" [attr.y2]="objetivoY" class="obj-line"/>
+        <polyline [attr.points]="puntos" class="spark-line"/>
+      </svg>
+      <div class="spark-foot">
+        <span>últimas {{ serie.length }} muestras</span>
+        <span class="live-dot" *ngIf="corriendo"></span>
+      </div>
+    </div>
+
+    <!-- Percentiles -->
+    <div class="v-card lab-card">
+      <div class="lab-card-head">
+        <h3>Percentiles (ms)</h3>
+      </div>
+      <div class="pctl">
+        <div class="pctl-row">
+          <span class="pk">p50</span>
+          <div class="pbar"><span class="pfill p50" [style.width.%]="barra(p50)"></span></div>
+          <span class="pv">{{ p50 }} ms</span>
+        </div>
+        <div class="pctl-row">
+          <span class="pk">p95</span>
+          <div class="pbar"><span class="pfill" [ngClass]="claseP95()" [style.width.%]="barra(p95)"></span></div>
+          <span class="pv" [ngClass]="claseP95()">{{ p95 }} ms</span>
+        </div>
+        <div class="pctl-row">
+          <span class="pk">p99</span>
+          <div class="pbar"><span class="pfill p99" [style.width.%]="barra(p99)"></span></div>
+          <span class="pv">{{ p99 }} ms</span>
+        </div>
+      </div>
+      <div class="pctl-verdict" [ngClass]="claseP95()">
+        {{ p95 <= objetivoP95 ? '✓ p95 dentro del objetivo (' + objetivoP95 + ' ms)' : '⚠ p95 supera el objetivo (' + objetivoP95 + ' ms)' }}
+      </div>
+    </div>
+  </div>
+</div>

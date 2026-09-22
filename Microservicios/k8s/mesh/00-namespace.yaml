@@ -1,0 +1,23 @@
+# ============================================================================
+# Voltera - Service Mesh (Istio) | Paso 0: habilitar inyeccion de sidecar
+# ----------------------------------------------------------------------------
+# El label istio-injection=enabled hace que Istio inyecte AUTOMATICAMENTE el
+# sidecar Envoy en cada pod del namespace. Sin este sidecar NO hay:
+#   - mTLS entre servicios
+#   - metricas de malla (latencia por salto)
+#   - circuit breaker / outlier detection
+#   - trazabilidad
+#
+# IMPORTANTE: los pods ya existentes NO obtienen el sidecar hasta que se
+# reinician. Tras aplicar este label, ejecutar:
+#   kubectl -n voltera-app rollout restart deploy
+#
+# Verificar que quedaron con 2/2 contenedores (app + istio-proxy):
+#   kubectl -n voltera-app get pods
+# ============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: voltera-app
+  labels:
+    istio-injection: enabled

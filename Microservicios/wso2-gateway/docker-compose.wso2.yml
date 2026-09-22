@@ -1,0 +1,43 @@
+# WSO2 API Manager como API Gateway de los microservicios Voltera.
+# Contenerizado. Expone el gateway y los portales; enruta a los microservicios
+# desplegados en el cluster K8s (Istio Gateway 192.168.3.220) o a donde apunte
+# la variable BACKEND_BASE.
+#
+# Puertos:
+#   9443 -> Publisher / DevPortal / Admin (consola web)
+#   8243 -> Gateway HTTPS (consumo de APIs)
+#   8280 -> Gateway HTTP  (consumo de APIs)
+#
+# Uso:
+#   docker compose -f docker-compose.wso2.yml up -d
+#   Publisher:  https://localhost:9443/publisher   (admin/admin)
+#   DevPortal:  https://localhost:9443/devportal
+#
+# Nota de arquitectura (Apple Silicon): la imagen wso2am es amd64; en Mac ARM
+# corre por emulacion (rosetta). En el servidor amd64 corre nativa.
+
+services:
+  wso2am:
+    image: wso2/wso2am:4.7.0
+    platform: linux/amd64
+    container_name: voltera-wso2am
+    hostname: wso2am
+    ports:
+      - "9443:9443"   # consola (publisher/devportal/admin)
+      - "8243:8243"   # gateway https
+      - "8280:8280"   # gateway http
+    # Se usa el deployment.toml por defecto de la imagen (completo y valido).
+    # Los backends de los microservicios se registran con publish-apis.sh,
+    # no en el toml. Evita romper la config obligatoria de WSO2.
+    healthcheck:
+      test: ["CMD", "sh", "-c", "curl -sk https://localhost:9443/services/Version || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 300s
+    # WSO2 AM necesita RAM. En Mac ARM corre por emulacion (Rosetta) y consume
+    # mas: se asignan 6G. En un servidor amd64 nativo, 4G suele bastar.
+    mem_limit: 6g
+    environment:
+      # Acotar el heap de la JVM para no exceder el limite del contenedor.
+      - JVM_MEM_OPTS=-Xms1024m -Xmx3072m

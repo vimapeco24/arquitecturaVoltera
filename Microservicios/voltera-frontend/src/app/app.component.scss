@@ -1,0 +1,110 @@
+:host { display: block; }
+
+.shell {
+  display: grid;
+  grid-template-columns: var(--v-sidebar-w) 1fr;
+  min-height: 100vh;
+  transition: grid-template-columns 0.24s ease;
+}
+.shell.collapsed { grid-template-columns: 82px 1fr; }
+
+/* ---------------- Sidebar ---------------- */
+.sidebar {
+  background: linear-gradient(180deg, #0d1626 0%, #0a1120 100%);
+  border-right: 1px solid var(--v-border);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 14px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+.brand {
+  display: flex; align-items: center; gap: 12px;
+  padding: 6px 8px 22px;
+}
+.logo {
+  width: 42px; height: 42px; border-radius: 13px;
+  display: grid; place-items: center;
+  background: linear-gradient(135deg, var(--v-primary) 0%, var(--v-primary-600) 100%);
+  box-shadow: 0 10px 24px -10px var(--v-primary-glow);
+  flex-shrink: 0;
+}
+.logo .bolt { font-size: 20px; }
+.brand-text .name { font-family: 'Sora'; font-weight: 800; font-size: 19px; letter-spacing: -0.02em; }
+.brand-text .tag { font-size: 11px; color: var(--v-text-dim); font-weight: 600; letter-spacing: 0.02em; }
+
+.menu { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.menu-item {
+  display: flex; align-items: center; gap: 13px;
+  padding: 11px 12px; border-radius: 11px;
+  color: var(--v-text-soft); font-weight: 600; font-size: 14px;
+  position: relative; transition: all 0.16s ease;
+}
+.menu-item .ic { font-size: 16px; width: 22px; text-align: center; flex-shrink: 0; }
+.menu-item .lbl { flex: 1; white-space: nowrap; }
+.menu-item .step {
+  font-size: 10.5px; font-weight: 800; color: var(--v-text-dim);
+  background: var(--v-surface-3); border-radius: 6px; padding: 2px 7px;
+}
+.menu-item:hover { background: var(--v-surface); color: var(--v-text); }
+.menu-item.active {
+  background: linear-gradient(135deg, rgba(34, 201, 138, 0.16), rgba(56, 189, 248, 0.08));
+  color: var(--v-text);
+  box-shadow: inset 0 0 0 1px rgba(34, 201, 138, 0.25);
+}
+.menu-item.active::before {
+  content: ''; position: absolute; left: -14px; top: 50%; transform: translateY(-50%);
+  width: 3px; height: 22px; border-radius: 3px; background: var(--v-primary);
+}
+.menu-item.active .step { background: rgba(34, 201, 138, 0.2); color: var(--v-primary); }
+
+.side-foot { padding: 16px 10px 4px; border-top: 1px solid var(--v-border); margin-top: 12px; }
+.side-foot .uni { font-size: 12.5px; font-weight: 700; color: var(--v-text-soft); }
+.side-foot .course { font-size: 11px; color: var(--v-text-dim); margin-top: 3px; line-height: 1.4; }
+
+/* ---------------- Main ---------------- */
+.main { display: flex; flex-direction: column; min-width: 0; }
+
+.topbar {
+  height: var(--v-topbar-h);
+  display: flex; align-items: center; gap: 18px;
+  padding: 0 26px;
+  border-bottom: 1px solid var(--v-border);
+  background: rgba(11, 18, 32, 0.72);
+  backdrop-filter: blur(14px);
+  position: sticky; top: 0; z-index: 20;
+}
+.hamb {
+  background: transparent; border: none; cursor: pointer;
+  display: flex; flex-direction: column; gap: 4px; padding: 6px;
+}
+.hamb span { width: 20px; height: 2px; background: var(--v-text-soft); border-radius: 2px; transition: 0.2s; }
+.hamb:hover span { background: var(--v-primary); }
+
+.crumbs { display: flex; align-items: center; gap: 9px; font-size: 14px; }
+.crumb-root { color: var(--v-text-dim); }
+.crumbs .sep { color: var(--v-text-dim); }
+.crumb-cur { font-weight: 700; }
+
+.top-actions { margin-left: auto; }
+.gw-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 12.5px; font-weight: 600; color: var(--v-text-soft);
+  background: var(--v-surface); border: 1px solid var(--v-border);
+  padding: 7px 13px; border-radius: 999px;
+}
+.gw-chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--v-primary); box-shadow: 0 0 0 4px rgba(34, 201, 138, 0.16); animation: pulse 2s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+.content { flex: 1; }
+
+.t-body { flex: 1; }
+.t-close { background: transparent; border: none; color: var(--v-text-dim); cursor: pointer; font-size: 13px; }
+.t-close:hover { color: var(--v-text); }
+
+@media (max-width: 820px) {
+  .shell { grid-template-columns: 82px 1fr; }
+  .brand-text, .menu-item .lbl, .menu-item .step, .side-foot { display: none; }
+}

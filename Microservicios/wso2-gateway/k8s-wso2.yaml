@@ -1,0 +1,108 @@
+# WSO2 API Manager desplegado EN el cluster K8s (namespace voltera-app).
+# Corre en el nodo master (unico con RAM libre) tolerando su taint.
+# Imagen desde Harbor. Heap acotado para caber en ~2.7GB disponibles.
+#
+# Exposicion:
+#   - Consola (9443) y Gateway (8280/8243) via Service ClusterIP
+#   - HTTPRoute en el Istio Gateway 192.168.3.220 para el gateway HTTP (8280)
+#     -> http://192.168.3.220/gw/...
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wso2am
+  namespace: voltera-app
+  labels: { app: wso2am }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: wso2am } }
+  template:
+    metadata:
+      labels: { app: wso2am }
+      # WSO2 AM queda FUERA de la malla: usa TLS propio (9443/8243) y clustering
+      # que el sidecar+mTLS STRICT romperia. Su backend es el ingress de Istio
+      # (http://192.168.3.220), asi que front -> WSO2 -> ingress -> micro sigue OK.
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      imagePullSecrets: [{ name: harbor-cred }]
+      # Se deja que el scheduler elija nodo; con requests moderados cabe en el worker.
+      containers:
+        - name: wso2am
+          image: 192.168.3.13/app-voltaire/wso2am:4.7.0
+          env:
+            # Acotar heap JVM para caber en el nodo pequeño
+            - { name: JVM_MEM_OPTS, value: "-Xms512m -Xmx1536m" }
+          ports:
+            - { containerPort: 9443 }   # consola
+            - { containerPort: 8280 }   # gateway http
+            - { containerPort: 8243 }   # gateway https
+          resources:
+            requests: { memory: "1536Mi", cpu: "250m" }
+            limits:   { memory: "2560Mi", cpu: "2" }
+          readinessProbe:
+            tcpSocket: { port: 9443 }
+            initialDelaySeconds: 120
+            periodSeconds: 20
+            failureThreshold: 20
+          startupProbe:
+            tcpSocket: { port: 9443 }
+            initialDelaySeconds: 90
+            periodSeconds: 15
+            failureThreshold: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wso2am
+  namespace: voltera-app
+spec:
+  selector: { app: wso2am }
+  ports:
+    - { name: console, port: 9443, targetPort: 9443 }
+    - { name: gw-http, port: 8280, targetPort: 8280 }
+    - { name: gw-https, port: 8243, targetPort: 8243 }
+---
+# Exponer el GATEWAY HTTP de WSO2 (8280) por el Istio Gateway, bajo /gw
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: wso2-gateway
+  namespace: voltera-app
+spec:
+  parentRefs:
+    - name: istio-ingress
+      namespace: istio-ingress
+  rules:
+    - matches:
+        - path: { type: PathPrefix, value: /gw }
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path: { type: ReplacePrefixMatch, replacePrefixMatch: "" }
+      backendRefs:
+        - name: wso2am
+          port: 8280
+---
+# Exponer la CONSOLA (9443) por el Istio Gateway, bajo /wso2-console
+# (Istio -> https backend requiere config extra; se deja el gateway http como principal)
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: wso2-console
+  namespace: voltera-app
+spec:
+  parentRefs:
+    - name: istio-ingress
+      namespace: istio-ingress
+  rules:
+    - matches:
+        - path: { type: PathPrefix, value: /wso2-console }
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path: { type: ReplacePrefixMatch, replacePrefixMatch: "" }
+      backendRefs:
+        - name: wso2am
+          port: 9443

@@ -1,0 +1,160 @@
+# ============================================================================
+# Voltera - Service Mesh (Istio) | Paso 2: Circuit Breaker (DestinationRule)
+# ----------------------------------------------------------------------------
+# En Istio el "circuit breaker" son dos mecanismos combinados dentro de
+# trafficPolicy:
+#
+#   connectionPool   -> LIMITA conexiones/peticiones en vuelo. Si se supera el
+#                       limite, Envoy responde 503 de inmediato (fail-fast) en
+#                       vez de saturar al servicio. (Este es el "corte" del que
+#                       hablaste: dejar de recibir peticiones para estabilizar).
+#
+#   outlierDetection -> DETECTA instancias que devuelven errores 5xx y las
+#                       EXPULSA temporalmente del balanceo (ejection). Asi el
+#                       trafico se reenvia a las replicas sanas => failover.
+#
+#   tls: ISTIO_MUTUAL -> lado cliente del mTLS (complementa el PeerAuthentication
+#                        STRICT del paso 1).
+#
+# DEMO circuit breaker "entre micros" (ej. facturacion): al saturar facturacion
+# con carga concurrente, Envoy abre el breaker y responde 503 (flag "UO" =
+# Upstream Overflow) SIN tumbar el resto de servicios. El registro de casas
+# (volumetria) sigue operando. Eso es aislamiento de fallos por bulkhead.
+#
+# Verificar:
+#   kubectl -n voltera-app get destinationrule
+#   istioctl proxy-config cluster <pod> --fqdn facturacion-service...  -o json
+# ============================================================================
+
+# --- facturacion-service : breaker AGRESIVO (servicio de la demo) ------------
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: cb-facturacion-service
+  namespace: voltera-app
+spec:
+  host: facturacion-service.voltera-app.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+    connectionPool:
+      tcp:
+        maxConnections: 5            # pocas conexiones -> el breaker abre rapido en la demo
+      http:
+        http1MaxPendingRequests: 5   # cola maxima de peticiones pendientes
+        maxRequestsPerConnection: 10
+        http2MaxRequests: 20
+    outlierDetection:
+      consecutive5xxErrors: 3        # 3 errores 5xx seguidos...
+      interval: 5s                   # ...evaluados cada 5s...
+      baseEjectionTime: 30s          # ...expulsan la instancia 30s...
+      maxEjectionPercent: 100        # ...pudiendo expulsar el 100% si todas fallan
+---
+# --- Resto de servicios : breaker con limites de produccion (mas holgados) ---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: cb-liquidacion-mensual-service
+  namespace: voltera-app
+spec:
+  host: liquidacion-mensual-service.voltera-app.svc.cluster.local
+  trafficPolicy:
+    tls: { mode: ISTIO_MUTUAL }
+    connectionPool:
+      tcp: { maxConnections: 100 }
+      http: { http1MaxPendingRequests: 100, http2MaxRequests: 200, maxRequestsPerConnection: 0 }
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: cb-liquidacion-p2p-service
+  namespace: voltera-app
+spec:
+  host: liquidacion-p2p-service.voltera-app.svc.cluster.local
+  trafficPolicy:
+    tls: { mode: ISTIO_MUTUAL }
+    connectionPool:
+      tcp: { maxConnections: 100 }
+      http: { http1MaxPendingRequests: 100, http2MaxRequests: 200, maxRequestsPerConnection: 0 }
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: cb-volumetria-service
+  namespace: voltera-app
+spec:
+  host: volumetria-service.voltera-app.svc.cluster.local
+  trafficPolicy:
+    tls: { mode: ISTIO_MUTUAL }
+    connectionPool:
+      tcp: { maxConnections: 100 }
+      http: { http1MaxPendingRequests: 100, http2MaxRequests: 200, maxRequestsPerConnection: 0 }
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: cb-tarifas-service
+  namespace: voltera-app
+spec:
+  host: tarifas-service.voltera-app.svc.cluster.local
+  trafficPolicy:
+    tls: { mode: ISTIO_MUTUAL }
+    connectionPool:
+      tcp: { maxConnections: 100 }
+      http: { http1MaxPendingRequests: 100, http2MaxRequests: 200, maxRequestsPerConnection: 0 }
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: cb-pagos-service
+  namespace: voltera-app
+spec:
+  host: pagos-service.voltera-app.svc.cluster.local
+  trafficPolicy:
+    tls: { mode: ISTIO_MUTUAL }
+    connectionPool:
+      tcp: { maxConnections: 100 }
+      http: { http1MaxPendingRequests: 100, http2MaxRequests: 200, maxRequestsPerConnection: 0 }
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: cb-service-registry
+  namespace: voltera-app
+spec:
+  host: service-registry.voltera-app.svc.cluster.local
+  trafficPolicy:
+    tls: { mode: ISTIO_MUTUAL }
+    connectionPool:
+      tcp: { maxConnections: 50 }
+      http: { http1MaxPendingRequests: 50, http2MaxRequests: 100, maxRequestsPerConnection: 0 }
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50

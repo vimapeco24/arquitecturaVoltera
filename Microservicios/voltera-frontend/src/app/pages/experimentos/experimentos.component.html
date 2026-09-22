@@ -1,0 +1,184 @@
+<div class="v-page v-fade">
+  <div class="v-page-head">
+    <span class="v-eyebrow">🧪 Validación · Entrega 3</span>
+    <h1>Experimentos de arquitectura</h1>
+    <p>
+      Motor de carga (N peticiones, secuencial o concurrente) y experimentos de validación de la
+      arquitectura orientada a eventos (EDA), escalado (KEDA), CQRS e idempotencia. Todo apunta al
+      despliegue remoto vía el gateway WSO2; no corre nada en local.
+    </p>
+  </div>
+
+  <div class="tabs">
+    <button [class.active]="activeTab === 'carga'" (click)="activeTab = 'carga'">Motor de carga</button>
+    <button [class.active]="activeTab === 'validacion'" (click)="activeTab = 'validacion'">Experimentos de validación</button>
+  </div>
+
+  <!-- ================= SECCIÓN A: Motor de carga ================= -->
+  <div class="layout" *ngIf="activeTab === 'carga'">
+    <form class="panel v-card" (ngSubmit)="lanzar()">
+      <h3>Configurar experimento</h3>
+      <p class="sub">Todo apunta al despliegue remoto; no corre nada en local.</p>
+
+      <div class="v-field">
+        <label>Operación blanco</label>
+        <select class="v-select" [(ngModel)]="operacionClave" name="operacion" (ngModelChange)="alCambiarOperacion()">
+          <option *ngFor="let o of catalogo" [value]="o.clave">{{ o.etiqueta }}</option>
+        </select>
+      </div>
+
+      <p class="hint" *ngIf="operacion.nota">{{ operacion.nota }}</p>
+
+      <div class="v-field">
+        <label>Número de peticiones</label>
+        <div class="presets">
+          <button
+            type="button"
+            *ngFor="let p of presets"
+            class="preset"
+            [class.active]="numRequests === p"
+            (click)="setPreset(p)"
+          >{{ p }}</button>
+        </div>
+        <input class="v-input" type="number" min="1" max="2000" [(ngModel)]="numRequests" name="num" />
+      </div>
+
+      <div class="v-field">
+        <label>Concurrencia (peticiones en paralelo)</label>
+        <input class="v-input" type="number" min="1" max="200" [(ngModel)]="concurrencia" name="conc" />
+        <span class="err-text" *ngIf="concurrencia <= 1" style="color:var(--v-text-dim)">
+          Concurrencia 1 = disparo secuencial.
+        </span>
+      </div>
+
+      <div class="v-field" *ngIf="operacion.metodo === 'POST'">
+        <label>Cuerpo (JSON)</label>
+        <textarea class="v-input" rows="6" [(ngModel)]="bodyTexto" name="body" style="font-family:monospace;resize:vertical"></textarea>
+        <span class="err-text" style="color:var(--v-solar)">⚠ Operación de escritura: genera estado en el servicio.</span>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="v-btn primary" [disabled]="ejecutando">
+          <span class="v-spinner" *ngIf="ejecutando"></span>{{ ejecutando ? 'Ejecutando…' : '▶ Lanzar experimento' }}
+        </button>
+        <button type="button" class="v-btn ghost" (click)="limpiar()" [disabled]="ejecutando">Limpiar</button>
+      </div>
+
+      <p class="hint">
+        {{ operacion.metodo }} <code>{{ operacion.servicio }}/v1/{{ operacion.path }}</code>
+      </p>
+
+      <div class="progress-box" *ngIf="ejecutando || totalPlan">
+        <div class="progress-head">
+          <span>{{ completadas }} / {{ totalPlan }}</span>
+          <span>{{ progresoPct }}%</span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" [style.width.%]="progresoPct"></div></div>
+      </div>
+    </form>
+
+    <div class="result v-card">
+      <div class="result-head">
+        <h3>Resultados</h3>
+        <button class="v-btn ghost" *ngIf="resultados.length" (click)="exportarCsv()">⬇ CSV</button>
+      </div>
+
+      <div class="v-empty" *ngIf="!stats && !ejecutando">
+        <div class="ic">🧪</div><p>Configura y lanza un experimento para ver las métricas.</p>
+      </div>
+
+      <div class="v-empty" *ngIf="ejecutando && !stats">
+        <div class="ic">⏱️</div><p>Ejecutando {{ totalPlan }} peticiones…</p>
+      </div>
+
+      <div class="metrics-grid" *ngIf="stats">
+        <div class="metric">
+          <div class="m-label">Éxito</div>
+          <div class="big-num" [class.neg]="stats.errores > 0">{{ stats.exitoPct }}%</div>
+          <div class="m-sub">{{ stats.exitos }}/{{ stats.total }} OK</div>
+        </div>
+        <div class="metric">
+          <div class="m-label">Throughput</div>
+          <div class="big-num">{{ stats.reqPorSeg }}</div>
+          <div class="m-sub">req/s</div>
+        </div>
+        <div class="metric">
+          <div class="m-label">Latencia media</div>
+          <div class="big-num">{{ stats.avg }}</div>
+          <div class="m-sub">ms</div>
+        </div>
+        <div class="metric">
+          <div class="m-label">p95</div>
+          <div class="big-num">{{ stats.p95 }}</div>
+          <div class="m-sub">ms</div>
+        </div>
+      </div>
+
+      <div class="detail-box" *ngIf="stats">
+        <h4>Latencias (ms)</h4>
+        <div class="kv"><span class="k">Mínima</span><span class="val">{{ stats.min }}</span></div>
+        <div class="kv"><span class="k">Media</span><span class="val">{{ stats.avg }}</span></div>
+        <div class="kv"><span class="k">p95</span><span class="val">{{ stats.p95 }}</span></div>
+        <div class="kv"><span class="k">p99</span><span class="val">{{ stats.p99 }}</span></div>
+        <div class="kv"><span class="k">Máxima</span><span class="val">{{ stats.max }}</span></div>
+        <div class="kv"><span class="k">Duración total</span><span class="val">{{ stats.duracionTotalMs }} ms</span></div>
+      </div>
+
+      <div class="detail-box" *ngIf="stats">
+        <h4>Respuestas por código HTTP</h4>
+        <div class="kv" *ngFor="let c of codigos">
+          <span class="k">
+            <span class="v-badge" [ngClass]="claseBadge(c.codigo)">{{ c.codigo === 0 ? 'RED/ERR' : c.codigo }}</span>
+          </span>
+          <span class="val">{{ c.conteo }}</span>
+        </div>
+      </div>
+
+      <div class="v-table-wrap" *ngIf="resultados.length" style="margin-top:16px">
+        <table class="v-table">
+          <thead><tr><th>#</th><th>Estado</th><th>Código</th><th>Latencia</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let r of resultados.slice(0, 100)">
+              <td>{{ r.indice + 1 }}</td>
+              <td><span class="v-badge" [ngClass]="r.ok ? 'ok' : 'err'">{{ r.ok ? 'OK' : 'ERR' }}</span></td>
+              <td class="v-mono">{{ r.status === 0 ? '—' : r.status }}</td>
+              <td class="v-mono" [ngClass]="claseLatencia(r.ms)"><strong>{{ r.ms }} ms</strong></td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="hint" *ngIf="resultados.length > 100">Mostrando las primeras 100 de {{ resultados.length }} filas. Exporta el CSV para el detalle completo.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= SECCIÓN B: Experimentos de validación EDA ================= -->
+  <div class="validacion" *ngIf="activeTab === 'validacion'">
+    <p class="val-intro">
+      Cada experimento ejecuta una secuencia real de llamadas HTTP contra <code>siniestros-service</code>
+      y <code>reaseguro-service</code> a través del gateway, y evalúa el criterio de éxito de la Entrega 3.
+    </p>
+
+    <div class="exp-grid">
+      <div class="exp-card v-card" *ngFor="let exp of experimentos">
+        <div class="exp-head">
+          <span class="exp-num">{{ exp.num }}</span>
+          <h3>{{ exp.nombre }}</h3>
+        </div>
+        <div class="exp-body">
+          <div class="kv"><span class="k">Hipótesis</span><span class="val">{{ exp.hipotesis }}</span></div>
+          <div class="kv"><span class="k">Métrica</span><span class="val">{{ exp.metrica }}</span></div>
+          <div class="kv"><span class="k">Criterio</span><span class="val">{{ exp.criterio }}</span></div>
+        </div>
+        <div class="exp-actions">
+          <button class="v-btn primary" (click)="ejecutarExperimento(exp)" [disabled]="exp.ejecutando">
+            <span class="v-spinner" *ngIf="exp.ejecutando"></span>{{ exp.ejecutando ? 'Ejecutando…' : '▶ Ejecutar' }}
+          </button>
+        </div>
+        <div class="exp-result" *ngIf="exp.resultado">
+          <span class="v-badge" [ngClass]="exp.resultado.ok ? 'ok' : 'err'">{{ exp.resultado.ok ? 'ÉXITO' : 'FALLO' }}</span>
+          <span>{{ exp.resultado.detalle }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,50 @@
+# Generador de carga continuo para Telemetría EDA — poblar métricas Istio en vivo.
+# Hace requests service-to-service (atraviesan el sidecar Istio) para que el
+# dashboard de Grafana muestre datos moviéndose durante la demo.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telemetria-loadgen
+  namespace: voltera-app
+  labels: { app: telemetria-loadgen }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: telemetria-loadgen } }
+  template:
+    metadata:
+      labels: { app: telemetria-loadgen, version: v1 }
+    spec:
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: loadgen
+          image: curlimages/curl:8.10.1
+          resources:
+            limits: { cpu: "50m", memory: "48Mi" }
+            requests: { cpu: "10m", memory: "24Mi" }
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              TEL=http://telemetria-service.voltera-app:8093
+              TAR=http://tarifa-eventos-service.voltera-app:8094
+              echo "loadgen iniciado";
+              while true; do
+                # listar (GET) — genera tráfico de lectura
+                curl -s -o /dev/null "$TEL/api/v1/medidores" || true
+                curl -s -o /dev/null "$TAR/api/v1/cargos" || true
+                curl -s -o /dev/null "$TAR/api/v1/cargos/stats" || true
+                # cada ~10 ciclos, un flujo completo (ingesta -> evento -> cargo)
+                if [ $(( $(date +%s) % 10 )) -eq 0 ]; then
+                  MID=$(curl -s -H 'Content-Type: application/json' \
+                    -d '{"prosumidorId":"PRO-LOADGEN","umbralKwh":100}' \
+                    "$TEL/api/v1/medidores" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+                  if [ -n "$MID" ]; then
+                    curl -s -o /dev/null -X POST "$TEL/api/v1/medidores/$MID/activar" || true
+                    curl -s -o /dev/null -H 'Content-Type: application/json' \
+                      -d '{"consumoKwh":150}' "$TEL/api/v1/medidores/$MID/lecturas" || true
+                  fi
+                fi
+                sleep 2
+              done

@@ -1,0 +1,87 @@
+server:
+  port: 8088
+  # Tomcat afinado para baja huella de RAM: pocos hilos, sin exceso de buffers.
+  tomcat:
+    threads:
+      max: 25          # por defecto son 200; reducimos para ahorrar memoria
+      min-spare: 5
+    max-connections: 500
+    accept-count: 50
+
+spring:
+  application:
+    name: facturacion-service
+  # Lazy init: los beans se crean cuando se usan, reduciendo el heap al arranque.
+  main:
+    lazy-initialization: true
+  threads:
+    virtual:
+      enabled: true    # hilos virtuales (Java 21) => menos memoria por request
+
+# Registro en el Service Registry (Eureka). Se activa solo si hay registry disponible.
+eureka:
+  client:
+    enabled: ${EUREKA_ENABLED:false}
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+
+# Observabilidad: exponemos SOLO lo necesario para no inflar memoria ni superficie.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,circuitbreakers,circuitbreakerevents
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: always
+  health:
+    circuitbreakers:
+      enabled: true   # liveness/readiness para Kubernetes
+  metrics:
+    enable:
+      all: false
+      jvm: true
+      http: true
+  # Tracing distribuido: 100% de muestreo (demo). El endpoint apunta al colector
+  # Zipkin/Jaeger del cluster; si no está disponible solo se registran warnings.
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING:1.0}
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_ENDPOINT:http://zipkin.istio-system:9411/api/v2/spans}
+
+logging:
+  level:
+    root: INFO
+    com.voltera: INFO
+
+# URL base del servicio de Tarifas para la llamada entre microservicios.
+# En el cluster resuelve por DNS de K8s; el tráfico va con mTLS por el sidecar.
+tarifas:
+  base-url: ${TARIFAS_URL:http://tarifas-service:8084}
+
+# Circuit Breaker de aplicación (Resilience4j) para la llamada facturacion -> tarifas.
+resilience4j:
+  circuitbreaker:
+    instances:
+      tarifas:
+        register-health-indicator: true
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50          # >=50% de fallos abre el breaker
+        wait-duration-in-open-state: 10s    # tiempo en OPEN antes de HALF_OPEN
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+  retry:
+    instances:
+      tarifas:
+        max-attempts: 3
+        wait-duration: 200ms

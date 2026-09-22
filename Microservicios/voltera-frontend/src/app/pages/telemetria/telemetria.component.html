@@ -1,0 +1,89 @@
+<div class="v-page v-fade">
+  <div class="v-page-head">
+    <span class="v-eyebrow">📡 EDA · Telemetría IoT</span>
+    <h1>Telemetría de Prosumidores</h1>
+    <p>Ingesta de consumo desde el medidor IoT. Al registrar una lectura, telemetria-service publica el evento <code>ConsumoRegistrado</code> al broker. Si no hay conexión, la lectura se guarda en un <strong>buffer offline</strong> y se reenvía al reconectar (<em>store-and-forward</em>).</p>
+  </div>
+
+  <div class="layout">
+    <div>
+      <form class="panel v-card" [formGroup]="formMedidor" (ngSubmit)="registrar()">
+        <h3>Registrar medidor</h3>
+        <p class="sub">Crea un medidor (nace INACTIVO). El umbral es el consumo contratado; por encima es consumo extra.</p>
+
+        <div class="v-field"><label>Prosumidor</label><input class="v-input" formControlName="prosumidorId" placeholder="PRO-EDA-001" /></div>
+        <div class="v-field"><label>Umbral contratado (kWh)</label><input class="v-input" type="number" formControlName="umbralKwh" /></div>
+
+        <div class="form-actions">
+          <button type="submit" class="v-btn primary" [disabled]="enviando">
+            <span class="v-spinner" *ngIf="enviando"></span>{{ enviando ? 'Registrando…' : 'Registrar medidor' }}
+          </button>
+        </div>
+        <p class="hint">POST <code>/telemetria/v1/api/v1/medidores</code></p>
+      </form>
+
+      <form class="panel v-card" [formGroup]="formLectura" (ngSubmit)="seleccionado && ingestar(seleccionado)" style="margin-top:20px">
+        <h3>Enviar lectura de consumo</h3>
+        <p class="sub" *ngIf="seleccionado">Medidor: <strong>{{ seleccionado.id }}</strong> ({{ seleccionado.estado }})</p>
+        <p class="sub" *ngIf="!seleccionado">Selecciona un medidor ACTIVO de la lista →</p>
+
+        <div class="v-field"><label>Consumo (kWh)</label><input class="v-input" type="number" formControlName="consumoKwh" /></div>
+
+        <div class="form-actions">
+          <button type="submit" class="v-btn primary" [disabled]="!seleccionado || !puedeMedir(seleccionado!)">⚡ Ingestar lectura</button>
+          <button type="button" class="v-btn" (click)="drenarBuffer()">🔁 Drenar buffer offline</button>
+        </div>
+        <p class="hint">POST <code>/medidores/&#123;id&#125;/lecturas</code> → emite <code>ConsumoRegistrado</code></p>
+
+        <div class="detail-box" *ngIf="ultimaIngesta">
+          <h4>Última lectura ingestada</h4>
+          <div class="kv"><span class="k">Consumo</span><span class="val">{{ ultimaIngesta.consumoKwh | number:'1.0-3' }} kWh</span></div>
+          <div class="kv"><span class="k">Umbral</span><span class="val">{{ ultimaIngesta.umbralKwh | number:'1.0-3' }} kWh</span></div>
+          <div class="kv"><span class="k">Consumo extra</span>
+            <span class="v-badge" [ngClass]="ultimaIngesta.consumoExtra ? 'err' : 'ok'">{{ ultimaIngesta.consumoExtra ? 'SÍ' : 'NO' }}</span>
+          </div>
+          <div class="kv"><span class="k">Destino</span>
+            <span class="v-badge" [ngClass]="ultimaIngesta.publicadoEnBroker ? 'ok' : 'warn'">
+              {{ ultimaIngesta.publicadoEnBroker ? 'Publicado al broker' : 'Buffer offline' }}
+            </span>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="result v-card">
+      <div class="result-head">
+        <h3>Medidores</h3>
+        <span class="count">{{ medidores.length }}</span>
+      </div>
+
+      <div class="inline-query">
+        <button class="v-btn" (click)="listar()">🔄 Listar</button>
+      </div>
+
+      <div class="v-empty" *ngIf="cargando">Cargando…</div>
+      <div class="v-empty" *ngIf="!cargando && medidores.length === 0">
+        <div class="ic">📡</div><p>Sin medidores. Registra uno para empezar.</p>
+      </div>
+
+      <div class="v-table-wrap" *ngIf="!cargando && medidores.length" style="margin-top:16px">
+        <table class="v-table">
+          <thead><tr><th>Medidor</th><th>Prosumidor</th><th>Umbral</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let m of medidores" (click)="seleccionar(m)" style="cursor:pointer"
+                [style.background]="seleccionado?.id === m.id ? 'var(--v-bg-2)' : ''">
+              <td style="font-size:12px">{{ m.id }}</td>
+              <td>{{ m.prosumidorId }}</td>
+              <td class="v-mono">{{ m.umbralKwh | number:'1.0-2' }}</td>
+              <td><span class="v-badge" [ngClass]="badge(m.estado)">{{ m.estado }}</span></td>
+              <td style="white-space:nowrap">
+                <button class="v-btn ghost" *ngIf="m.estado !== 'ACTIVO'" (click)="activar(m); $event.stopPropagation()">▶ Activar</button>
+                <button class="v-btn ghost" *ngIf="m.estado === 'ACTIVO'" (click)="suspender(m); $event.stopPropagation()">⏸ Suspender</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
