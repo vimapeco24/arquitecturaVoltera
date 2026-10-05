@@ -1,6 +1,7 @@
 package com.voltera.tarifaeventos.infrastructure.rest;
 
 import com.voltera.tarifaeventos.domain.exception.CargoNoEncontradoException;
+import com.voltera.tarifaeventos.domain.exception.SagaNoEncontradaException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -16,6 +17,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(CargoNoEncontradoException.class)
     public ResponseEntity<Map<String, Object>> noEncontrado(CargoNoEncontradoException ex) {
+        return build(HttpStatus.NOT_FOUND, ex.getMessage());
+    }
+
+    @ExceptionHandler(SagaNoEncontradaException.class)
+    public ResponseEntity<Map<String, Object>> sagaNoEncontrada(SagaNoEncontradaException ex) {
         return build(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 

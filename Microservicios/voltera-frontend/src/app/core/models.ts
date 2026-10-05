@@ -295,3 +295,43 @@ export interface NotificacionLiquidada {
   mensaje: string;
   generadaEn: string;
 }
+
+/* ---------------- Orquestación (mediador) · OUTBOX · INBOX — lámina 10 ---------------- */
+export type EstadoSaga = 'INICIADA' | 'COMPLETADA' | 'FALLIDA';
+export interface SagaAlta {
+  sagaId: string;
+  medidorId: string;
+  prosumidorId: string | null;
+  estado: EstadoSaga;
+  canalIngestaCreado: boolean;
+  tarifaAsignada: boolean;
+  iniciadaEn: string;
+  finalizadaEn: string | null;
+  motivoFallo: string | null;
+  timeoutMinutos: number;
+}
+export interface IniciarAltaRequest {
+  medidorId: string;
+  prosumidorId?: string;
+}
+export interface OutboxMensaje {
+  id: string;
+  tipoEvento: string;
+  clave: string;
+  payloadJson: string;
+  creadoEn: string;
+  publicado: boolean;
+  publicadoEn: string | null;
+}
+export interface InboxFila {
+  consumidor: string;
+  eventId: string;
+  tipoEvento: string;
+  primeraVez: string;
+  vecesVistas: number;
+}
+export interface InboxVista {
+  totalUnicos: number;
+  totalDuplicados: number;
+  filas: InboxFila[];
+}

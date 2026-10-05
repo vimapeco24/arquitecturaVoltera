@@ -1,0 +1,128 @@
+<div class="v-page v-fade">
+  <div class="v-page-head">
+    <span class="v-eyebrow">🧭 EDA · Orquestación (mediador)</span>
+    <h1>Orquestación · Outbox · Inbox</h1>
+    <p>
+      <span class="v-badge warn">Process manager — alta de medidor</span>
+      &nbsp; El mediador publica <code>MedidorHabilitado</code> y espera <code>CanalIngestaCreado</code> + <code>TarifaAsignada</code>.
+      Si vencen <strong>15 min</strong> emite <code>HabilitaciónFallida</code> + <code>MedidorSuspendido</code>.
+      Todo sale por el <strong>OUTBOX transaccional</strong>; los consumidores deduplican con la <strong>tabla INBOX</strong>.
+    </p>
+  </div>
+
+  <div class="layout" style="margin-top:24px">
+    <!-- Iniciar alta -->
+    <form class="panel v-card" [formGroup]="formAlta" (ngSubmit)="iniciarAlta()">
+      <h3>Iniciar alta de medidor</h3>
+      <p class="sub">Crea una saga y encola <code>MedidorHabilitado</code> en el outbox (patrón mediador).</p>
+
+      <div class="v-field"><label>Medidor</label><input class="v-input" formControlName="medidorId" placeholder="MED-ALTA-001" /></div>
+      <div class="v-field"><label>Prosumidor</label><input class="v-input" formControlName="prosumidorId" placeholder="PRO-ALTA-001" /></div>
+
+      <div class="form-actions">
+        <button type="submit" class="v-btn primary">🚀 Iniciar alta</button>
+      </div>
+      <p class="hint">POST <code>/tarifa-eventos/v1/api/v1/orquestacion/saga/alta</code></p>
+
+      <div class="detail-box">
+        <h4>Idempotencia (tabla INBOX)</h4>
+        <p class="hint" style="margin-top:0">Envía el <strong>mismo</strong> <code>eventId</code> dos veces: el inbox lo cuenta como 1 único + 1 duplicado, sin doble cobro.</p>
+        <div class="form-actions">
+          <button type="button" class="v-btn" (click)="probarIdempotencia()">♻️ Reenviar mismo eventId ×2</button>
+        </div>
+        <div class="kv" *ngIf="inboxVista"><span class="k">Eventos únicos</span><span class="val">{{ inboxVista.totalUnicos }}</span></div>
+        <div class="kv" *ngIf="inboxVista"><span class="k">Duplicados descartados</span><span class="val">{{ inboxVista.totalDuplicados }}</span></div>
+      </div>
+    </form>
+
+    <!-- Sagas -->
+    <div class="result v-card">
+      <div class="result-head">
+        <h3>Sagas de alta</h3>
+        <button class="v-btn" (click)="refrescar()">🔄 Refrescar</button>
+      </div>
+
+      <div class="v-empty" *ngIf="cargando">Cargando…</div>
+      <div class="v-empty" *ngIf="!cargando && sagas.length === 0">
+        <div class="ic">🧭</div><p>Sin sagas. Inicia un alta para arrancar el process manager.</p>
+      </div>
+
+      <div class="v-table-wrap" *ngIf="!cargando && sagas.length" style="margin-top:16px">
+        <table class="v-table">
+          <thead><tr><th>Medidor</th><th>Estado</th><th>Canal</th><th>Tarifa</th><th>Acciones</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let s of sagas">
+              <td style="font-size:12px">{{ s.medidorId }}</td>
+              <td><span class="v-badge" [ngClass]="estadoBadge(s.estado)">{{ s.estado }}</span></td>
+              <td>{{ s.canalIngestaCreado ? '✅' : '⏳' }}</td>
+              <td>{{ s.tarifaAsignada ? '✅' : '⏳' }}</td>
+              <td>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                  <button class="v-btn" *ngIf="s.estado === 'INICIADA'" (click)="canalIngesta(s)">Canal</button>
+                  <button class="v-btn" *ngIf="s.estado === 'INICIADA'" (click)="tarifaAsignada(s)">Tarifa</button>
+                  <button class="v-btn" *ngIf="s.estado === 'INICIADA'" (click)="forzarTimeout(s)">⏱️ Timeout</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="hint" *ngIf="sagas.length">
+        "Canal" = <code>CanalIngestaCreado</code>, "Tarifa" = <code>TarifaAsignada</code>. Con ambas → <strong>COMPLETADA</strong>.
+        "Timeout" fuerza la compensación de los 15 min → <strong>FALLIDA</strong>.
+      </p>
+    </div>
+  </div>
+
+  <!-- Outbox -->
+  <div class="result v-card" style="margin-top:24px">
+    <div class="result-head">
+      <h3>Outbox transaccional</h3>
+      <span class="count">{{ outboxFilas.length }} evento(s)</span>
+    </div>
+    <p class="hint" style="margin-top:0">El estado de la saga y el evento se escriben juntos; el relay publica al broker (topic <code>medidores-habilitacion</code>) y marca la fila como publicada.</p>
+
+    <div class="v-empty" *ngIf="outboxFilas.length === 0">
+      <div class="ic">📤</div><p>Outbox vacío.</p>
+    </div>
+
+    <div class="v-table-wrap" *ngIf="outboxFilas.length" style="margin-top:12px">
+      <table class="v-table">
+        <thead><tr><th>Tipo de evento</th><th>Clave (medidorId)</th><th>Publicado</th><th>Creado</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let m of outboxFilas">
+            <td><strong>{{ m.tipoEvento }}</strong></td>
+            <td class="v-mono">{{ m.clave }}</td>
+            <td><span class="v-badge" [ngClass]="m.publicado ? 'ok' : 'warn'">{{ m.publicado ? 'PUBLICADO' : 'PENDIENTE' }}</span></td>
+            <td style="font-size:12px">{{ m.creadoEn | date:'HH:mm:ss' }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Inbox -->
+  <div class="result v-card" style="margin-top:24px" *ngIf="inboxVista">
+    <div class="result-head">
+      <h3>Tabla Inbox (idempotencia por consumidor)</h3>
+      <span class="count">únicos {{ inboxVista.totalUnicos }} · duplicados {{ inboxVista.totalDuplicados }}</span>
+    </div>
+    <div class="v-table-wrap" *ngIf="inboxVista.filas.length" style="margin-top:12px">
+      <table class="v-table">
+        <thead><tr><th>Consumidor</th><th>Event ID</th><th>Tipo</th><th>Veces vistas</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let f of inboxVista.filas">
+            <td style="font-size:12px">{{ f.consumidor }}</td>
+            <td class="v-mono">{{ f.eventId }}</td>
+            <td>{{ f.tipoEvento }}</td>
+            <td><span class="v-badge" [ngClass]="f.vecesVistas > 1 ? 'warn' : 'ok'">{{ f.vecesVistas }}</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="v-empty" *ngIf="inboxVista.filas.length === 0">
+      <div class="ic">📥</div><p>Inbox vacío. Prueba la idempotencia para poblarlo.</p>
+    </div>
+  </div>
+</div>

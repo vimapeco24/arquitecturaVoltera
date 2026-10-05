@@ -33,6 +33,7 @@ export class AppComponent {
     { path: '/reaseguro', label: 'Reaseguro', icon: '🛡️' },
     { path: '/telemetria', label: 'Telemetría', icon: '📡' },
     { path: '/tarifa-eventos', label: 'Tarifa Eventos', icon: '💰' },
+    { path: '/orquestacion', label: 'Orquestación', icon: '🧭' },
     { path: '/experimentos-telemetria', label: 'Exp. Telemetría', icon: '🧪' },
     { path: '/patrones', label: 'Patrones & Tec.', icon: '📚' },
     { path: '/lab-metricas', label: 'Lab · Métricas', icon: '🔬' },

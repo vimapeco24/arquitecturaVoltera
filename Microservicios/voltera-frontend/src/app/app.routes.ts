@@ -58,6 +58,11 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/tarifa-eventos/tarifa-eventos.component').then((m) => m.TarifaEventosComponent),
   },
   {
+    path: 'orquestacion',
+    title: 'Orquestación · Outbox · Inbox · Voltera',
+    loadComponent: () => import('./pages/orquestacion/orquestacion.component').then((m) => m.OrquestacionComponent),
+  },
+  {
     path: 'experimentos-telemetria',
     title: 'Telemetría · Experimentos y Patrones · Voltera',
     loadComponent: () => import('./pages/experimentos-telemetria/experimentos-telemetria.component').then((m) => m.ExperimentosTelemetriaComponent),

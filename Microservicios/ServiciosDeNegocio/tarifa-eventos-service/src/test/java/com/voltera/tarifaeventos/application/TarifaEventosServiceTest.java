@@ -9,6 +9,7 @@ import com.voltera.tarifaeventos.domain.port.in.ActivarMedidorUseCase.ComandoAct
 import com.voltera.tarifaeventos.domain.port.out.NotificacionPublisherPort;
 import com.voltera.tarifaeventos.infrastructure.persistence.InMemoryCargoRepository;
 import com.voltera.tarifaeventos.infrastructure.persistence.InMemoryCargoVistaRepository;
+import com.voltera.tarifaeventos.infrastructure.persistence.InMemoryInbox;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,6 +27,7 @@ class TarifaEventosServiceTest {
     private InMemoryCargoRepository escrituraRepo;
     private InMemoryCargoVistaRepository lecturaRepo;
     private NotificacionSpy notificacionPublisher;
+    private InMemoryInbox inbox;
     private TarifaEventosService service;
 
     static class NotificacionSpy implements NotificacionPublisherPort {
@@ -38,7 +40,8 @@ class TarifaEventosServiceTest {
         escrituraRepo = new InMemoryCargoRepository();
         lecturaRepo = new InMemoryCargoVistaRepository();
         notificacionPublisher = new NotificacionSpy();
-        service = new TarifaEventosService(escrituraRepo, lecturaRepo, notificacionPublisher);
+        inbox = new InMemoryInbox();
+        service = new TarifaEventosService(escrituraRepo, lecturaRepo, notificacionPublisher, inbox);
     }
 
     private ConsumoRegistrado evento(String eventId, BigDecimal consumo, BigDecimal umbral, boolean extra) {
@@ -73,7 +76,7 @@ class TarifaEventosServiceTest {
     }
 
     @Test
-    @DisplayName("Idempotencia: el mismo eventId no crea un cargo duplicado")
+    @DisplayName("Idempotencia (tabla INBOX): el mismo eventId no crea un cargo duplicado y se cuenta como duplicado")
     void idempotenciaMismoEventIdNoDuplica() {
         CargoTarifa primero = service.procesar(evento("EVT-DUP", new BigDecimal("150"), new BigDecimal("100"), true));
         CargoTarifa segundo = service.procesar(evento("EVT-DUP", new BigDecimal("150"), new BigDecimal("100"), true));
@@ -81,6 +84,10 @@ class TarifaEventosServiceTest {
         assertEquals(primero.getId().valor(), segundo.getId().valor());
         assertEquals(1, escrituraRepo.buscarTodos().size());
         assertEquals(1, lecturaRepo.buscarTodas().size());
+
+        // Tabla INBOX (lamina 10): 1 evento unico aplicado, 1 reentrega descartada.
+        assertEquals(1, inbox.totalUnicos());
+        assertEquals(1, inbox.totalDuplicados());
     }
 
     @Test

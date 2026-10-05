@@ -10,6 +10,7 @@ import com.voltera.tarifaeventos.domain.port.in.ConsultarCargoUseCase;
 import com.voltera.tarifaeventos.domain.port.in.ProcesarConsumoUseCase;
 import com.voltera.tarifaeventos.domain.port.out.CargoRepositoryPort;
 import com.voltera.tarifaeventos.domain.port.out.CargoVistaRepositoryPort;
+import com.voltera.tarifaeventos.domain.port.out.InboxPort;
 import com.voltera.tarifaeventos.domain.port.out.NotificacionPublisherPort;
 
 import java.util.List;
@@ -34,13 +35,19 @@ public class TarifaEventosService implements ProcesarConsumoUseCase, ConsultarCa
     private final CargoRepositoryPort escrituraRepo;
     private final CargoVistaRepositoryPort lecturaRepo;
     private final NotificacionPublisherPort notificacionPublisher;
+    private final InboxPort inbox;
+
+    /** Nombre logico del consumer group (clave de la tabla inbox, lamina 10). */
+    public static final String CONSUMIDOR = "tarifa-eventos-consumer";
 
     public TarifaEventosService(CargoRepositoryPort escrituraRepo,
                                 CargoVistaRepositoryPort lecturaRepo,
-                                NotificacionPublisherPort notificacionPublisher) {
+                                NotificacionPublisherPort notificacionPublisher,
+                                InboxPort inbox) {
         this.escrituraRepo = escrituraRepo;
         this.lecturaRepo = lecturaRepo;
         this.notificacionPublisher = notificacionPublisher;
+        this.inbox = inbox;
     }
 
     // ---------------------------------------------------------------------
@@ -49,10 +56,15 @@ public class TarifaEventosService implements ProcesarConsumoUseCase, ConsultarCa
 
     @Override
     public CargoTarifa procesar(ConsumoRegistrado evento) {
-        // 1. IDEMPOTENCIA: si ya procesamos este eventId, devolvemos el cargo existente.
-        var existente = escrituraRepo.buscarPorEventId(evento.eventId());
-        if (existente.isPresent()) {
-            return existente.get();
+        // 1. IDEMPOTENCIA (tabla INBOX por consumidor, lamina 10):
+        //    upsert por (consumidor, eventId). Si NO es nuevo => el broker reentrego
+        //    el evento (al-menos-una-vez) y ya lo aplicamos: devolvemos el cargo
+        //    existente sin volver a cobrar.
+        boolean esNuevo = inbox.registrarSiEsNuevo(CONSUMIDOR, evento.eventId(), "ConsumoRegistrado");
+        if (!esNuevo) {
+            return escrituraRepo.buscarPorEventId(evento.eventId())
+                    .orElseThrow(() -> new IllegalStateException(
+                            "Evento marcado como duplicado en inbox pero sin cargo asociado: " + evento.eventId()));
         }
 
         // 2. Transferencia de estado: creamos el cargo con los datos del evento.
