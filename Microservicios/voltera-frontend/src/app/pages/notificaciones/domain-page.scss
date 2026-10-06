@@ -1,0 +1,67 @@
+:host { display: block; }
+
+.layout {
+  display: grid;
+  grid-template-columns: 400px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 1000px) { .layout { grid-template-columns: 1fr; } }
+
+.panel { padding: 24px 26px; }
+.panel h3 { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
+.panel .sub { font-size: 13px; color: var(--v-text-soft); margin-bottom: 20px; }
+
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+.franja-row {
+  display: grid; grid-template-columns: 1fr 1fr 1.3fr auto; gap: 10px; align-items: end;
+  padding: 12px; background: var(--v-bg-2); border: 1px solid var(--v-border);
+  border-radius: 12px; margin-bottom: 10px;
+}
+.franja-row .del {
+  background: transparent; border: 1px solid var(--v-border); color: var(--v-danger);
+  border-radius: 9px; width: 40px; height: 42px; cursor: pointer; font-size: 15px;
+}
+.franja-row .del:hover { border-color: var(--v-danger); }
+
+.add-link {
+  background: transparent; border: 1px dashed var(--v-border-strong); color: var(--v-text-soft);
+  width: 100%; padding: 10px; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 13.5px;
+  margin-bottom: 18px; transition: 0.15s;
+}
+.add-link:hover { border-color: var(--v-primary); color: var(--v-primary); }
+
+.form-actions { display: flex; gap: 10px; margin-top: 8px; }
+
+.result {
+  padding: 24px 26px;
+}
+.result-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.result-head h3 { font-size: 17px; font-weight: 700; }
+.count { font-size: 12.5px; color: var(--v-text-dim); }
+
+.detail-box {
+  background: var(--v-bg-2); border: 1px solid var(--v-border); border-radius: 12px;
+  padding: 16px 18px; margin-top: 16px;
+}
+.detail-box h4 { font-size: 14px; margin-bottom: 12px; color: var(--v-text-soft); }
+.kv { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; border-bottom: 1px dashed var(--v-border); }
+.kv:last-child { border-bottom: none; }
+.kv .k { color: var(--v-text-soft); }
+.kv .val { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.inline-query { display: flex; gap: 10px; align-items: end; margin-top: 8px; }
+.inline-query .v-field { margin-bottom: 0; }
+
+.err-text { color: var(--v-danger); font-size: 12px; margin-top: 4px; }
+
+.big-num { font-family: 'Sora'; font-size: 30px; font-weight: 800; color: var(--v-primary); }
+.big-num.neg { color: var(--v-solar); }
+
+.hint { font-size: 12.5px; color: var(--v-text-dim); margin-top: 10px; line-height: 1.5; }
+.hint code { background: var(--v-surface); padding: 1px 6px; border-radius: 5px; color: var(--v-accent); }
+
+/* ---------- Siniestros: badge de evento emitido ---------- */
+.event-badge { margin-top: 12px; }

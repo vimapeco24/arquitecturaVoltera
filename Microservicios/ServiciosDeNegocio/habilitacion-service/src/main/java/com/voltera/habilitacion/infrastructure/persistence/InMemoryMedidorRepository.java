@@ -3,13 +3,16 @@ package com.voltera.habilitacion.infrastructure.persistence;
 import com.voltera.habilitacion.domain.model.EstadoHabilitacion;
 import com.voltera.habilitacion.domain.model.Medidor;
 import com.voltera.habilitacion.domain.port.out.MedidorRepositoryPort;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
+/** Adaptador por defecto (in-memory). Se desactiva con el perfil 'cqrs-jdbc'. */
 @Repository
+@Profile("!cqrs-jdbc")
 public class InMemoryMedidorRepository implements MedidorRepositoryPort {
 
     private final ConcurrentHashMap<String, Medidor> porId = new ConcurrentHashMap<>();

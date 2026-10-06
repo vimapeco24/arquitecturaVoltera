@@ -71,3 +71,19 @@ inbox:
     url: ${INBOX_URL:jdbc:postgresql://localhost:5432/voltera_inbox}
     username: ${INBOX_USER:voltera}
     password: ${INBOX_PASSWORD:voltera}
+
+---
+# CQRS · Database per Service (diagrama 04 · Patrones). SPRING_PROFILES_ACTIVE=cqrs-jdbc.
+spring:
+  config:
+    activate:
+      on-profile: cqrs-jdbc
+cqrs:
+  write:
+    url: ${CQRS_WRITE_URL:jdbc:postgresql://localhost:5432/voltera_habilitacion_write}
+    username: ${CQRS_USER:voltera}
+    password: ${CQRS_PASSWORD:voltera}
+  read:
+    url: ${CQRS_READ_URL:jdbc:postgresql://localhost:5432/voltera_habilitacion_read}
+    username: ${CQRS_USER:voltera}
+    password: ${CQRS_PASSWORD:voltera}

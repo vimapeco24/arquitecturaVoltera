@@ -1,0 +1,42 @@
+<section class="domain-page">
+  <header class="page-head">
+    <div>
+      <h1>Notificaciones</h1>
+      <p class="sub">Consumidor puro. Reacciona a eventos de alerta/estado y emite <code>ClienteNotificado</code>. Consume el topic <code>telemetria-alertas</code>.</p>
+    </div>
+    <button class="btn ghost" (click)="cargar()" [disabled]="cargando">↻ Refrescar</button>
+  </header>
+
+  <div class="grid">
+    <article class="card">
+      <h2>Simular evento de entrada</h2>
+      <form [formGroup]="form" class="form">
+        <label>Serial<input formControlName="medidorSerial" /></label>
+        <label>Consumo (kWh)<input type="number" formControlName="consumoKwh" /></label>
+        <label>Motivo<input formControlName="motivo" /></label>
+      </form>
+      <div class="row wrap">
+        <button class="btn" (click)="habilitado()">MedidorHabilitado</button>
+        <button class="btn" (click)="sospechosa()">LecturaSospechosa</button>
+        <button class="btn" (click)="sinReporte()">MedidorSinReporte</button>
+        <button class="btn" (click)="factura()">FacturaEmitida</button>
+      </div>
+    </article>
+
+    <article class="card">
+      <h2>Historial ({{ historial.length }})</h2>
+      <table class="tbl" *ngIf="historial.length; else vacio">
+        <thead><tr><th>Tipo</th><th>Medidor</th><th>Canal</th><th>Mensaje</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let n of historial">
+            <td><span class="badge warn">{{ n.tipo }}</span></td>
+            <td>{{ n.medidorId }}</td>
+            <td>{{ n.canal }}</td>
+            <td class="msg">{{ n.mensaje }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <ng-template #vacio><p class="muted">Sin notificaciones. Simula un evento.</p></ng-template>
+    </article>
+  </div>
+</section>

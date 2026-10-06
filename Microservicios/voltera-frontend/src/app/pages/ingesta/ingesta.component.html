@@ -1,0 +1,37 @@
+<section class="domain-page">
+  <header class="page-head">
+    <div>
+      <h1>Ingesta de Telemetría</h1>
+      <p class="sub">BC Telemetría · Ingesta. Valida (regla + duplicados) y emite <code>LecturaValidada</code> / <code>LecturaSospechosaDetectada</code>.</p>
+    </div>
+    <button class="btn ghost" (click)="cargarSesion()">↻ Refrescar</button>
+  </header>
+
+  <div class="grid">
+    <article class="card">
+      <h2>Sesión de ingesta</h2>
+      <ul class="kv" *ngIf="sesion; else sinSesion">
+        <li><span>Medidores con canal</span><b>{{ sesion.medidoresConCanal }}</b></li>
+        <li><span>Regla mín (kWh)</span><b>{{ sesion.reglaMinKwh }}</b></li>
+        <li><span>Regla máx (kWh)</span><b>{{ sesion.reglaMaxKwh }}</b></li>
+      </ul>
+      <ng-template #sinSesion><p class="muted">Sin datos de sesión.</p></ng-template>
+      <p class="hint">Fuera del rango [{{ sesion?.reglaMinKwh }}, {{ sesion?.reglaMaxKwh }}] la lectura se marca sospechosa.</p>
+    </article>
+
+    <article class="card">
+      <h2>Inyectar lectura</h2>
+      <form [formGroup]="form" (ngSubmit)="ingestar()" class="form">
+        <label>Serial<input formControlName="medidorSerial" /></label>
+        <label>Consumo (kWh)<input type="number" formControlName="consumoKwh" /></label>
+        <div class="row">
+          <button class="btn" type="button" (click)="abrirCanal()">Abrir canal</button>
+          <button class="btn primary" type="submit">Validar lectura</button>
+        </div>
+      </form>
+      <p *ngIf="ultimoResultado" class="result">
+        Resultado: <span class="badge" [class]="resultadoBadge()">{{ ultimoResultado }}</span>
+      </p>
+    </article>
+  </div>
+</section>

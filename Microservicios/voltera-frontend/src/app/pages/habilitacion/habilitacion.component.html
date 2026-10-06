@@ -1,0 +1,46 @@
+<section class="domain-page">
+  <header class="page-head">
+    <div>
+      <h1>Habilitación de Medidores</h1>
+      <p class="sub">BC Habilitación · Transferencia de Estado (ECST) · patrón OUTBOX + orquestación del alta.</p>
+    </div>
+    <button class="btn ghost" (click)="listar()" [disabled]="cargando">↻ Refrescar</button>
+  </header>
+
+  <div class="grid">
+    <article class="card">
+      <h2>Disparar alta (OrdenInstalacionCerrada)</h2>
+      <form [formGroup]="form" (ngSubmit)="habilitar()" class="form">
+        <label>Medidor ID<input formControlName="medidorId" /></label>
+        <label>Serial<input formControlName="serial" /></label>
+        <label>Fabricante<input formControlName="fabricante" /></label>
+        <label>Código punto<input formControlName="codigoPunto" /></label>
+        <label>Dirección<input formControlName="direccion" /></label>
+        <button class="btn primary" type="submit">Habilitar → MedidorHabilitado</button>
+      </form>
+      <p class="hint">El evento <code>MedidorHabilitado</code> lleva el estado completo (cliente, proveedor, protocolo, punto, plan, canales) — Event-Carried State Transfer.</p>
+    </article>
+
+    <article class="card">
+      <h2>Medidores ({{ medidores.length }})</h2>
+      <table class="tbl" *ngIf="medidores.length; else vacio">
+        <thead><tr><th>Medidor</th><th>Serial</th><th>Estado</th><th>Canal</th><th>Tarifa</th><th>Acciones</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let m of medidores">
+            <td>{{ m.medidorId }}</td>
+            <td>{{ m.serial }}</td>
+            <td><span class="badge" [class]="badge(m.estado)">{{ m.estado }}</span></td>
+            <td>{{ m.canalIngestaCreado ? '✓' : '—' }}</td>
+            <td>{{ m.tarifaAsignada ? '✓' : '—' }}</td>
+            <td class="acciones">
+              <button class="btn xs" (click)="canalIngesta(m)">Canal</button>
+              <button class="btn xs" (click)="tarifaAsignada(m)">Tarifa</button>
+              <button class="btn xs danger" (click)="forzarTimeout(m)">Timeout</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <ng-template #vacio><p class="muted">Sin medidores. Dispara un alta para empezar.</p></ng-template>
+    </article>
+  </div>
+</section>

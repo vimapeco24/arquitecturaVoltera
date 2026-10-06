@@ -1,0 +1,54 @@
+<section class="domain-page">
+  <header class="page-head">
+    <div>
+      <h1>Telemetría Core · CQRS</h1>
+      <p class="sub">Lado <b>command</b>: serie append-only (TSDB). Lado <b>query</b>: vista por intervalo + vista agregada (Redis), materializadas por el Proyector.</p>
+    </div>
+    <button class="btn ghost" (click)="refrescar()" [disabled]="cargando">↻ Refrescar</button>
+  </header>
+
+  <div class="grid">
+    <article class="card">
+      <h2>Command · inyectar LecturaValidada</h2>
+      <form [formGroup]="form" (ngSubmit)="simular()" class="form">
+        <label>Serial<input formControlName="medidorSerial" /></label>
+        <label>Consumo (kWh)<input type="number" formControlName="consumoKwh" /></label>
+        <button class="btn primary" type="submit">Registrar lectura</button>
+      </form>
+      <p class="hint">Al cerrarse un intervalo de 15 min se emite <code>ConsumoIntervaloRegistrado</code> y el Proyector actualiza las dos vistas.</p>
+    </article>
+
+    <article class="card">
+      <h2>Query · vista agregada ({{ agregados.length }})</h2>
+      <table class="tbl" *ngIf="agregados.length; else sinAgg">
+        <thead><tr><th>Medidor</th><th>Total kWh</th><th>Intervalos</th><th>Último fin</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let a of agregados">
+            <td>{{ a.medidorSerial }}</td>
+            <td>{{ a.consumoTotalKwh | number:'1.0-3' }}</td>
+            <td>{{ a.intervalosRegistrados }}</td>
+            <td>{{ a.ultimoIntervaloFin || '—' }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <ng-template #sinAgg><p class="muted">Sin agregados aún.</p></ng-template>
+    </article>
+  </div>
+
+  <article class="card">
+    <h2>Query · vista por intervalo ({{ vistas.length }})</h2>
+    <table class="tbl" *ngIf="vistas.length; else sinVista">
+      <thead><tr><th>Medidor</th><th>Inicio</th><th>Fin</th><th>Neto kWh</th><th>Lecturas</th></tr></thead>
+      <tbody>
+        <tr *ngFor="let v of vistas">
+          <td>{{ v.medidorSerial }}</td>
+          <td>{{ v.inicioIntervalo }}</td>
+          <td>{{ v.finIntervalo }}</td>
+          <td>{{ v.consumoNetoKwh | number:'1.0-3' }}</td>
+          <td>{{ v.numLecturas }}</td>
+        </tr>
+      </tbody>
+    </table>
+    <ng-template #sinVista><p class="muted">Sin intervalos cerrados aún.</p></ng-template>
+  </article>
+</section>

@@ -1,0 +1,41 @@
+<section class="domain-page">
+  <header class="page-head">
+    <div>
+      <h1>Cadena EDA · Patrones del laboratorio</h1>
+      <p class="sub">Flujo orientado a eventos end-to-end, autoescalado KEDA por lag y event mesh multi-región (lámina 04).</p>
+    </div>
+  </header>
+
+  <article class="card">
+    <h2>Flujo end-to-end (coreografía)</h2>
+    <ol class="flujo">
+      <li *ngFor="let f of flujo"><b>{{ f.paso }}</b><span>{{ f.detalle }}</span></li>
+    </ol>
+    <p class="hint">Cada servicio reacciona al evento anterior sin coordinador central. El particionado por medidorId conserva el orden por medidor.</p>
+  </article>
+
+  <article class="card">
+    <h2>Autoescalado KEDA (por lag del consumer group)</h2>
+    <table class="tbl">
+      <thead><tr><th>Componente</th><th>Métrica / topic</th><th>Umbral</th><th>Mín</th><th>Máx</th></tr></thead>
+      <tbody>
+        <tr *ngFor="let k of keda">
+          <td>{{ k.comp }}</td>
+          <td><code>{{ k.topic }}</code></td>
+          <td>{{ k.umbral }}</td>
+          <td>{{ k.min }}</td>
+          <td>{{ k.max }}</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="hint">réplicas = ⌈ lag ÷ umbral ⌉, acotado [mín, máx]. Notificaciones escala a cero; el máximo = particiones del topic.</p>
+  </article>
+
+  <article class="card">
+    <h2>Event mesh multi-región</h2>
+    <div class="chips">
+      <span class="chip" *ngFor="let r of regiones">{{ r }}</span>
+    </div>
+    <p class="hint">Topics jerárquicos <code>voltera/&#123;país&#125;/&#123;dominio&#125;/&#123;evento&#125;</code>, replicación con mTLS entre brokers. Cruza: consumo agregado, MedidorHabilitado sin PII, alertas. No cruza: lecturas crudas ni datos personales (residencia del dato).</p>
+  </article>
+</section>

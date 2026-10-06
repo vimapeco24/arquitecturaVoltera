@@ -22,4 +22,10 @@ export const SERVICIOS = {
   reaseguro: 'reaseguro',
   telemetria: 'telemetria',
   tarifaEventos: 'tarifa-eventos',
+  // Cadena EDA del laboratorio (láminas 02/03/04/10)
+  habilitacion: 'habilitacion',
+  integracionAmi: 'integracion-ami',
+  ingesta: 'ingesta',
+  telemetriaCore: 'telemetria-core',
+  notificaciones: 'notificaciones',
 } as const;

@@ -61,6 +61,12 @@ public class Notificacion {
         };
     }
 
+    /** Rehidratacion desde persistencia (adaptador CQRS/JDBC). */
+    public static Notificacion rehidratar(String notificacionId, String medidorId, TipoAlerta tipo,
+                                          CanalNotificacion canal, String mensaje, Instant generadaEn) {
+        return new Notificacion(notificacionId, medidorId, tipo, canal, mensaje, generadaEn);
+    }
+
     public String notificacionId() { return notificacionId; }
     public String medidorId() { return medidorId; }
     public TipoAlerta tipo() { return tipo; }

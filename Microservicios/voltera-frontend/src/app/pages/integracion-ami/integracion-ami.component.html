@@ -1,0 +1,34 @@
+<section class="domain-page">
+  <header class="page-head">
+    <div>
+      <h1>Integración AMI</h1>
+      <p class="sub">BC Integración AMI · Adaptador / ACL del head-end. Traduce lecturas del proveedor al formato canónico y emite <code>LecturaCrudaRecibida</code>.</p>
+    </div>
+    <button class="btn ghost" (click)="cargarConexion()">↻ Refrescar</button>
+  </header>
+
+  <div class="grid">
+    <article class="card">
+      <h2>Conexión head-end</h2>
+      <ul class="kv" *ngIf="conexionAmi; else sinconx">
+        <li><span>Proveedor</span><b>{{ conexionAmi.proveedorAmi }}</b></li>
+        <li><span>Protocolo</span><b>{{ conexionAmi.protocolo }}</b></li>
+        <li><span>Estado</span><b><span class="badge" [class.ok]="conexionAmi.estado === 'ACTIVO'" [class.err]="conexionAmi.estado !== 'ACTIVO'">{{ conexionAmi.estado }}</span></b></li>
+        <li><span>Medidores atendidos</span><b>{{ conexionAmi.medidoresAtendidos }}</b></li>
+      </ul>
+      <ng-template #sinconx><p class="muted">Sin datos de conexión.</p></ng-template>
+      <button class="btn danger" (click)="degradar()">Reportar degradación</button>
+    </article>
+
+    <article class="card">
+      <h2>Inyectar lectura cruda (lote)</h2>
+      <form [formGroup]="form" (ngSubmit)="enviarLote()" class="form">
+        <label>Serial<input formControlName="medidorSerial" /></label>
+        <label>Valor<input type="number" formControlName="valor" /></label>
+        <label>Unidad<input formControlName="unidad" /></label>
+        <button class="btn primary" type="submit">Recibir lote → LecturaCrudaRecibida</button>
+      </form>
+      <pre class="json" *ngIf="ultimo">{{ ultimo | json }}</pre>
+    </article>
+  </div>
+</section>

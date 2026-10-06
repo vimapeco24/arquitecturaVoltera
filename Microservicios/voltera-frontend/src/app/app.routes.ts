@@ -63,6 +63,36 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/orquestacion/orquestacion.component').then((m) => m.OrquestacionComponent),
   },
   {
+    path: 'habilitacion',
+    title: 'Habilitación de Medidores · Voltera',
+    loadComponent: () => import('./pages/habilitacion/habilitacion.component').then((m) => m.HabilitacionComponent),
+  },
+  {
+    path: 'integracion-ami',
+    title: 'Integración AMI · Voltera',
+    loadComponent: () => import('./pages/integracion-ami/integracion-ami.component').then((m) => m.IntegracionAmiComponent),
+  },
+  {
+    path: 'ingesta',
+    title: 'Ingesta de Telemetría · Voltera',
+    loadComponent: () => import('./pages/ingesta/ingesta.component').then((m) => m.IngestaComponent),
+  },
+  {
+    path: 'telemetria-core',
+    title: 'Telemetría Core · CQRS · Voltera',
+    loadComponent: () => import('./pages/telemetria-core/telemetria-core.component').then((m) => m.TelemetriaCoreComponent),
+  },
+  {
+    path: 'notificaciones',
+    title: 'Notificaciones · Voltera',
+    loadComponent: () => import('./pages/notificaciones/notificaciones.component').then((m) => m.NotificacionesComponent),
+  },
+  {
+    path: 'cadena-eda',
+    title: 'Cadena EDA · KEDA · Event Mesh · Voltera',
+    loadComponent: () => import('./pages/cadena-eda/cadena-eda.component').then((m) => m.CadenaEdaComponent),
+  },
+  {
     path: 'experimentos-telemetria',
     title: 'Telemetría · Experimentos y Patrones · Voltera',
     loadComponent: () => import('./pages/experimentos-telemetria/experimentos-telemetria.component').then((m) => m.ExperimentosTelemetriaComponent),
