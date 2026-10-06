@@ -1,0 +1,58 @@
+server:
+  port: 8098
+
+spring:
+  application:
+    name: telemetria-core-service
+  threads:
+    virtual:
+      enabled: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:redpanda.voltera-app:9092}
+    consumer:
+      group-id: telemetria-core-consumer
+      auto-offset-reset: earliest
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+telemetria-core:
+  # Duracion del intervalo de agregacion (lamina: cada 15 min).
+  intervalo-min: ${INTERVALO_MIN:15}
+  # Si un medidor habilitado no reporta en este tiempo, se emite MedidorSinReporte.
+  sin-reporte-min: ${SIN_REPORTE_MIN:30}
+  outbox:
+    relay-interval-ms: ${OUTBOX_RELAY_INTERVAL_MS:3000}
+  sin-reporte:
+    check-interval-ms: ${SIN_REPORTE_CHECK_INTERVAL_MS:10000}
+
+eureka:
+  client:
+    enabled: ${EUREKA_ENABLED:false}
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING:1.0}
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_ENDPOINT:http://zipkin.istio-system:9411/api/v2/spans}
+
+logging:
+  level:
+    root: INFO
+    com.voltera: INFO
