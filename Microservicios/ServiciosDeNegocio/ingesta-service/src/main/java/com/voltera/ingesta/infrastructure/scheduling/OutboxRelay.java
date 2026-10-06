@@ -9,15 +9,24 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * Relay del OUTBOX de Ingesta: publica LecturaValidada / LecturaSospechosaDetectada
- * / CanalIngestaCreado al topic {@code telemetria-lecturas-validadas} (clave =
- * medidorSerial para preservar el orden por medidor).
+ * Relay del OUTBOX de Ingesta.
+ *
+ * <p>Publica LecturaValidada / LecturaSospechosaDetectada / CanalIngestaCreado al
+ * topic principal {@code telemetria-lecturas-validadas} (clave = medidorSerial para
+ * preservar el orden por medidor), y además enruta las ALERTAS al topic dedicado
+ * {@code telemetria-alertas} (lámina 03 · CQRS: "telemetria.alertas · publican
+ * Ingesta y Core"). Hoy la única alerta de Ingesta es
+ * {@code LecturaSospechosaDetectada}.</p>
+ *
+ * <p>La alerta se publica en AMBOS topics: en el principal para no romper a los
+ * consumidores existentes y en el de alertas para el consumidor dedicado.</p>
  */
 @Component
 public class OutboxRelay {
 
     private static final Logger log = LoggerFactory.getLogger(OutboxRelay.class);
     private static final String TOPIC = "telemetria-lecturas-validadas";
+    private static final String TOPIC_ALERTAS = "telemetria-alertas";
 
     private final OutboxPort outbox;
     private final KafkaTemplate<String, String> kafkaTemplate;
@@ -32,6 +41,9 @@ public class OutboxRelay {
         for (MensajeOutbox m : outbox.pendientes()) {
             try {
                 kafkaTemplate.send(TOPIC, m.clave(), m.payloadJson()).get();
+                if (esAlerta(m.tipoEvento())) {
+                    kafkaTemplate.send(TOPIC_ALERTAS, m.clave(), m.payloadJson()).get();
+                }
                 outbox.marcarPublicado(m.id());
                 log.info("Outbox -> broker. tipo={} clave={} id={}", m.tipoEvento(), m.clave(), m.id());
             } catch (Exception e) {
@@ -39,5 +51,10 @@ public class OutboxRelay {
                 break;
             }
         }
+    }
+
+    /** Eventos de alerta que además se publican en {@code telemetria-alertas}. */
+    private boolean esAlerta(String tipoEvento) {
+        return "LecturaSospechosaDetectada".equals(tipoEvento);
     }
 }

@@ -1,0 +1,317 @@
+# ============================================================================
+# VOLTERA — Servicios de negocio de la cadena EDA (laminas 02/03)
+# ----------------------------------------------------------------------------
+# Deployments que FALTABAN en el cluster y a los que apuntan los ScaledObjects
+# de la lamina 04 (voltera-keda-lamina04.yaml):
+#   habilitacion (8095) · integracion-ami (8096) · ingesta (8097) ·
+#   telemetria-core (8098) · notificaciones (8099)
+#
+# (facturacion/liquidacion-mensual/tarifas ya existen en voltera-services.yaml;
+#  a esos se les anade el env de perfiles con 'kubectl set env' — ver
+#  voltera-persistence-env.yaml / deploy-eda-completo.sh.)
+#
+# Cada servicio trae el env de PERSISTENCIA ya cableado:
+#   - todos: perfil inbox-jdbc (idempotencia en voltera_inbox)
+#   - telemetria-core: ademas redis + tsdb
+# Requiere: redpanda (voltera-eda.yaml) y persistencia (voltera-persistence.yaml).
+#
+# Aplicar:  kubectl apply -f voltera-negocio-eda.yaml
+# ============================================================================
+
+# Bloque reutilizable de env de persistencia (anclas YAML).
+# NOTA: las anclas valen dentro de ESTE archivo; se repiten por claridad.
+
+# ---------------------------------------------------------------------------
+# HABILITACION (8095) — mediador del alta; consume ordenes-instalacion
+# ---------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: habilitacion-service
+  namespace: voltera-app
+  labels: { app: habilitacion-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: habilitacion-service } }
+  strategy: { type: RollingUpdate, rollingUpdate: { maxSurge: 0, maxUnavailable: 1 } }
+  template:
+    metadata: { labels: { app: habilitacion-service, version: v1 } }
+    spec:
+      imagePullSecrets: [{ name: harbor-cred }]
+      containers:
+        - name: habilitacion-service
+          image: 192.168.3.13/app-voltaire/habilitacion-service:1.0.0
+          ports: [{ containerPort: 8095 }]
+          env:
+            - { name: EUREKA_ENABLED, value: "true" }
+            - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
+            - { name: KAFKA_BOOTSTRAP_SERVERS, value: "redpanda.voltera-app:9092" }
+            - { name: SPRING_PROFILES_ACTIVE, value: "inbox-jdbc" }
+            - { name: INBOX_URL, value: "jdbc:postgresql://timescaledb.voltera-app:5432/voltera_inbox" }
+            - { name: INBOX_USER, value: "voltera" }
+            - { name: INBOX_PASSWORD, valueFrom: { secretKeyRef: { name: timescaledb-cred, key: POSTGRES_PASSWORD } } }
+          resources:
+            limits: { cpu: "500m", memory: "512Mi" }
+            requests: { cpu: "50m", memory: "160Mi" }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8095 }
+            initialDelaySeconds: 25
+            periodSeconds: 10
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata: { name: habilitacion-service, namespace: voltera-app }
+spec:
+  selector: { app: habilitacion-service }
+  ports: [{ port: 8095, targetPort: 8095 }]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata: { name: habilitacion-service, namespace: voltera-app }
+spec:
+  parentRefs: [{ name: istio-ingress, namespace: istio-ingress }]
+  rules:
+    - matches: [{ path: { type: PathPrefix, value: /habilitacion } }]
+      filters:
+        - type: URLRewrite
+          urlRewrite: { path: { type: ReplacePrefixMatch, replacePrefixMatch: "" } }
+      backendRefs: [{ name: habilitacion-service, port: 8095 }]
+---
+# ---------------------------------------------------------------------------
+# INTEGRACION-AMI (8096) — ACL del head-end; consume medidores-habilitacion,
+# publica ami-lecturas-crudas
+# ---------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: integracion-ami-service
+  namespace: voltera-app
+  labels: { app: integracion-ami-service }
+spec:
+  replicas: 2            # min 2 (punto de entrada); KEDA/Prometheus escala hasta 20
+  selector: { matchLabels: { app: integracion-ami-service } }
+  strategy: { type: RollingUpdate, rollingUpdate: { maxSurge: 0, maxUnavailable: 1 } }
+  template:
+    metadata: { labels: { app: integracion-ami-service, version: v1 } }
+    spec:
+      imagePullSecrets: [{ name: harbor-cred }]
+      containers:
+        - name: integracion-ami-service
+          image: 192.168.3.13/app-voltaire/integracion-ami-service:1.0.0
+          ports: [{ containerPort: 8096 }]
+          env:
+            - { name: EUREKA_ENABLED, value: "true" }
+            - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
+            - { name: KAFKA_BOOTSTRAP_SERVERS, value: "redpanda.voltera-app:9092" }
+            - { name: SPRING_PROFILES_ACTIVE, value: "inbox-jdbc" }
+            - { name: INBOX_URL, value: "jdbc:postgresql://timescaledb.voltera-app:5432/voltera_inbox" }
+            - { name: INBOX_USER, value: "voltera" }
+            - { name: INBOX_PASSWORD, valueFrom: { secretKeyRef: { name: timescaledb-cred, key: POSTGRES_PASSWORD } } }
+          resources:
+            limits: { cpu: "500m", memory: "512Mi" }
+            requests: { cpu: "50m", memory: "160Mi" }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8096 }
+            initialDelaySeconds: 25
+            periodSeconds: 10
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata: { name: integracion-ami-service, namespace: voltera-app }
+spec:
+  selector: { app: integracion-ami-service }
+  ports: [{ port: 8096, targetPort: 8096 }]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata: { name: integracion-ami-service, namespace: voltera-app }
+spec:
+  parentRefs: [{ name: istio-ingress, namespace: istio-ingress }]
+  rules:
+    - matches: [{ path: { type: PathPrefix, value: /integracion-ami } }]
+      filters:
+        - type: URLRewrite
+          urlRewrite: { path: { type: ReplacePrefixMatch, replacePrefixMatch: "" } }
+      backendRefs: [{ name: integracion-ami-service, port: 8096 }]
+---
+# ---------------------------------------------------------------------------
+# INGESTA (8097) — valida/deduplica; consume ami-lecturas-crudas,
+# publica telemetria-lecturas-validadas + telemetria-alertas
+# ---------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingesta-service
+  namespace: voltera-app
+  labels: { app: ingesta-service }
+spec:
+  replicas: 2            # ruta critica 99,99%: min 2
+  selector: { matchLabels: { app: ingesta-service } }
+  strategy: { type: RollingUpdate, rollingUpdate: { maxSurge: 0, maxUnavailable: 1 } }
+  template:
+    metadata: { labels: { app: ingesta-service, version: v1 } }
+    spec:
+      imagePullSecrets: [{ name: harbor-cred }]
+      containers:
+        - name: ingesta-service
+          image: 192.168.3.13/app-voltaire/ingesta-service:1.0.0
+          ports: [{ containerPort: 8097 }]
+          env:
+            - { name: EUREKA_ENABLED, value: "true" }
+            - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
+            - { name: KAFKA_BOOTSTRAP_SERVERS, value: "redpanda.voltera-app:9092" }
+            - { name: SPRING_PROFILES_ACTIVE, value: "inbox-jdbc" }
+            - { name: INBOX_URL, value: "jdbc:postgresql://timescaledb.voltera-app:5432/voltera_inbox" }
+            - { name: INBOX_USER, value: "voltera" }
+            - { name: INBOX_PASSWORD, valueFrom: { secretKeyRef: { name: timescaledb-cred, key: POSTGRES_PASSWORD } } }
+          resources:
+            limits: { cpu: "500m", memory: "512Mi" }
+            requests: { cpu: "50m", memory: "160Mi" }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8097 }
+            initialDelaySeconds: 25
+            periodSeconds: 10
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata: { name: ingesta-service, namespace: voltera-app }
+spec:
+  selector: { app: ingesta-service }
+  ports: [{ port: 8097, targetPort: 8097 }]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata: { name: ingesta-service, namespace: voltera-app }
+spec:
+  parentRefs: [{ name: istio-ingress, namespace: istio-ingress }]
+  rules:
+    - matches: [{ path: { type: PathPrefix, value: /ingesta } }]
+      filters:
+        - type: URLRewrite
+          urlRewrite: { path: { type: ReplacePrefixMatch, replacePrefixMatch: "" } }
+      backendRefs: [{ name: ingesta-service, port: 8097 }]
+---
+# ---------------------------------------------------------------------------
+# TELEMETRIA-CORE (8098) — CQRS; consume telemetria-lecturas-validadas,
+# publica telemetria-consumo-intervalos + telemetria-alertas.
+# Persistencia completa: redis + tsdb + inbox-jdbc.
+# ---------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telemetria-core-service
+  namespace: voltera-app
+  labels: { app: telemetria-core-service }
+spec:
+  replicas: 2            # min 2
+  selector: { matchLabels: { app: telemetria-core-service } }
+  strategy: { type: RollingUpdate, rollingUpdate: { maxSurge: 0, maxUnavailable: 1 } }
+  template:
+    metadata: { labels: { app: telemetria-core-service, version: v1 } }
+    spec:
+      imagePullSecrets: [{ name: harbor-cred }]
+      containers:
+        - name: telemetria-core-service
+          image: 192.168.3.13/app-voltaire/telemetria-core-service:1.0.0
+          ports: [{ containerPort: 8098 }]
+          env:
+            - { name: EUREKA_ENABLED, value: "true" }
+            - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
+            - { name: KAFKA_BOOTSTRAP_SERVERS, value: "redpanda.voltera-app:9092" }
+            - { name: SPRING_PROFILES_ACTIVE, value: "redis,tsdb,inbox-jdbc" }
+            - { name: REDIS_HOST, value: "redis.voltera-app" }
+            - { name: REDIS_PORT, value: "6379" }
+            - { name: TSDB_URL, value: "jdbc:postgresql://timescaledb.voltera-app:5432/voltera_tsdb" }
+            - { name: TSDB_USER, value: "voltera" }
+            - { name: TSDB_PASSWORD, valueFrom: { secretKeyRef: { name: timescaledb-cred, key: POSTGRES_PASSWORD } } }
+            - { name: INBOX_URL, value: "jdbc:postgresql://timescaledb.voltera-app:5432/voltera_inbox" }
+            - { name: INBOX_USER, value: "voltera" }
+            - { name: INBOX_PASSWORD, valueFrom: { secretKeyRef: { name: timescaledb-cred, key: POSTGRES_PASSWORD } } }
+          resources:
+            limits: { cpu: "700m", memory: "640Mi" }
+            requests: { cpu: "100m", memory: "200Mi" }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8098 }
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata: { name: telemetria-core-service, namespace: voltera-app }
+spec:
+  selector: { app: telemetria-core-service }
+  ports: [{ port: 8098, targetPort: 8098 }]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata: { name: telemetria-core-service, namespace: voltera-app }
+spec:
+  parentRefs: [{ name: istio-ingress, namespace: istio-ingress }]
+  rules:
+    - matches: [{ path: { type: PathPrefix, value: /telemetria-core } }]
+      filters:
+        - type: URLRewrite
+          urlRewrite: { path: { type: ReplacePrefixMatch, replacePrefixMatch: "" } }
+      backendRefs: [{ name: telemetria-core-service, port: 8098 }]
+---
+# ---------------------------------------------------------------------------
+# NOTIFICACIONES (8099) — consume telemetria-alertas / medidores-habilitacion /
+# facturas-emitidas; escala a cero por KEDA.
+# ---------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notificaciones-service
+  namespace: voltera-app
+  labels: { app: notificaciones-service }
+spec:
+  replicas: 1            # KEDA puede bajar a 0 (scale to zero)
+  selector: { matchLabels: { app: notificaciones-service } }
+  strategy: { type: RollingUpdate, rollingUpdate: { maxSurge: 0, maxUnavailable: 1 } }
+  template:
+    metadata: { labels: { app: notificaciones-service, version: v1 } }
+    spec:
+      imagePullSecrets: [{ name: harbor-cred }]
+      containers:
+        - name: notificaciones-service
+          image: 192.168.3.13/app-voltaire/notificaciones-service:1.0.0
+          ports: [{ containerPort: 8099 }]
+          env:
+            - { name: EUREKA_ENABLED, value: "true" }
+            - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
+            - { name: KAFKA_BOOTSTRAP_SERVERS, value: "redpanda.voltera-app:9092" }
+            - { name: SPRING_PROFILES_ACTIVE, value: "inbox-jdbc" }
+            - { name: INBOX_URL, value: "jdbc:postgresql://timescaledb.voltera-app:5432/voltera_inbox" }
+            - { name: INBOX_USER, value: "voltera" }
+            - { name: INBOX_PASSWORD, valueFrom: { secretKeyRef: { name: timescaledb-cred, key: POSTGRES_PASSWORD } } }
+          resources:
+            limits: { cpu: "500m", memory: "512Mi" }
+            requests: { cpu: "50m", memory: "160Mi" }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8099 }
+            initialDelaySeconds: 25
+            periodSeconds: 10
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata: { name: notificaciones-service, namespace: voltera-app }
+spec:
+  selector: { app: notificaciones-service }
+  ports: [{ port: 8099, targetPort: 8099 }]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata: { name: notificaciones-service, namespace: voltera-app }
+spec:
+  parentRefs: [{ name: istio-ingress, namespace: istio-ingress }]
+  rules:
+    - matches: [{ path: { type: PathPrefix, value: /notificaciones } }]
+      filters:
+        - type: URLRewrite
+          urlRewrite: { path: { type: ReplacePrefixMatch, replacePrefixMatch: "" } }
+      backendRefs: [{ name: notificaciones-service, port: 8099 }]

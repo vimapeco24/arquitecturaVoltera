@@ -9,6 +9,7 @@ import java.util.Optional;
 public interface MedidorRepositoryPort {
     Medidor guardar(Medidor medidor);
     Optional<Medidor> buscarPorId(String medidorId);
+    Optional<Medidor> buscarPorSerial(String serial);
     List<Medidor> pendientes();
     List<Medidor> todos();
 }

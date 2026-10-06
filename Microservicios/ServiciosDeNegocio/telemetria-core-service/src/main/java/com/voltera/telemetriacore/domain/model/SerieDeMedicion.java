@@ -36,6 +36,23 @@ public class SerieDeMedicion {
     }
 
     /**
+     * Rehidrata la serie desde un snapshot persistido (p. ej. adaptador TSDB/JDBC).
+     * Reconstruye el estado del intervalo en curso sin reproducir lectura a lectura.
+     */
+    public static SerieDeMedicion rehidratar(String medidorSerial, int duracionMin,
+                                             Instant intervaloEnCursoInicio, double acumuladoKwh,
+                                             long lecturasEnIntervalo, Instant ultimaLecturaEn) {
+        SerieDeMedicion s = new SerieDeMedicion(medidorSerial, duracionMin);
+        s.intervaloEnCurso = (intervaloEnCursoInicio != null)
+                ? new Intervalo15Min(intervaloEnCursoInicio, duracionMin)
+                : null;
+        s.acumuladoKwh = acumuladoKwh;
+        s.lecturasEnIntervalo = lecturasEnIntervalo;
+        s.ultimaLecturaEn = ultimaLecturaEn;
+        return s;
+    }
+
+    /**
      * Incorpora una lectura validada. Si pertenece a un intervalo posterior al
      * actual, cierra el actual y devuelve su {@link ConsumoNetoIntervalo}.
      *
@@ -83,6 +100,13 @@ public class SerieDeMedicion {
     public String medidorSerial() { return medidorSerial; }
     public Instant ultimaLecturaEn() { return ultimaLecturaEn; }
     public double acumuladoKwh() { return acumuladoKwh; }
+
+    // Getters de snapshot para la persistencia (adaptador TSDB/JDBC).
+    public int duracionMin() { return duracionMin; }
+    public long lecturasEnIntervalo() { return lecturasEnIntervalo; }
+    public Instant intervaloEnCursoInicio() {
+        return intervaloEnCurso != null ? intervaloEnCurso.inicio() : null;
+    }
 
     /** Consumo neto resultante de cerrar un intervalo de 15 min. */
     public record ConsumoNetoIntervalo(String medidorSerial, Instant inicio, Instant fin,

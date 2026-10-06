@@ -36,6 +36,21 @@ public class TelemetriaCoreController {
                 : useCase.todas();
     }
 
+    /**
+     * Consulta de la VISTA AGREGADA (lado QUERY, lámina 03: "vistas agregadas").
+     * Devuelve el acumulado por medidor (total kWh e intervalos), servido desde la
+     * vista materializada sin recalcular sobre la serie append-only.
+     */
+    @GetMapping("/consumo-agregado")
+    public Object consumoAgregado(@RequestParam(required = false) String medidorSerial) {
+        if (medidorSerial != null && !medidorSerial.isBlank()) {
+            return useCase.agregadoPorMedidor(medidorSerial)
+                    .map(v -> (Object) v)
+                    .orElseGet(() -> Map.of("medidorSerial", medidorSerial, "encontrado", false));
+        }
+        return useCase.agregados();
+    }
+
     public record SimularLecturaRequest(@NotBlank String medidorSerial, double consumoKwh, Instant capturadaEn) {}
 
     @PostMapping("/simular-lectura")

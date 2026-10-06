@@ -3,6 +3,7 @@ package com.voltera.habilitacion.application;
 import com.voltera.habilitacion.domain.event.OrdenInstalacionCerrada;
 import com.voltera.habilitacion.domain.exception.MedidorNoEncontradoException;
 import com.voltera.habilitacion.domain.model.EstadoHabilitacion;
+import com.voltera.habilitacion.domain.model.DatosComerciales;
 import com.voltera.habilitacion.domain.model.IdentidadDispositivo;
 import com.voltera.habilitacion.domain.model.Medidor;
 import com.voltera.habilitacion.domain.model.MensajeOutbox;
@@ -41,19 +42,31 @@ public class HabilitacionService implements HabilitarMedidorUseCase {
                 orden.medidorId(),
                 new IdentidadDispositivo(orden.serial(), orden.fabricante()),
                 new PuntoDeMedicion(orden.codigoPunto(), orden.direccion()),
+                new DatosComerciales(
+                        orden.clienteId(),
+                        orden.proveedorAmi(),
+                        orden.protocolo(),
+                        orden.plan(),
+                        orden.canales()),
                 orden.ordenInstalacionId());
         repositorio.guardar(medidor);
 
-        // MedidorHabilitado lleva el ESTADO COMPLETO (event-carried state transfer).
+        // MedidorHabilitado lleva el ESTADO COMPLETO (event-carried state transfer, lamina 03):
+        // cliente, proveedor, protocolo, punto de medicion, plan y canales.
+        DatosComerciales dc = medidor.datosComerciales();
         encolar("MedidorHabilitado", medidor.medidorId(), Map.of(
                 "medidorId", medidor.medidorId(),
                 "serial", medidor.identidad().serial(),
-                "fabricante", medidor.identidad().fabricante(),
                 "codigoPunto", medidor.punto().codigoPunto(),
-                "direccion", String.valueOf(medidor.punto().direccion()),
-                "ordenInstalacionId", String.valueOf(medidor.ordenInstalacionId()),
-                "estado", medidor.estado().name(),
-                "habilitadoEn", medidor.habilitadoEn().toString()
+                "clienteId", dc.clienteId(),
+                "proveedorAmi", dc.proveedorAmi(),
+                "protocolo", dc.protocolo(),
+                "plan", dc.plan(),
+                "canales", dc.canalesComoTexto(),
+                // 'estado' se conserva: es el discriminador que usan los consumidores
+                // (p.ej. notificaciones) para distinguir MedidorHabilitado de los demas
+                // eventos del topic medidores-habilitacion.
+                "estado", medidor.estado().name()
         ));
         return medidor;
     }
@@ -74,6 +87,21 @@ public class HabilitacionService implements HabilitarMedidorUseCase {
         repositorio.guardar(medidor);
         emitirActivadoSiAplica(medidor);
         return medidor;
+    }
+
+    @Override
+    public Medidor confirmarCanalIngestaPorSerial(String serial) {
+        Medidor medidor = repositorio.buscarPorSerial(serial)
+                .orElseThrow(() -> new MedidorNoEncontradoException("serial=" + serial));
+        return registrarCanalIngestaCreado(medidor.medidorId());
+    }
+
+    @Override
+    public Medidor confirmarTarifaPorSerialOId(String serialOId) {
+        Medidor medidor = repositorio.buscarPorId(serialOId)
+                .or(() -> repositorio.buscarPorSerial(serialOId))
+                .orElseThrow(() -> new MedidorNoEncontradoException(serialOId));
+        return registrarTarifaAsignada(medidor.medidorId());
     }
 
     @Override

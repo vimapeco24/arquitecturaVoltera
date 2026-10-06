@@ -26,6 +26,29 @@ telemetria-core:
   sin-reporte:
     check-interval-ms: ${SIN_REPORTE_CHECK_INTERVAL_MS:10000}
 
+---
+# Persistencia REAL por perfil (lamina 03 · CQRS). Activar con, p. ej.:
+#   SPRING_PROFILES_ACTIVE=redis,tsdb
+# Sin perfil, el servicio usa adaptadores in-memory y no requiere Redis ni BD.
+spring:
+  config:
+    activate:
+      on-profile: redis
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: tsdb
+  datasource:
+    url: ${TSDB_URL:jdbc:postgresql://localhost:5432/voltera_tsdb}
+    username: ${TSDB_USER:voltera}
+    password: ${TSDB_PASSWORD:voltera}
+
 eureka:
   client:
     enabled: ${EUREKA_ENABLED:false}

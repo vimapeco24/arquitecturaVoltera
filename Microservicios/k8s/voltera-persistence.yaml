@@ -1,0 +1,132 @@
+# ============================================================================
+# VOLTERA — Persistencia del lado CQRS e Inbox (laminas 03 y 10)
+# ----------------------------------------------------------------------------
+#   a) Redis        -> vistas de lectura de telemetria-core (perfil 'redis')
+#   b) TimescaleDB  -> serie append-only (perfil 'tsdb') + tabla inbox
+#                      de idempotencia de los consumidores (perfil 'inbox-jdbc')
+#
+# Aplicar:  kubectl apply -f voltera-persistence.yaml
+#
+# Nota: single-node para demo academica. Para produccion real usar un operador
+# (p.ej. Redis Operator / Patroni) y almacenamiento con backups.
+# ============================================================================
+
+# ---------------------------------------------------------------------------
+# a) REDIS — vistas de lectura (en vivo + agregadas)
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-data
+  namespace: voltera-app
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: voltera-app
+  labels: { app: redis }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: redis } }
+  template:
+    metadata: { labels: { app: redis } }
+    spec:
+      containers:
+        - name: redis
+          image: redis:7.4-alpine
+          args: ["redis-server", "--appendonly", "yes"]
+          ports: [{ containerPort: 6379, name: redis }]
+          volumeMounts:
+            - { name: data, mountPath: /data }
+          resources:
+            limits: { cpu: "300m", memory: "256Mi" }
+            requests: { cpu: "50m", memory: "64Mi" }
+          readinessProbe:
+            exec: { command: ["redis-cli", "ping"] }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: redis-data }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: voltera-app
+spec:
+  selector: { app: redis }
+  ports: [{ name: redis, port: 6379, targetPort: 6379 }]
+---
+# ---------------------------------------------------------------------------
+# b) TIMESCALEDB — serie append-only (TSDB) + tabla inbox
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: Secret
+metadata:
+  name: timescaledb-cred
+  namespace: voltera-app
+type: Opaque
+stringData:
+  POSTGRES_DB: voltera_tsdb
+  POSTGRES_USER: voltera
+  POSTGRES_PASSWORD: voltera   # CAMBIAR en produccion; usar un secret gestionado.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: timescaledb-data
+  namespace: voltera-app
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: timescaledb
+  namespace: voltera-app
+  labels: { app: timescaledb }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }   # BD con volumen: no rolling.
+  selector: { matchLabels: { app: timescaledb } }
+  template:
+    metadata: { labels: { app: timescaledb } }
+    spec:
+      containers:
+        - name: timescaledb
+          image: timescale/timescaledb:2.17.2-pg16
+          envFrom:
+            - secretRef: { name: timescaledb-cred }
+          ports: [{ containerPort: 5432, name: postgres }]
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+          resources:
+            limits: { cpu: "1000m", memory: "1Gi" }
+            requests: { cpu: "100m", memory: "256Mi" }
+          readinessProbe:
+            exec: { command: ["sh", "-c", "pg_isready -U voltera -d voltera_tsdb"] }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 6
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: timescaledb-data }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: timescaledb
+  namespace: voltera-app
+spec:
+  selector: { app: timescaledb }
+  ports: [{ name: postgres, port: 5432, targetPort: 5432 }]

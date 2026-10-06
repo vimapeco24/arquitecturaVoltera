@@ -10,5 +10,7 @@ public enum TipoAlerta {
     /** Origen: LecturaSospechosaDetectada (consumo fuera de rango). */
     LECTURA_SOSPECHOSA,
     /** Origen: MedidorSinReporte (el medidor dejo de reportar). */
-    MEDIDOR_SIN_REPORTE
+    MEDIDOR_SIN_REPORTE,
+    /** Origen: FacturaEmitida (se emitio la factura del periodo). */
+    FACTURA_EMITIDA
 }

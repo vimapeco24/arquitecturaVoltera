@@ -1,0 +1,60 @@
+# ============================================================================
+# VOLTERA — Env de PERFILES de persistencia para los deployments
+# ----------------------------------------------------------------------------
+# Las variables que activan la persistencia real por servicio. Añádelas al
+# bloque `env:` del contenedor en el deployment correspondiente, o usa este
+# archivo como referencia. Requiere haber aplicado voltera-persistence.yaml
+# (Redis + TimescaleDB en el namespace voltera-app).
+#
+#  - telemetria-core : perfiles redis + tsdb (+ inbox-jdbc opcional)
+#  - resto consumidores: perfil inbox-jdbc (idempotencia persistente)
+#
+# Hosts internos del cluster:
+#   Redis        -> redis.voltera-app:6379
+#   TimescaleDB  -> timescaledb.voltera-app:5432  (bases: voltera_tsdb, voltera_inbox)
+#
+# NOTA: crea la base voltera_inbox una vez (la de series voltera_tsdb la crea
+# el contenedor). Dentro del pod de timescaledb:
+#   psql -U voltera -d voltera_tsdb -c "CREATE DATABASE voltera_inbox;"
+# ============================================================================
+
+# ---- Fragmento para telemetria-core-service -------------------------------
+# env:
+#   - { name: SPRING_PROFILES_ACTIVE, value: "redis,tsdb,inbox-jdbc" }
+#   - { name: REDIS_HOST,  value: "redis.voltera-app" }
+#   - { name: REDIS_PORT,  value: "6379" }
+#   - { name: TSDB_URL,    value: "jdbc:postgresql://timescaledb.voltera-app:5432/voltera_tsdb" }
+#   - { name: TSDB_USER,   value: "voltera" }
+#   - { name: TSDB_PASSWORD, valueFrom: { secretKeyRef: { name: timescaledb-cred, key: POSTGRES_PASSWORD } } }
+#   - { name: INBOX_URL,   value: "jdbc:postgresql://timescaledb.voltera-app:5432/voltera_inbox" }
+#   - { name: INBOX_USER,  value: "voltera" }
+#   - { name: INBOX_PASSWORD, valueFrom: { secretKeyRef: { name: timescaledb-cred, key: POSTGRES_PASSWORD } } }
+
+# ---- Fragmento para los consumidores con inbox ----------------------------
+# (ingesta, tarifas, liquidacion-mensual, facturacion, notificaciones,
+#  integracion-ami, habilitacion, tarifa-eventos)
+# env:
+#   - { name: SPRING_PROFILES_ACTIVE, value: "inbox-jdbc" }
+#   - { name: INBOX_URL,   value: "jdbc:postgresql://timescaledb.voltera-app:5432/voltera_inbox" }
+#   - { name: INBOX_USER,  value: "voltera" }
+#   - { name: INBOX_PASSWORD, valueFrom: { secretKeyRef: { name: timescaledb-cred, key: POSTGRES_PASSWORD } } }
+
+# ---------------------------------------------------------------------------
+# Si prefieres aplicar los perfiles sin editar YAML, puedes parchear en caliente:
+#
+#   kubectl -n voltera-app set env deployment/telemetria-core-service \
+#     SPRING_PROFILES_ACTIVE=redis,tsdb,inbox-jdbc \
+#     REDIS_HOST=redis.voltera-app REDIS_PORT=6379 \
+#     TSDB_URL=jdbc:postgresql://timescaledb.voltera-app:5432/voltera_tsdb \
+#     TSDB_USER=voltera TSDB_PASSWORD=voltera \
+#     INBOX_URL=jdbc:postgresql://timescaledb.voltera-app:5432/voltera_inbox \
+#     INBOX_USER=voltera INBOX_PASSWORD=voltera
+#
+#   for s in ingesta tarifas liquidacion-mensual facturacion notificaciones \
+#            integracion-ami habilitacion tarifa-eventos; do
+#     kubectl -n voltera-app set env deployment/${s}-service \
+#       SPRING_PROFILES_ACTIVE=inbox-jdbc \
+#       INBOX_URL=jdbc:postgresql://timescaledb.voltera-app:5432/voltera_inbox \
+#       INBOX_USER=voltera INBOX_PASSWORD=voltera
+#   done
+# ---------------------------------------------------------------------------

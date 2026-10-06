@@ -26,6 +26,14 @@ public class InMemoryMedidorRepository implements MedidorRepositoryPort {
     }
 
     @Override
+    public Optional<Medidor> buscarPorSerial(String serial) {
+        if (serial == null) return Optional.empty();
+        return porId.values().stream()
+                .filter(m -> serial.equals(m.identidad().serial()))
+                .findFirst();
+    }
+
+    @Override
     public List<Medidor> pendientes() {
         return porId.values().stream()
                 .filter(m -> m.estado() == EstadoHabilitacion.PENDIENTE)

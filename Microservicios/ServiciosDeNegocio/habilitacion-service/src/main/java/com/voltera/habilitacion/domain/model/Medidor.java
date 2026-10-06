@@ -23,6 +23,7 @@ public class Medidor {
     private final String medidorId;
     private final IdentidadDispositivo identidad;
     private final PuntoDeMedicion punto;
+    private final DatosComerciales datosComerciales;
     private final String ordenInstalacionId;
     private final Instant habilitadoEn;
 
@@ -33,10 +34,11 @@ public class Medidor {
     private String motivoFallo;
 
     private Medidor(String medidorId, IdentidadDispositivo identidad, PuntoDeMedicion punto,
-                    String ordenInstalacionId, Instant habilitadoEn) {
+                    DatosComerciales datosComerciales, String ordenInstalacionId, Instant habilitadoEn) {
         this.medidorId = medidorId;
         this.identidad = identidad;
         this.punto = punto;
+        this.datosComerciales = datosComerciales == null ? DatosComerciales.porDefecto() : datosComerciales;
         this.ordenInstalacionId = ordenInstalacionId;
         this.habilitadoEn = habilitadoEn;
         this.estado = EstadoHabilitacion.PENDIENTE;
@@ -47,7 +49,8 @@ public class Medidor {
      * ({@code OrdenInstalacionCerrada}). Queda PENDIENTE esperando confirmaciones.
      */
     public static Medidor habilitar(String medidorId, IdentidadDispositivo identidad,
-                                    PuntoDeMedicion punto, String ordenInstalacionId) {
+                                    PuntoDeMedicion punto, DatosComerciales datosComerciales,
+                                    String ordenInstalacionId) {
         if (medidorId == null || medidorId.isBlank()) {
             throw new IllegalArgumentException("medidorId es obligatorio");
         }
@@ -57,16 +60,23 @@ public class Medidor {
         if (punto == null) {
             throw new IllegalArgumentException("El punto de medicion es obligatorio");
         }
-        return new Medidor(medidorId, identidad, punto, ordenInstalacionId, Instant.now());
+        return new Medidor(medidorId, identidad, punto, datosComerciales, ordenInstalacionId, Instant.now());
+    }
+
+    /** Sobrecarga de compatibilidad: habilita con datos comerciales por defecto. */
+    public static Medidor habilitar(String medidorId, IdentidadDispositivo identidad,
+                                    PuntoDeMedicion punto, String ordenInstalacionId) {
+        return habilitar(medidorId, identidad, punto, DatosComerciales.porDefecto(), ordenInstalacionId);
     }
 
     /** Rehidratacion desde persistencia. */
     public static Medidor rehidratar(String medidorId, IdentidadDispositivo identidad,
-                                     PuntoDeMedicion punto, String ordenInstalacionId,
+                                     PuntoDeMedicion punto, DatosComerciales datosComerciales,
+                                     String ordenInstalacionId,
                                      Instant habilitadoEn, EstadoHabilitacion estado,
                                      boolean canalIngestaCreado, boolean tarifaAsignada,
                                      Instant finalizadoEn, String motivoFallo) {
-        Medidor m = new Medidor(medidorId, identidad, punto, ordenInstalacionId, habilitadoEn);
+        Medidor m = new Medidor(medidorId, identidad, punto, datosComerciales, ordenInstalacionId, habilitadoEn);
         m.estado = estado;
         m.canalIngestaCreado = canalIngestaCreado;
         m.tarifaAsignada = tarifaAsignada;
@@ -126,6 +136,7 @@ public class Medidor {
     public String medidorId() { return medidorId; }
     public IdentidadDispositivo identidad() { return identidad; }
     public PuntoDeMedicion punto() { return punto; }
+    public DatosComerciales datosComerciales() { return datosComerciales; }
     public String ordenInstalacionId() { return ordenInstalacionId; }
     public Instant habilitadoEn() { return habilitadoEn; }
     public EstadoHabilitacion estado() { return estado; }

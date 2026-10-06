@@ -17,6 +17,20 @@ spring:
   threads:
     virtual:
       enabled: true    # hilos virtuales (Java 21) => menos memoria por request
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:redpanda.voltera-app:9092}
+    consumer:
+      group-id: facturacion-consumer
+      auto-offset-reset: earliest
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+facturacion:
+  outbox:
+    relay-interval-ms: ${OUTBOX_RELAY_INTERVAL_MS:3000}
+  # precio por kWh usado al emitir la factura desde una liquidacion (demo)
+  precio-kwh: ${FACTURACION_PRECIO_KWH:0.5}
 
 # Registro en el Service Registry (Eureka). Se activa solo si hay registry disponible.
 eureka:
@@ -85,3 +99,15 @@ resilience4j:
       tarifas:
         max-attempts: 3
         wait-duration: 200ms
+---
+# Inbox persistente (lamina 10). Activar con SPRING_PROFILES_ACTIVE=inbox-jdbc.
+# Sin este perfil, el inbox es in-memory y no se requiere base de datos.
+spring:
+  config:
+    activate:
+      on-profile: inbox-jdbc
+inbox:
+  datasource:
+    url: ${INBOX_URL:jdbc:postgresql://localhost:5432/voltera_inbox}
+    username: ${INBOX_USER:voltera}
+    password: ${INBOX_PASSWORD:voltera}

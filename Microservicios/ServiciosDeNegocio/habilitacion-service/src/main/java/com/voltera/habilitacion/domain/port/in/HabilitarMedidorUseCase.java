@@ -17,6 +17,12 @@ public interface HabilitarMedidorUseCase {
     /** Confirmacion de Tarifas. Si ya estan ambas, activa y emite MedidorActivado. */
     Medidor registrarTarifaAsignada(String medidorId);
 
+    /** Confirmacion de Ingesta recibida por evento (CanalIngestaCreado trae el serial). */
+    Medidor confirmarCanalIngestaPorSerial(String serial);
+
+    /** Confirmacion de Tarifas recibida por evento (TarifaAsignada). */
+    Medidor confirmarTarifaPorSerialOId(String serialOId);
+
     /** Barre pendientes y suspende las vencidas (HabilitacionFallida + MedidorSuspendido). */
     int procesarTimeouts();
 

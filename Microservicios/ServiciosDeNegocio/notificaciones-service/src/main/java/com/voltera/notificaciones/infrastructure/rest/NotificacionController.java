@@ -3,6 +3,7 @@ package com.voltera.notificaciones.infrastructure.rest;
 import com.voltera.notificaciones.domain.event.LecturaSospechosaDetectada;
 import com.voltera.notificaciones.domain.event.MedidorHabilitado;
 import com.voltera.notificaciones.domain.event.MedidorSinReporte;
+import com.voltera.notificaciones.domain.event.FacturaEmitida;
 import com.voltera.notificaciones.domain.model.Notificacion;
 import com.voltera.notificaciones.domain.port.in.NotificarClienteUseCase;
 import com.voltera.notificaciones.domain.port.out.OutboxPort;
@@ -55,6 +56,15 @@ public class NotificacionController {
     public Notificacion simularSinReporte(@RequestBody SimularSinReporteRequest req) {
         return useCase.notificarMedidorSinReporte(
                 new MedidorSinReporte(req.medidorSerial(), req.ultimaLecturaEn()));
+    }
+
+    public record SimularFacturaRequest(@NotBlank String medidorSerial, String facturaId,
+                                        String periodo, double monto) {}
+
+    @PostMapping("/simular/factura-emitida")
+    public Notificacion simularFactura(@RequestBody SimularFacturaRequest req) {
+        return useCase.notificarFacturaEmitida(
+                new FacturaEmitida(req.facturaId(), req.medidorSerial(), req.periodo(), req.monto()));
     }
 
     @GetMapping("/outbox")

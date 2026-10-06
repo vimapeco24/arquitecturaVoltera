@@ -1,0 +1,38 @@
+# ============================================================================
+# VOLTERA — LAMINA 04 · KEDA · Adaptador de proveedores (BC Integracion AMI)
+# ----------------------------------------------------------------------------
+# A diferencia del resto, el Adaptador NO escala por lag de Kafka: escala por los
+# MENSAJES PENDIENTES EN EL GATEWAY MQTT del head-end del fabricante, expuestos
+# como metrica Prometheus. Por eso usa el PROMETHEUS SCALER de KEDA.
+#
+#   Metrica/umbral (lamina): 10.000 mensajes pendientes por replica
+#   Min 2 por pais (es el punto de entrada) · Max 20 por pais
+#   En pico absorbe el vuelco de buffers de los medidores al volver la conexion.
+#
+# REQUISITO: Prometheus accesible en el cluster y la metrica publicada por el
+# exporter del gateway MQTT (p.ej. 'mqtt_broker_pending_messages').
+#
+# Aplicar:  kubectl apply -f voltera-keda-ami-prometheus.yaml
+# ============================================================================
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: integracion-ami-scaledobject
+  namespace: voltera-app
+spec:
+  scaleTargetRef:
+    name: integracion-ami-service
+  pollingInterval: 15
+  cooldownPeriod: 300
+  minReplicaCount: 2            # min 2 por pais: punto de entrada
+  maxReplicaCount: 20          # max 20 por pais
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus.istio-system:9090
+        # Mensajes aun no entregados por el gateway MQTT del head-end AMI.
+        # El exporter debe publicar esta serie; ajustar el nombre real si difiere.
+        metricName: mqtt_broker_pending_messages
+        query: sum(mqtt_broker_pending_messages{job="ami-gateway"})
+        threshold: "10000"       # 10.000 pendientes por replica
+        # activationThreshold por defecto 0: el Adaptador nunca baja a cero (min 2).

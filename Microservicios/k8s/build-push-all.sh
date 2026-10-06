@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Construye las 11 imagenes de backend Voltera para linux/amd64 y las sube a Harbor.
+# Construye las 16 imagenes de backend Voltera para linux/amd64 y las sube a Harbor.
 # Estrategia documentada que SI funciona con el Harbor de cert autofirmado:
 #   docker buildx build --load  (carga al daemon local, que confia en el insecure registry)
 #   docker push                 (push normal desde el daemon)
@@ -21,6 +21,12 @@ BUILDS=(
   "reaseguro-service:${BASE}/ServiciosDeNegocio/reaseguro-service"
   "telemetria-service:${BASE}/ServiciosDeNegocio/telemetria-service"
   "tarifa-eventos-service:${BASE}/ServiciosDeNegocio/tarifa-eventos-service"
+  # Cadena EDA de negocio (laminas 02/03): consumidores con inbox/CQRS
+  "habilitacion-service:${BASE}/ServiciosDeNegocio/habilitacion-service"
+  "integracion-ami-service:${BASE}/ServiciosDeNegocio/integracion-ami-service"
+  "ingesta-service:${BASE}/ServiciosDeNegocio/ingesta-service"
+  "telemetria-core-service:${BASE}/ServiciosDeNegocio/telemetria-core-service"
+  "notificaciones-service:${BASE}/ServiciosDeNegocio/notificaciones-service"
 )
 
 FAILED=()
@@ -47,7 +53,7 @@ done
 echo ""
 echo "=========================================================="
 if [ ${#FAILED[@]} -eq 0 ]; then
-  echo "TODAS las 11 imagenes amd64 subidas a Harbor ($REGISTRY)."
+  echo "TODAS las 16 imagenes amd64 subidas a Harbor ($REGISTRY)."
 else
   echo "FALLARON: ${FAILED[*]}"
   exit 1

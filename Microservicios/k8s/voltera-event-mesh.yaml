@@ -1,0 +1,197 @@
+# ============================================================================
+# VOLTERA — LAMINA 04 · EVENT MESH multi-region
+# ----------------------------------------------------------------------------
+# Red de brokers interconectados entre paises (Colombia, Chile, Mexico, Brasil).
+# Cada region tiene su Kafka/Redpanda regional; los consumidores locales (Adaptador,
+# Ingesta, Telemetria Core) procesan "las lecturas del pais se quedan aqui".
+# El mesh REPLICA solo los topics criticos entre regiones y enruta por topico
+# jerarquico:   voltera/{pais}/{dominio}/{evento}
+#
+# Residencia del dato (politica "que cruza y que no"):
+#   CRUZA  : voltera/{pais}/telemetria/consumo-intervalo   (agregado, sin PII)
+#            voltera/{pais}/habilitacion/medidor-habilitado (sin datos personales)
+#            voltera/{pais}/telemetria/alerta-red
+#   NO CRUZA: lecturas crudas (voltera/{pais}/ami/lectura-cruda) ni datos personales.
+#
+# Continuidad: los topics criticos se replican a una region par; si cae una region,
+# los consumidores retoman desde los offsets replicados. Objetivo RTO<=10min, RPO<=10s.
+#
+# Este manifiesto es declarativo y portable: en Kubernetes se despliega un broker
+# Redpanda por region (namespaces voltera-co/cl/mx/br) y un replicador (MirrorMaker2)
+# que copia SOLO los topics permitidos, con mTLS entre brokers.
+# ============================================================================
+
+# ---------------------------------------------------------------------------
+# 0) Namespaces por region
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: Namespace
+metadata: { name: voltera-co, labels: { region: colombia, role: principal } }
+---
+apiVersion: v1
+kind: Namespace
+metadata: { name: voltera-cl, labels: { region: chile } }
+---
+apiVersion: v1
+kind: Namespace
+metadata: { name: voltera-mx, labels: { region: mexico } }
+---
+apiVersion: v1
+kind: Namespace
+metadata: { name: voltera-br, labels: { region: brasil } }
+---
+# ---------------------------------------------------------------------------
+# 1) Broker Redpanda regional (plantilla; se replica por namespace de region).
+#    Aqui se muestra Colombia (region principal). Para cl/mx/br, duplicar este
+#    bloque cambiando namespace y advertise-kafka-addr.
+#    mTLS: el broker arranca con TLS en el listener; los certificados se montan
+#    desde el Secret 'redpanda-tls' (CA comun del mesh para confianza mutua).
+# ---------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redpanda
+  namespace: voltera-co
+  labels: { app: redpanda, region: colombia }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: redpanda } }
+  template:
+    metadata: { labels: { app: redpanda, region: colombia } }
+    spec:
+      containers:
+        - name: redpanda
+          image: docker.redpanda.com/redpandadata/redpanda:v24.1.1
+          args:
+            - redpanda
+            - start
+            - --smp 1
+            - --memory 300M
+            - --reserve-memory 0M
+            - --overprovisioned
+            - --node-id 0
+            # Listener interno PLAINTEXT (intra-region) + listener TLS para el mesh.
+            - --kafka-addr INTERNAL://0.0.0.0:9092,MESH://0.0.0.0:9093
+            - --advertise-kafka-addr INTERNAL://redpanda.voltera-co:9092,MESH://redpanda-co.mesh.voltera:9093
+          ports:
+            - { containerPort: 9092, name: kafka }
+            - { containerPort: 9093, name: kafka-mesh }
+            - { containerPort: 9644, name: admin }
+          volumeMounts:
+            - { name: tls, mountPath: /etc/redpanda/tls, readOnly: true }
+          resources:
+            limits: { cpu: "600m", memory: "400Mi" }
+            requests: { cpu: "100m", memory: "250Mi" }
+      volumes:
+        - name: tls
+          secret: { secretName: redpanda-tls, optional: true }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redpanda
+  namespace: voltera-co
+spec:
+  selector: { app: redpanda }
+  ports:
+    - { name: kafka, port: 9092, targetPort: 9092 }
+    - { name: kafka-mesh, port: 9093, targetPort: 9093 }
+    - { name: admin, port: 9644, targetPort: 9644 }
+---
+# ---------------------------------------------------------------------------
+# 2) Topics jerarquicos del mesh (ConfigMap declarativo).
+#    Convencion: voltera/{pais}/{dominio}/{evento}. Particionado por medidorId
+#    para conservar el orden por medidor (base del escalado KEDA).
+#    'cross_region: true' marca los topics que el replicador puede copiar.
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: event-mesh-topics
+  namespace: voltera-co
+data:
+  topics.yaml: |
+    # Topics que SI cruzan regiones (agregados / sin PII)
+    - name: voltera/co/telemetria/consumo-intervalo
+      partitions: 48
+      cross_region: true
+    - name: voltera/co/habilitacion/medidor-habilitado
+      partitions: 12
+      cross_region: true
+    - name: voltera/co/telemetria/alerta-red
+      partitions: 12
+      cross_region: true
+    # Topics que NO cruzan (residencia del dato: se quedan en el pais)
+    - name: voltera/co/ami/lectura-cruda
+      partitions: 48
+      cross_region: false
+    - name: voltera/co/telemetria/lectura-validada
+      partitions: 48
+      cross_region: false
+---
+# ---------------------------------------------------------------------------
+# 3) Replicador del mesh (MirrorMaker2) — copia SOLO los topics cross_region
+#    entre brokers de regiones, con mTLS. Aqui: Colombia <-> las demas regiones.
+#    El 'topics' allowlist aplica la politica de residencia: nunca copia
+#    lectura-cruda ni datos personales.
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mesh-replicator-config
+  namespace: voltera-co
+data:
+  mm2.properties: |
+    # Clusters del mesh (alias -> bootstrap TLS)
+    clusters = co, cl, mx, br
+    co.bootstrap.servers = redpanda-co.mesh.voltera:9093
+    cl.bootstrap.servers = redpanda-cl.mesh.voltera:9093
+    mx.bootstrap.servers = redpanda-mx.mesh.voltera:9093
+    br.bootstrap.servers = redpanda-br.mesh.voltera:9093
+
+    # mTLS entre brokers del mesh (CA comun; certificados por cluster)
+    co.security.protocol = SSL
+    cl.security.protocol = SSL
+    mx.security.protocol = SSL
+    br.security.protocol = SSL
+    ssl.truststore.location = /etc/redpanda/tls/truststore.jks
+    ssl.keystore.location   = /etc/redpanda/tls/keystore.jks
+
+    # Replicacion bidireccional de los topics criticos (allowlist = politica)
+    co->cl.enabled = true
+    co->mx.enabled = true
+    co->br.enabled = true
+    cl->co.enabled = true
+    mx->co.enabled = true
+    br->co.enabled = true
+
+    # SOLO topics agregados / sin PII (lo que "cruza"). Nunca lectura-cruda.
+    topics = voltera/.*/telemetria/consumo-intervalo,voltera/.*/habilitacion/medidor-habilitado,voltera/.*/telemetria/alerta-red
+    topics.exclude = voltera/.*/ami/lectura-cruda,voltera/.*/.*/.*-personal
+
+    # Continuidad: replicar offsets de consumer groups para retomar tras caida.
+    emit.checkpoints.enabled = true
+    sync.group.offsets.enabled = true
+    refresh.topics.interval.seconds = 30
+    replication.factor = 1
+---
+# ---------------------------------------------------------------------------
+# 4) mTLS del mesh — Secret con la CA comun y los certificados por cluster.
+#    (Placeholder: en el despliegue real se generan con cert-manager o PKI y se
+#    montan como JKS/PEM. Aqui queda declarado para que el broker y el
+#    replicador confien mutuamente entre regiones.)
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: Secret
+metadata:
+  name: redpanda-tls
+  namespace: voltera-co
+type: Opaque
+stringData:
+  README: |
+    Montar aqui los materiales mTLS del mesh:
+      - ca.crt           (CA comun de las 4 regiones)
+      - tls.crt / tls.key (certificado del broker de ESTA region)
+      - truststore.jks / keystore.jks (para MirrorMaker2)
+    Generar con cert-manager (Certificate + Issuer por CA comun) o PKI propia.
+    NUNCA versionar material privado en git.

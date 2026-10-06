@@ -1,0 +1,146 @@
+# ============================================================================
+# VOLTERA — LAMINA 04 · KEDA (autoescalado por lag del consumer group)
+# ----------------------------------------------------------------------------
+# Un ScaledObject por componente, con la metrica/umbral/min/max de la tabla de
+# la lamina 12. KEDA escala por el LAG del consumer group (no por CPU):
+#     replicas_deseadas = ceil(lag_total / lagThreshold), acotado [min, max].
+#
+# NOTA sobre nombres de topic: la lamina los escribe con punto
+#   (ami.lecturas.crudas); el codigo/broker usa guion (ami-lecturas-crudas).
+#   Aqui se usan los REALES (guion) para que el scaler encuentre el topic.
+#
+# REQUISITO: KEDA instalado en el cluster:
+#   helm repo add kedacore https://kedacore.github.io/charts && helm repo update
+#   helm install keda kedacore/keda -n keda --create-namespace
+#
+# Aplicar:  kubectl apply -f voltera-keda-lamina04.yaml
+# Si KEDA no esta instalado, estos recursos no se crean (CRD ausente) y los
+# deployments siguen con sus replicas fijas.
+# ============================================================================
+
+# ---------------------------------------------------------------------------
+# 1) MS INGESTA — lag en ami-lecturas-crudas · 5000 msgs/replica · 2..48
+#    Ruta critica (99,99%): minimo 2, NO baja a cero.
+# ---------------------------------------------------------------------------
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: ingesta-scaledobject
+  namespace: voltera-app
+spec:
+  scaleTargetRef:
+    name: ingesta-service
+  pollingInterval: 10        # sondeo del lag (s)
+  cooldownPeriod: 300        # estabilizacion antes de quitar replicas (s)
+  minReplicaCount: 2
+  maxReplicaCount: 48        # = particiones del topic
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: redpanda.voltera-app:9092
+        consumerGroup: ingesta-consumer
+        topic: ami-lecturas-crudas
+        lagThreshold: "5000"
+---
+# ---------------------------------------------------------------------------
+# 2) TELEMETRIA CORE (escritura) — lag en telemetria-lecturas-validadas
+#    5000 msgs/replica · 2..48
+# ---------------------------------------------------------------------------
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: telemetria-core-scaledobject
+  namespace: voltera-app
+spec:
+  scaleTargetRef:
+    name: telemetria-core-service
+  pollingInterval: 10
+  cooldownPeriod: 300
+  minReplicaCount: 2
+  maxReplicaCount: 48
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: redpanda.voltera-app:9092
+        consumerGroup: telemetria-core-consumer
+        topic: telemetria-lecturas-validadas
+        lagThreshold: "5000"
+---
+# ---------------------------------------------------------------------------
+# 3) PROYECTOR (lectura · CQRS) — lag en telemetria-consumo-intervalos
+#    1000 msgs/replica (protege la frescura de la vista p95<=5s) · 1..24
+#
+#    En el codigo el proyector vive dentro de telemetria-core; si se despliega
+#    como grupo de consumo separado para la proyeccion, su consumerGroup seria
+#    'telemetria-core-proyector'. Se deja como ScaledObject independiente para
+#    reflejar la lamina (lado query escala aparte del command).
+# ---------------------------------------------------------------------------
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: proyector-scaledobject
+  namespace: voltera-app
+spec:
+  scaleTargetRef:
+    name: telemetria-core-service     # cambiar a 'proyector-service' si se separa
+  pollingInterval: 10
+  cooldownPeriod: 120
+  minReplicaCount: 1
+  maxReplicaCount: 24
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: redpanda.voltera-app:9092
+        consumerGroup: telemetria-core-proyector
+        topic: telemetria-consumo-intervalos
+        lagThreshold: "1000"
+---
+# ---------------------------------------------------------------------------
+# 5) NOTIFICACIONES (alertas) — lag en telemetria-alertas · 500 msgs/replica
+#    0..30 · SCALE TO ZERO (sin alertas no hay pods).
+#    activationLagThreshold: a partir de 1 mensaje pendiente despierta de 0.
+# ---------------------------------------------------------------------------
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: notificaciones-scaledobject
+  namespace: voltera-app
+spec:
+  scaleTargetRef:
+    name: notificaciones-service
+  pollingInterval: 10
+  cooldownPeriod: 60
+  minReplicaCount: 0          # scale to zero
+  maxReplicaCount: 30
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: redpanda.voltera-app:9092
+        consumerGroup: notificaciones-consumer
+        topic: telemetria-alertas
+        lagThreshold: "500"
+        activationLagThreshold: "1"   # despierta de 0 con >=1 alerta pendiente
+---
+# ---------------------------------------------------------------------------
+# 6) MS HABILITACION — lag en ordenes-instalacion · 50 msgs/replica · 1..4
+#    Minimo 1: mantiene los temporizadores de las altas en curso.
+# ---------------------------------------------------------------------------
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: habilitacion-scaledobject
+  namespace: voltera-app
+spec:
+  scaleTargetRef:
+    name: habilitacion-service
+  pollingInterval: 10
+  cooldownPeriod: 300
+  minReplicaCount: 1
+  maxReplicaCount: 4
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: redpanda.voltera-app:9092
+        consumerGroup: habilitacion-consumer
+        topic: ordenes-instalacion
+        lagThreshold: "50"

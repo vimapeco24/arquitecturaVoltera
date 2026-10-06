@@ -81,4 +81,24 @@ class TelemetriaCoreServiceTest {
         assertEquals(1, n);
         assertTrue(tiposOutbox().contains("MedidorSinReporte"));
     }
+
+    @Test
+    @DisplayName("La vista agregada acumula el total por medidor al cerrar intervalos (lamina 03: vistas agregadas)")
+    void vistaAgregadaAcumula() {
+        Instant base = Instant.parse("2026-01-01T10:00:00Z");
+        // Intervalo 1 (10:00-10:15): 2 + 3 = 5 kWh, se cierra al llegar 10:16
+        service.registrarLectura(lectura("SER-9", 2.0, base));
+        service.registrarLectura(lectura("SER-9", 3.0, base.plusSeconds(300)));
+        service.registrarLectura(lectura("SER-9", 4.0, base.plusSeconds(16 * 60)));   // cierra intervalo 1
+        // Intervalo 2 (10:15-10:30): 4 kWh acumulado; se cierra al llegar 10:31
+        service.registrarLectura(lectura("SER-9", 1.0, base.plusSeconds(31 * 60)));   // cierra intervalo 2 (=5)
+
+        var agregado = service.agregadoPorMedidor("SER-9");
+        assertTrue(agregado.isPresent());
+        // intervalo 1 = 5 kWh, intervalo 2 = 4 kWh => total 9 kWh en 2 intervalos
+        assertEquals(2, agregado.get().intervalosRegistrados());
+        assertEquals(9.0, agregado.get().consumoTotalKwh(), 1e-9);
+        // y en la lista de agregados tambien aparece
+        assertEquals(1, service.agregados().size());
+    }
 }

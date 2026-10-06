@@ -1,6 +1,7 @@
 package com.voltera.habilitacion.infrastructure.persistence;
 
 import com.voltera.habilitacion.domain.port.out.InboxPort;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 
 import java.util.concurrent.ConcurrentHashMap;
@@ -8,6 +9,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /** Tabla INBOX de idempotencia por consumidor (upsert atomico). */
 @Repository
+@Profile("!inbox-jdbc")
 public class InMemoryInbox implements InboxPort {
 
     private final ConcurrentHashMap<String, Long> filas = new ConcurrentHashMap<>();

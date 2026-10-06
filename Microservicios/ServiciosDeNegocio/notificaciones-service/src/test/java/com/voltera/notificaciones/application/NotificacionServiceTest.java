@@ -85,6 +85,19 @@ class NotificacionServiceTest {
     }
 
     @Test
+    @DisplayName("FacturaEmitida emite ClienteNotificado con tipo FACTURA_EMITIDA")
+    void facturaEmitidaNotifica() {
+        Notificacion n = service.notificarFacturaEmitida(
+                new com.voltera.notificaciones.domain.event.FacturaEmitida(
+                        "FAC-1", "SER-9", "2026-10", 123.45));
+
+        assertNotNull(n);
+        assertEquals(TipoAlerta.FACTURA_EMITIDA, n.tipo());
+        assertTrue(n.mensaje().contains("FAC-1"));
+        assertTrue(tiposOutbox().contains("ClienteNotificado"));
+    }
+
+    @Test
     @DisplayName("Respeta el opt-in: si el cliente no esta suscrito al tipo de alerta, no notifica ni emite evento")
     void respetaOptIn() {
         // Preferencia que solo acepta MEDIDOR_HABILITADO (no LECTURA_SOSPECHOSA)

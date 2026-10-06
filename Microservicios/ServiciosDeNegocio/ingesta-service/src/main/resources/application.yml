@@ -24,6 +24,19 @@ ingesta:
   outbox:
     relay-interval-ms: ${OUTBOX_RELAY_INTERVAL_MS:3000}
 
+---
+# Inbox persistente (lamina 10). Activar con SPRING_PROFILES_ACTIVE=inbox-jdbc.
+# Sin este perfil, el inbox es in-memory y no se requiere base de datos.
+spring:
+  config:
+    activate:
+      on-profile: inbox-jdbc
+inbox:
+  datasource:
+    url: ${INBOX_URL:jdbc:postgresql://localhost:5432/voltera_inbox}
+    username: ${INBOX_USER:voltera}
+    password: ${INBOX_PASSWORD:voltera}
+
 eureka:
   client:
     enabled: ${EUREKA_ENABLED:false}

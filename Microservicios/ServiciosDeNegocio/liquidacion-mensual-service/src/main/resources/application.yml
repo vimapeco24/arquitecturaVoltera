@@ -15,6 +15,20 @@ spring:
   threads:
     virtual:
       enabled: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:redpanda.voltera-app:9092}
+    consumer:
+      group-id: liquidacion-mensual-consumer
+      auto-offset-reset: earliest
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+liquidacion:
+  outbox:
+    relay-interval-ms: ${OUTBOX_RELAY_INTERVAL_MS:3000}
+  # kWh acumulados que disparan el cierre y la emision de LiquidacionCalculada
+  umbral-cierre-kwh: ${UMBRAL_CIERRE_KWH:100.0}
 
 eureka:
   client:
@@ -51,3 +65,15 @@ logging:
   level:
     root: INFO
     com.voltera: INFO
+---
+# Inbox persistente (lamina 10). Activar con SPRING_PROFILES_ACTIVE=inbox-jdbc.
+# Sin este perfil, el inbox es in-memory y no se requiere base de datos.
+spring:
+  config:
+    activate:
+      on-profile: inbox-jdbc
+inbox:
+  datasource:
+    url: ${INBOX_URL:jdbc:postgresql://localhost:5432/voltera_inbox}
+    username: ${INBOX_USER:voltera}
+    password: ${INBOX_PASSWORD:voltera}

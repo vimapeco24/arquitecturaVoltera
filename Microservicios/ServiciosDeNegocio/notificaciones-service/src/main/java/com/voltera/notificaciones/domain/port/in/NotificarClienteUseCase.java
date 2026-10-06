@@ -3,6 +3,7 @@ package com.voltera.notificaciones.domain.port.in;
 import com.voltera.notificaciones.domain.event.LecturaSospechosaDetectada;
 import com.voltera.notificaciones.domain.event.MedidorHabilitado;
 import com.voltera.notificaciones.domain.event.MedidorSinReporte;
+import com.voltera.notificaciones.domain.event.FacturaEmitida;
 import com.voltera.notificaciones.domain.model.Notificacion;
 
 import java.util.List;
@@ -18,6 +19,8 @@ public interface NotificarClienteUseCase {
     Notificacion notificarLecturaSospechosa(LecturaSospechosaDetectada evento);
 
     Notificacion notificarMedidorSinReporte(MedidorSinReporte evento);
+
+    Notificacion notificarFacturaEmitida(FacturaEmitida evento);
 
     List<Notificacion> historial();
 }

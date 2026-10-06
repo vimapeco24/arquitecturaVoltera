@@ -2,6 +2,7 @@ package com.voltera.tarifaeventos.infrastructure.persistence;
 
 import com.voltera.tarifaeventos.domain.model.MensajeInbox;
 import com.voltera.tarifaeventos.domain.port.out.InboxPort;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -18,6 +19,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * {@code INSERT ... ON CONFLICT DO NOTHING}, cumpliendo la misma invariante.</p>
  */
 @Repository
+@Profile("!inbox-jdbc")
 public class InMemoryInbox implements InboxPort {
 
     /** key = consumidor + "::" + eventId */

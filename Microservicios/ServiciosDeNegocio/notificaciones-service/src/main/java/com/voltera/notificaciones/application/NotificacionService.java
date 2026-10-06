@@ -3,6 +3,7 @@ package com.voltera.notificaciones.application;
 import com.voltera.notificaciones.domain.event.LecturaSospechosaDetectada;
 import com.voltera.notificaciones.domain.event.MedidorHabilitado;
 import com.voltera.notificaciones.domain.event.MedidorSinReporte;
+import com.voltera.notificaciones.domain.event.FacturaEmitida;
 import com.voltera.notificaciones.domain.model.MensajeOutbox;
 import com.voltera.notificaciones.domain.model.Notificacion;
 import com.voltera.notificaciones.domain.model.Preferencia;
@@ -59,6 +60,13 @@ public class NotificacionService implements NotificarClienteUseCase {
         String mensaje = "Su medidor " + evento.medidorSerial()
                 + " dejo de reportar consumo (ultima lectura: " + evento.ultimaLecturaEn() + ").";
         return notificar(evento.medidorSerial(), TipoAlerta.MEDIDOR_SIN_REPORTE, mensaje);
+    }
+
+    @Override
+    public Notificacion notificarFacturaEmitida(FacturaEmitida evento) {
+        String mensaje = "Se emitio su factura " + evento.facturaId() + " del periodo "
+                + evento.periodo() + " por un monto de " + evento.monto() + ".";
+        return notificar(evento.medidorSerial(), TipoAlerta.FACTURA_EMITIDA, mensaje);
     }
 
     @Override

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.voltera.telemetriacore.domain.event.LecturaValidada;
 import com.voltera.telemetriacore.domain.port.in.RegistrarConsumoUseCase;
+import com.voltera.telemetriacore.domain.port.out.InboxPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
@@ -16,18 +17,24 @@ import java.time.Instant;
  * Consume {@code telemetria-lecturas-validadas} (emitido por Ingesta). Solo procesa
  * los eventos LecturaValidada (ignora CanalIngestaCreado y LecturaSospechosaDetectada,
  * que no llevan consumo a la serie). Incorpora la lectura a la serie del medidor.
+ * Idempotente por tabla inbox (lamina 10): una LecturaValidada repetida tras una
+ * reconexion no duplica el consumo acumulado.
  */
 @Component
 @Lazy(false)
 public class LecturaValidadaConsumer {
 
     private static final Logger log = LoggerFactory.getLogger(LecturaValidadaConsumer.class);
+    private static final String CONSUMIDOR = "telemetria-core-consumer#telemetria-lecturas-validadas";
 
     private final RegistrarConsumoUseCase useCase;
+    private final InboxPort inbox;
     private final ObjectMapper objectMapper;
 
-    public LecturaValidadaConsumer(RegistrarConsumoUseCase useCase, ObjectMapper objectMapper) {
+    public LecturaValidadaConsumer(RegistrarConsumoUseCase useCase, InboxPort inbox,
+                                   ObjectMapper objectMapper) {
         this.useCase = useCase;
+        this.inbox = inbox;
         this.objectMapper = objectMapper;
     }
 
@@ -39,6 +46,11 @@ public class LecturaValidadaConsumer {
             JsonNode n = objectMapper.readTree(t);
             // Solo LecturaValidada trae 'validadaEn' + 'consumoKwh'; los demas eventos se ignoran.
             if (!n.hasNonNull("validadaEn") || !n.hasNonNull("consumoKwh")) {
+                return;
+            }
+            if (!inbox.registrarSiEsNuevo(CONSUMIDOR,
+                    ClaveIdempotencia.derivar(n, "LecturaValidada"), "LecturaValidada")) {
+                log.info("LecturaValidada duplicada ignorada. eventId={}", texto(n, "eventId"));
                 return;
             }
             LecturaValidada lectura = new LecturaValidada(

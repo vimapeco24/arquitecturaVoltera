@@ -1,0 +1,56 @@
+# ==========================================================================
+# Persistencia REAL del lado CQRS de telemetria-core (lamina 03).
+#   - Redis        -> vistas de lectura (por intervalo + agregada)
+#   - TimescaleDB  -> SerieDeMedicion append-only (TSDB; extension de PostgreSQL)
+#
+# Uso (local):
+#   docker compose -f docker-compose.persistence.yml up -d
+#   # luego arrancar telemetria-core con los perfiles activos:
+#   SPRING_PROFILES_ACTIVE=redis,tsdb \
+#   REDIS_HOST=localhost REDIS_PORT=6379 \
+#   TSDB_URL=jdbc:postgresql://localhost:5432/voltera_tsdb \
+#   TSDB_USER=voltera TSDB_PASSWORD=voltera \
+#   mvn -pl ServiciosDeNegocio/telemetria-core-service spring-boot:run
+#
+# Sin estos contenedores y sin perfiles, el servicio arranca en modo in-memory.
+# ==========================================================================
+
+services:
+  redis:
+    image: redis:7.4-alpine
+    container_name: voltera-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  timescaledb:
+    image: timescale/timescaledb:2.17.2-pg16
+    container_name: voltera-timescaledb
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=voltera_tsdb
+      - POSTGRES_USER=voltera
+      - POSTGRES_PASSWORD=voltera
+    ports:
+      - "5432:5432"
+    volumes:
+      - tsdb-data:/var/lib/postgresql/data
+      # Crea la segunda base 'voltera_inbox' (idempotencia) al inicializar el cluster.
+      - ./db-init/create-inbox-db.sql:/docker-entrypoint-initdb.d/10-create-inbox-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voltera -d voltera_tsdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  redis-data:
+  tsdb-data:

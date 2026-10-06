@@ -57,6 +57,7 @@ public class Notificacion {
             case MEDIDOR_HABILITADO -> "Su medidor " + medidorId + " fue habilitado correctamente.";
             case LECTURA_SOSPECHOSA -> "Detectamos una lectura inusual en su medidor " + medidorId + ".";
             case MEDIDOR_SIN_REPORTE -> "Su medidor " + medidorId + " dejo de reportar consumo.";
+            case FACTURA_EMITIDA -> "Se emitio la factura de su medidor " + medidorId + ".";
         };
     }
 

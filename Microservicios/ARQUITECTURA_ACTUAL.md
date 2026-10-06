@@ -6,6 +6,54 @@ microservicios Spring Boot (arquitectura hexagonal) sobre Kubernetes, con capa
 EDA (Redpanda/Kafka + KEDA), service mesh (Istio + mTLS) y observabilidad
 (Prometheus, Grafana, Kiali, Jaeger).
 
+## Grafo de eventos EDA (diagrama DDD 02 · alineado)
+
+Flujo de eventos extremo a extremo entre bounded contexts, implementado con
+Kafka/Redpanda + patrón OUTBOX transaccional en cada servicio. Cada topic
+consumido tiene un emisor correspondiente (verificado contra el código):
+
+| Evento | Topic Kafka | Emisor | Consumidor(es) |
+|---|---|---|---|
+| OrdenInstalacionCerrada | `ordenes-instalacion` | Sistema de instalación (externo) | habilitacion |
+| MedidorHabilitado | `medidores-habilitacion` | habilitacion | integracion-ami, ingesta, telemetria-core, tarifas, notificaciones |
+| LecturaCrudaRecibida | `ami-lecturas-crudas` | integracion-ami | ingesta |
+| LecturaValidada / LecturaSospechosaDetectada / CanalIngestaCreado | `telemetria-lecturas-validadas` | ingesta | telemetria-core, habilitacion (CanalIngestaCreado), notificaciones (LecturaSospechosaDetectada) |
+| ConsumoIntervaloRegistrado / MedidorSinReporte | `telemetria-consumo-intervalos` | telemetria-core | tarifas, liquidacion-mensual, notificaciones (MedidorSinReporte) |
+| TarifaAsignada | `tarifas-eventos` | tarifas | habilitacion |
+| LiquidacionCalculada | `liquidaciones-calculadas` | liquidacion-mensual | facturacion |
+| FacturaEmitida | `facturas-emitidas` | facturacion | notificaciones |
+| ClienteNotificado | `cliente-notificado` | notificaciones | (terminal / auditoría) |
+
+```mermaid
+flowchart LR
+    SI([Sistema instalación]) -->|OrdenInstalacionCerrada| HAB[BC Habilitación<br/>Medidor]
+    HAB -->|MedidorHabilitado| AMI[BC Integración AMI<br/>ConexiónHeadEnd]
+    HAB -->|MedidorHabilitado| ING[BC Telemetría · Ingesta<br/>SesiónDeIngesta]
+    HAB -->|MedidorHabilitado| TEL[BC Telemetría · Core<br/>SerieDeMedición]
+    HAB -->|MedidorHabilitado| TAR[BC Tarifas<br/>Tarifa · Vigencia]
+    HAB -->|MedidorHabilitado| NOT[BC Notificaciones<br/>Notificación]
+
+    AMI -->|LecturaCrudaRecibida| ING
+    ING -->|LecturaValidada| TEL
+    ING -->|CanalIngestaCreado| HAB
+    ING -->|LecturaSospechosaDetectada| NOT
+
+    TEL -->|ConsumoIntervaloRegistrado| TAR
+    TEL -->|ConsumoIntervaloRegistrado| LIQ[BC Facturación · Liquidación]
+    TEL -->|MedidorSinReporte| NOT
+
+    TAR -->|TarifaAsignada| HAB
+    LIQ -->|LiquidacionCalculada| FAC[BC Facturación · Factura]
+    FAC -->|FacturaEmitida| NOT
+    NOT -->|ClienteNotificado| OUT([Cliente / auditoría])
+```
+
+Reglas EDA aplicadas: OUTBOX transaccional + relay programado en todos los
+productores; consumidores idempotentes/`@Lazy(false)` que filtran por campos del
+payload cuando comparten topic; los servicios de la Entrega 2 (tarifas,
+facturacion, liquidacion-mensual) conservan intacta su API REST y suman la capa
+EDA de forma aditiva.
+
 ## Vista general (C4 - Contenedores)
 
 ```mermaid
