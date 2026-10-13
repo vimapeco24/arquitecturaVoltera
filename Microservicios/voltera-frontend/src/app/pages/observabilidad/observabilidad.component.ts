@@ -2,7 +2,10 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
+import { forkJoin, of } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
+import { HealthService } from '../../services/health.service';
 
 type ClaveTool = 'grafana' | 'prometheus' | 'kiali' | 'jaeger';
 
@@ -41,6 +44,7 @@ const LS_KEY = 'voltera.observabilidad.urls';
 })
 export class ObservabilidadComponent implements OnInit {
   private http = inject(HttpClient);
+  private healthSvc = inject(HealthService);
 
   mode: 'live' | 'offline' | 'checking' = 'checking';
   generatedAt = '';
@@ -61,6 +65,9 @@ export class ObservabilidadComponent implements OnInit {
     { servicio: 'liquidacion-p2p-service', maxConn: 100, pending: 100, consecutive5xx: 5, ejection: '30s / 50%', agresivo: false },
     { servicio: 'liquidacion-mensual-service', maxConn: 100, pending: 100, consecutive5xx: 5, ejection: '30s / 50%', agresivo: false },
     { servicio: 'pagos-service', maxConn: 100, pending: 100, consecutive5xx: 5, ejection: '30s / 50%', agresivo: false },
+    { servicio: 'siniestros-service', maxConn: 100, pending: 100, consecutive5xx: 5, ejection: '30s / 50%', agresivo: false },
+    { servicio: 'reaseguro-service', maxConn: 100, pending: 100, consecutive5xx: 5, ejection: '30s / 50%', agresivo: false },
+    { servicio: 'cobros-service', maxConn: 100, pending: 100, consecutive5xx: 5, ejection: '30s / 50%', agresivo: false },
   ];
 
   readonly pilares: Pilar[] = [
@@ -104,15 +111,52 @@ export class ObservabilidadComponent implements OnInit {
     this.cb503 = s.cb503 ?? 0;
     this.breakerApp = s.breakerApp ?? { estado: 'ND' };
     this.generatedAt = s.generatedAt ?? new Date().toISOString();
-    this.cargando = false;
+    // Fallback: si el BFF no reportó ningún servicio UP, medimos el estado y la
+    // latencia directamente contra el gateway (mismo mecanismo del Panel), para
+    // que la página no quede en "0 / Sin datos" cuando /api/obs no alcanza el clúster.
+    if (this.serviciosUp === 0) {
+      this.medirConHealthService();
+    } else {
+      this.cargando = false;
+    }
   }
 
   private offline(): void {
     this.mode = 'offline';
-    this.services = [];
-    this.latencyHops = [];
     this.generatedAt = new Date().toISOString();
-    this.cargando = false;
+    // Aun offline del BFF, intentamos medir salud/latencia por el gateway.
+    this.medirConHealthService();
+  }
+
+  /**
+   * Mide estado + latencia de los 17 microservicios directamente contra el
+   * gateway (actuator/health), igual que el Panel. Es el fallback cuando el BFF
+   * /api/obs no puede alcanzar el clúster. Deriva también los saltos de latencia
+   * edge→micro para que las tablas no queden vacías.
+   */
+  private medirConHealthService(): void {
+    const catalogo = this.healthSvc.catalogo;
+    forkJoin(
+      catalogo.map((c) => {
+        const t0 = performance.now();
+        return this.http
+          .get<{ status: string }>(`${environment.gatewayBase}/${c.servicio}/v1/actuator/health`)
+          .pipe(
+            map((r) => ({ svc: `${c.servicio}-service`, status: (r?.status === 'UP' ? 'UP' : 'DOWN') as Svc['status'], ms: Math.round(performance.now() - t0) })),
+            catchError(() => of({ svc: `${c.servicio}-service`, status: 'DESCONOCIDO' as Svc['status'], ms: 0 })),
+          );
+      }),
+    ).subscribe({
+      next: (medidos) => {
+        this.services = medidos;
+        this.latencyHops = medidos
+          .filter((s) => s.ms > 0)
+          .map((s) => ({ src: 'gateway/ingress', dst: s.svc, p50: s.ms, p95: s.ms }));
+        if (this.serviciosUp > 0) this.mode = 'live';
+        this.cargando = false;
+      },
+      error: () => { this.cargando = false; },
+    });
   }
 
   get serviciosUp(): number {

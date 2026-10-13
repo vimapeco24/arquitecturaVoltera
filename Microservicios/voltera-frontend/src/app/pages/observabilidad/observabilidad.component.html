@@ -48,7 +48,7 @@
   <h2 class="section-title">Métricas del mesh</h2>
   <div class="kpi-row">
     <div class="kpi v-card"><span class="kpi-ic">🔐</span><span class="kpi-num">{{ mtlsPct }}%</span><span class="kpi-lbl">Tráfico con mTLS (STRICT)</span></div>
-    <div class="kpi v-card"><span class="kpi-ic">✅</span><span class="kpi-num">{{ serviciosUp }}/{{ services.length || 6 }}</span><span class="kpi-lbl">Servicios UP</span></div>
+    <div class="kpi v-card"><span class="kpi-ic">✅</span><span class="kpi-num">{{ serviciosUp }}/{{ services.length || 17 }}</span><span class="kpi-lbl">Servicios UP</span></div>
     <div class="kpi v-card"><span class="kpi-ic">⏱️</span><span class="kpi-num">{{ latenciaMedia }}<small> ms</small></span><span class="kpi-lbl">Latencia media (edge)</span></div>
     <div class="kpi v-card"><span class="kpi-ic">🔗</span><span class="kpi-num">{{ latencyHops.length }}</span><span class="kpi-lbl">Saltos medidos</span></div>
   </div>
@@ -113,7 +113,7 @@
     </div>
 
     <div class="v-card cb-mesh">
-      <h3>Nivel malla · Istio DestinationRule (los 6 servicios)</h3>
+      <h3>Nivel malla · Istio DestinationRule ({{ breakersMesh.length }} servicios)</h3>
       <p class="cb-sub">connectionPool + outlierDetection en cada servicio. Facturación con umbral más agresivo.</p>
       <div class="v-table-wrap">
         <table class="v-table cb-table">

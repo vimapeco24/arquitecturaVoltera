@@ -24,12 +24,26 @@ const CS = process.env.WSO2_CONSUMER_SECRET || 'mQHpTjKHPHCNViwFNBsTCnfffDMa';
 const PROM = process.env.OBS_PROMETHEUS || '';
 
 const SERVICIOS = [
+  // Entrega 2 · servicios de negocio
   { key: 'facturacion', workload: 'facturacion-service' },
   { key: 'tarifas', workload: 'tarifas-service' },
   { key: 'volumetria', workload: 'volumetria-service' },
   { key: 'liquidacion-p2p', workload: 'liquidacion-p2p-service' },
   { key: 'liquidacion-mensual', workload: 'liquidacion-mensual-service' },
   { key: 'pagos', workload: 'pagos-service' },
+  // Entrega 3 · dominio seguros (EDA)
+  { key: 'siniestros', workload: 'siniestros-service' },
+  { key: 'reaseguro', workload: 'reaseguro-service' },
+  { key: 'cobros', workload: 'cobros-service' },
+  // Entrega 3 · caso Telemetría (demo EDA)
+  { key: 'telemetria', workload: 'telemetria-service' },
+  { key: 'tarifa-eventos', workload: 'tarifa-eventos-service' },
+  // Entrega 3 · cadena EDA completa (láminas 02/03/04)
+  { key: 'habilitacion', workload: 'habilitacion-service' },
+  { key: 'integracion-ami', workload: 'integracion-ami-service' },
+  { key: 'ingesta', workload: 'ingesta-service' },
+  { key: 'telemetria-core', workload: 'telemetria-core-service' },
+  { key: 'notificaciones', workload: 'notificaciones-service' },
 ];
 
 function request(rawUrl, { method = 'GET', headers = {}, body = null, timeout = 8000 } = {}) {

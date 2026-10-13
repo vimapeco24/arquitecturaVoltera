@@ -175,3 +175,21 @@ git <lo-que-sea>
 - Rama: `main` (upstream `origin/main`).
 - `.gitignore` ya excluye target/, dist/, node_modules, .env, *.pdf/pptx/png, Postman con secretos.
 - Último push de esta entrega: commit `0b3c8b4` (BC Cobros + alineación EDA/front).
+
+---
+
+## Observabilidad completa (sesión posterior)
+
+- **BFF `api/obs.js`**: ampliado de 6 → **17 servicios** (incluye seguros y toda la
+  cadena EDA). Mide estado+latencia vía gateway OAuth2 y, si expones `OBS_PROMETHEUS`,
+  trae latencia por salto Istio.
+- **Frontend `observabilidad.component.ts`**: fallback con `HealthService` — si
+  `/api/obs` no alcanza el clúster, mide los 17 servicios directo por el gateway (igual
+  que el Panel), de modo que la página ya NO queda en "0 / Sin datos". KPI "Servicios UP"
+  dinámico (N/17). Tableros Grafana/Prometheus/Kiali/Jaeger abren con consulta/vista ya
+  cargada (PromQL del mesh, dashboard Istio, grafo namespace, trazas facturación).
+- **Mesh `k8s/mesh/02-destinationrules-circuitbreaker.yaml`**: ampliado de 6 → **17
+  DestinationRules** (circuit breaker + mTLS ISTIO_MUTUAL) para TODO el backend, no solo
+  Entrega 2. facturacion = breaker agresivo (demo); el resto, límites de producción.
+- Dashboard Grafana de telemetría: `k8s/grafana-telemetria-dashboard.json`.
+- Verificado: 17 DR (YAML OK), frontend tsc + build de producción sin warnings.

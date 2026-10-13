@@ -158,3 +158,188 @@ spec:
       interval: 10s
       baseEjectionTime: 30s
       maxEjectionPercent: 50
+---
+# ============================================================================
+# Entrega 3 (EDA) — DestinationRule + circuit breaker para los servicios nuevos.
+# Mismos limites de produccion (holgados) + mTLS ISTIO_MUTUAL. Asi la malla
+# aplica bulkhead/outlier-detection a TODO el backend (no solo a la Entrega 2).
+# ============================================================================
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: cb-siniestros-service
+  namespace: voltera-app
+spec:
+  host: siniestros-service.voltera-app.svc.cluster.local
+  trafficPolicy:
+    tls: { mode: ISTIO_MUTUAL }
+    connectionPool:
+      tcp: { maxConnections: 100 }
+      http: { http1MaxPendingRequests: 100, http2MaxRequests: 200, maxRequestsPerConnection: 0 }
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: cb-reaseguro-service
+  namespace: voltera-app
+spec:
+  host: reaseguro-service.voltera-app.svc.cluster.local
+  trafficPolicy:
+    tls: { mode: ISTIO_MUTUAL }
+    connectionPool:
+      tcp: { maxConnections: 100 }
+      http: { http1MaxPendingRequests: 100, http2MaxRequests: 200, maxRequestsPerConnection: 0 }
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: cb-cobros-service
+  namespace: voltera-app
+spec:
+  host: cobros-service.voltera-app.svc.cluster.local
+  trafficPolicy:
+    tls: { mode: ISTIO_MUTUAL }
+    connectionPool:
+      tcp: { maxConnections: 100 }
+      http: { http1MaxPendingRequests: 100, http2MaxRequests: 200, maxRequestsPerConnection: 0 }
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: cb-telemetria-service
+  namespace: voltera-app
+spec:
+  host: telemetria-service.voltera-app.svc.cluster.local
+  trafficPolicy:
+    tls: { mode: ISTIO_MUTUAL }
+    connectionPool:
+      tcp: { maxConnections: 100 }
+      http: { http1MaxPendingRequests: 100, http2MaxRequests: 200, maxRequestsPerConnection: 0 }
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: cb-tarifa-eventos-service
+  namespace: voltera-app
+spec:
+  host: tarifa-eventos-service.voltera-app.svc.cluster.local
+  trafficPolicy:
+    tls: { mode: ISTIO_MUTUAL }
+    connectionPool:
+      tcp: { maxConnections: 100 }
+      http: { http1MaxPendingRequests: 100, http2MaxRequests: 200, maxRequestsPerConnection: 0 }
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: cb-habilitacion-service
+  namespace: voltera-app
+spec:
+  host: habilitacion-service.voltera-app.svc.cluster.local
+  trafficPolicy:
+    tls: { mode: ISTIO_MUTUAL }
+    connectionPool:
+      tcp: { maxConnections: 100 }
+      http: { http1MaxPendingRequests: 100, http2MaxRequests: 200, maxRequestsPerConnection: 0 }
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: cb-integracion-ami-service
+  namespace: voltera-app
+spec:
+  host: integracion-ami-service.voltera-app.svc.cluster.local
+  trafficPolicy:
+    tls: { mode: ISTIO_MUTUAL }
+    connectionPool:
+      tcp: { maxConnections: 100 }
+      http: { http1MaxPendingRequests: 100, http2MaxRequests: 200, maxRequestsPerConnection: 0 }
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: cb-ingesta-service
+  namespace: voltera-app
+spec:
+  host: ingesta-service.voltera-app.svc.cluster.local
+  trafficPolicy:
+    tls: { mode: ISTIO_MUTUAL }
+    connectionPool:
+      tcp: { maxConnections: 100 }
+      http: { http1MaxPendingRequests: 100, http2MaxRequests: 200, maxRequestsPerConnection: 0 }
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: cb-telemetria-core-service
+  namespace: voltera-app
+spec:
+  host: telemetria-core-service.voltera-app.svc.cluster.local
+  trafficPolicy:
+    tls: { mode: ISTIO_MUTUAL }
+    connectionPool:
+      tcp: { maxConnections: 100 }
+      http: { http1MaxPendingRequests: 100, http2MaxRequests: 200, maxRequestsPerConnection: 0 }
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: cb-notificaciones-service
+  namespace: voltera-app
+spec:
+  host: notificaciones-service.voltera-app.svc.cluster.local
+  trafficPolicy:
+    tls: { mode: ISTIO_MUTUAL }
+    connectionPool:
+      tcp: { maxConnections: 100 }
+      http: { http1MaxPendingRequests: 100, http2MaxRequests: 200, maxRequestsPerConnection: 0 }
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
