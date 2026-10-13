@@ -157,3 +157,21 @@ tarifa-eventos 11/11, tarifas 6/6, habilitacion 4/4, notificaciones 7/7. Fronten
 - `Microservicios/EVENT_MESH_KEDA.md` — tabla KEDA (topics/umbral/min/max).
 - `Microservicios/k8s/` — manifiestos (voltera-eda, voltera-negocio-eda, voltera-topics,
   voltera-cobros, voltera-keda-lamina04, voltera-services).
+
+---
+
+## Git / cómo subir cambios (IMPORTANTE para futuras sesiones)
+
+El `git` por defecto (`/usr/bin/git`) está bloqueado por la licencia de Xcode.app
+(`xcode-select -p` → /Applications/Xcode.app). En vez de correr `sudo xcodebuild -license`,
+usar el git de las **Command Line Tools**, que NO exige esa licencia, exportando:
+
+```bash
+export DEVELOPER_DIR=/Library/Developer/CommandLineTools
+git <lo-que-sea>
+```
+
+- Remoto: `origin` → https://github.com/vimapeco24/arquitecturaVoltera.git
+- Rama: `main` (upstream `origin/main`).
+- `.gitignore` ya excluye target/, dist/, node_modules, .env, *.pdf/pptx/png, Postman con secretos.
+- Último push de esta entrega: commit `0b3c8b4` (BC Cobros + alineación EDA/front).
