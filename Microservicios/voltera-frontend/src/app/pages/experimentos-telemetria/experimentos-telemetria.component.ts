@@ -40,6 +40,8 @@ interface ExperimentoTelemetria {
   hipotesis: string;
   metrica: string;
   criterio: string;
+  /** Aspecto del enunciado al que corresponde (EDA/KEDA/CQRS/Idempotencia). null = extra. */
+  aspecto: 'EDA' | 'KEDA' | 'CQRS' | 'Idempotencia' | null;
   ejecutando: boolean;
   resultado?: ResultadoExperimento;
   ejecutar: () => Promise<ResultadoExperimento>;
@@ -256,6 +258,7 @@ export class ExperimentosTelemetriaComponent {
         'Al ingestar una lectura de consumo extra, telemetria-service publica ConsumoRegistrado al broker; tarifa-eventos-service lo consume y crea el cargo. El emisor NO llama al consumidor.',
       metrica: 'El cargo aparece en la vista de lectura de tarifa-eventos con el monto = (consumo − umbral) × 850.',
       criterio: 'Aparece 1 cargo LIQUIDADO con el monto esperado (eventual, por el broker).',
+      aspecto: 'EDA',
       ejecutando: false,
       ejecutar: () => this.expEdaEndToEnd(),
     },
@@ -267,6 +270,7 @@ export class ExperimentosTelemetriaComponent {
       metrica:
         'Número de réplicas de tarifa-eventos-service antes y después del pico (observable en Kiali/Prometheus) y throughput de ingesta (lecturas/s).',
       criterio: 'Réplicas > mínimo durante el pico (lag > umbral); réplicas = mínimo en reposo.',
+      aspecto: 'KEDA',
       ejecutando: false,
       ejecutar: () => this.expKedaEscalado(),
     },
@@ -277,6 +281,7 @@ export class ExperimentosTelemetriaComponent {
         'La vista de lectura (cargos) se actualiza en menos de 3 s tras la ingesta (el evento viaja por el broker).',
       metrica: 'Tiempo entre la ingesta de la lectura y la aparición del cargo en GET /cargos.',
       criterio: 'Retraso < 3000 ms.',
+      aspecto: 'CQRS',
       ejecutando: false,
       ejecutar: () => this.expCqrsRetraso(),
     },
@@ -287,6 +292,7 @@ export class ExperimentosTelemetriaComponent {
         'Reenviar el mismo evento (mismo eventId) a tarifa-eventos no crea un cargo duplicado. Los datos viajan en el evento (transferencia de estado).',
       metrica: 'Cantidad de cargos con el mismo prosumidorId antes y después del reenvío.',
       criterio: 'La cantidad no cambia (0 duplicados).',
+      aspecto: 'Idempotencia',
       ejecutando: false,
       ejecutar: () => this.expIdempotencia(),
     },
@@ -297,6 +303,7 @@ export class ExperimentosTelemetriaComponent {
         'Al activar un nuevo medidor/prosumidor, tarifa-eventos genera y publica una notificación con factura y tarifas (cargo fijo, precio base, precio extra).',
       metrica: 'La notificación devuelta contiene cargo fijo, precio base y precio extra.',
       criterio: 'Se genera la notificación con tipo MEDIDOR_ACTIVADO y sus tarifas.',
+      aspecto: null,
       ejecutando: false,
       ejecutar: () => this.expNotificacion(),
     },
@@ -328,6 +335,60 @@ export class ExperimentosTelemetriaComponent {
     for (const exp of this.experimentos) {
       await this.ejecutarExperimento(exp);
     }
+  }
+
+  /** Los 4 aspectos evaluables del enunciado (EDA, KEDA, CQRS, Idempotencia). */
+  get experimentosEnunciado(): ExperimentoTelemetria[] {
+    return this.experimentos.filter((e) => e.aspecto !== null);
+  }
+
+  /** Ejecuta en orden solo los 4 aspectos que pesan en la nota (35%). */
+  async ejecutarEnunciado(): Promise<void> {
+    for (const exp of this.experimentosEnunciado) {
+      await this.ejecutarExperimento(exp);
+    }
+  }
+
+  /** Cuántos de los 4 aspectos del enunciado ya CUMPLEN. */
+  get aspectosCumplidos(): number {
+    return this.experimentosEnunciado.filter((e) => e.resultado?.ok === true).length;
+  }
+
+  /** Cuántos de los 4 aspectos se han ejecutado (con resultado). */
+  get aspectosEvaluados(): number {
+    return this.experimentosEnunciado.filter((e) => e.resultado !== undefined).length;
+  }
+
+  /** Progreso de la entrega: 4/4 aspectos cumplidos = 100%. */
+  get progresoEntrega(): number {
+    return Math.round((this.aspectosCumplidos / this.experimentosEnunciado.length) * 100);
+  }
+
+  /** Veredicto por aspecto para la tabla-resumen (pendiente/cumple/falla). */
+  veredicto(exp: ExperimentoTelemetria): 'pendiente' | 'cumple' | 'falla' {
+    if (!exp.resultado) return 'pendiente';
+    return exp.resultado.ok ? 'cumple' : 'falla';
+  }
+
+  /**
+   * Número de orden del experimento dentro del enunciado (1..4).
+   * Devuelve 0 para los que no son del enunciado (el extra de notificación).
+   */
+  ordenEnunciado(exp: ExperimentoTelemetria): number {
+    const i = this.experimentosEnunciado.indexOf(exp);
+    return i >= 0 ? i + 1 : 0;
+  }
+
+  /**
+   * ¿Es este el PRÓXIMO experimento del enunciado a ejecutar?
+   * Es el primero (en orden) que aún no tiene resultado y ninguno anterior
+   * está corriendo. Sirve para guiar la ejecución secuencial sin dependencias
+   * (cada experimento es autónomo: crea su propio medidor con id único).
+   */
+  esSiguiente(exp: ExperimentoTelemetria): boolean {
+    if (this.corriendoAlguno) return false;
+    const pendientes = this.experimentosEnunciado.filter((e) => e.resultado === undefined);
+    return pendientes.length > 0 && pendientes[0] === exp;
   }
 
   private demora(ms: number): Promise<void> {
@@ -416,7 +477,7 @@ export class ExperimentosTelemetriaComponent {
     };
   }
 
-  /** Exp 2 — CQRS: mide retraso ingesta → aparición del cargo. */
+  /** Exp 3 — CQRS: mide retraso ingesta → aparición del cargo. */
   private async expCqrsRetraso(): Promise<ResultadoExperimento> {
     const pasos: string[] = [];
     const medidor = await firstValueFrom(
@@ -515,7 +576,7 @@ export class ExperimentosTelemetriaComponent {
     };
   }
 
-  /** Exp 3 — Idempotencia: reenvía el mismo eventId con simular-evento. */
+  /** Exp 4 — Idempotencia: reenvía el mismo eventId con simular-evento. */
   private async expIdempotencia(): Promise<ResultadoExperimento> {
     const pasos: string[] = [];
     const prosumidor = `PRO-EXP3-${Date.now()}`;
@@ -566,7 +627,7 @@ export class ExperimentosTelemetriaComponent {
     };
   }
 
-  /** Exp 4 — Notificación liquidada al activar medidor. */
+  /** Exp 5 — Notificación liquidada al activar medidor. */
   private async expNotificacion(): Promise<ResultadoExperimento> {
     const pasos: string[] = [];
     const notif = await firstValueFrom(

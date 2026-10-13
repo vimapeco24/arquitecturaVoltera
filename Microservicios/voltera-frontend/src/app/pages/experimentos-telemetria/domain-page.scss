@@ -263,3 +263,120 @@
   .ev-item { grid-template-columns: 10px 60px 84px 1fr; }
   .ev-item .ev-svc, .ev-item .ev-detalle { grid-column: 4 / -1; white-space: normal; }
 }
+
+/* ====== Resumen de la Entrega (lámina 06/20) ====== */
+.entrega { padding: 24px 26px; margin-bottom: 22px; }
+.entrega-head {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 24px;
+  flex-wrap: wrap; margin-bottom: 18px;
+}
+.entrega-title { font-size: 18px; font-weight: 800; font-family: 'Sora', sans-serif; }
+.entrega-sub {
+  font-size: 13px; color: var(--v-text-soft); margin-top: 6px; max-width: 640px; line-height: 1.55;
+}
+.entrega-sub strong { color: var(--v-text); }
+
+.entrega-score { display: flex; align-items: center; gap: 16px; }
+.score-ring {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  width: 74px; height: 74px; border-radius: 50%; flex: none;
+  border: 3px solid var(--v-border-strong); background: var(--v-bg-2);
+  transition: all 0.3s ease;
+}
+.score-ring.full {
+  border-color: var(--v-primary);
+  box-shadow: 0 0 0 4px rgba(34, 201, 138, 0.14);
+}
+.score-ring .score-num { font-size: 20px; font-weight: 800; font-family: 'Sora'; color: var(--v-text); }
+.score-ring.full .score-num { color: var(--v-primary); }
+.score-ring .score-lbl { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--v-text-dim); }
+
+.entrega-progress { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+.ep-track {
+  flex: 1; height: 8px; border-radius: 999px; overflow: hidden;
+  background: var(--v-bg-2); border: 1px solid var(--v-border);
+}
+.ep-fill {
+  height: 100%; border-radius: 999px;
+  background: linear-gradient(90deg, var(--v-primary-600), var(--v-primary));
+  transition: width 0.5s ease;
+}
+.ep-text { font-size: 12px; color: var(--v-text-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Tabla-resumen estilo lámina 20 */
+.entrega-table {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+}
+.entrega-table thead th {
+  text-align: left; padding: 11px 14px; font-size: 11.5px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.05em; color: var(--v-text-soft);
+  background: var(--v-surface-3); border-bottom: 1px solid var(--v-border);
+}
+.entrega-table thead th:first-child { border-top-left-radius: 10px; }
+.entrega-table thead th:last-child { border-top-right-radius: 10px; }
+.entrega-table tbody td {
+  padding: 14px; vertical-align: top; border-bottom: 1px solid var(--v-border);
+  line-height: 1.5;
+}
+.entrega-table tbody tr.cumple { background: rgba(34, 201, 138, 0.05); }
+.entrega-table tbody tr.falla { background: rgba(248, 113, 113, 0.05); }
+.entrega-table .th-hip { color: var(--v-text-soft); max-width: 320px; }
+.entrega-table .th-met { max-width: 300px; }
+.entrega-table .th-met .crit { color: var(--v-text-soft); font-size: 12px; }
+
+.aspecto-chip {
+  display: inline-block; padding: 5px 12px; border-radius: 999px;
+  font-weight: 800; font-size: 12.5px; letter-spacing: 0.02em;
+  background: var(--v-bg-2); border: 1px solid var(--v-border-strong); color: var(--v-text);
+}
+.aspecto-chip.cumple { border-color: var(--v-primary); color: var(--v-primary); }
+.aspecto-chip.falla { border-color: var(--v-danger); color: var(--v-danger); }
+
+.th-res { min-width: 180px; }
+.verd { font-weight: 800; font-size: 13.5px; }
+.verd.cumple { color: var(--v-primary); }
+.verd.falla { color: var(--v-danger); }
+.verd.pendiente { color: var(--v-text-dim); }
+.verd-detalle { font-size: 11.5px; color: var(--v-text-soft); margin: 6px 0 8px; line-height: 1.45; }
+.v-btn.mini { padding: 6px 12px; font-size: 12px; }
+
+@media (max-width: 760px) {
+  .entrega-table thead { display: none; }
+  .entrega-table tbody td { display: block; max-width: none; border-bottom: none; padding: 6px 14px; }
+  .entrega-table tbody tr { display: block; border-bottom: 1px solid var(--v-border); padding: 10px 0; }
+  .entrega-table tbody td:first-child { padding-top: 12px; }
+  .entrega-table tbody td:last-child { padding-bottom: 14px; }
+}
+
+/* ====== Orden de ejecución ====== */
+.th-orden { width: 62px; text-align: center; }
+.orden-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 50%; font-weight: 800; font-size: 13px;
+  background: var(--v-bg-2); border: 1px solid var(--v-border-strong); color: var(--v-text);
+}
+.entrega-table tr.cumple .orden-num { border-color: var(--v-primary); color: var(--v-primary); }
+.orden-next { display: block; font-size: 9.5px; font-weight: 700; color: var(--v-solar); margin-top: 4px; }
+.entrega-table tr.siguiente { box-shadow: inset 3px 0 0 var(--v-solar); }
+
+.entrega-nota {
+  font-size: 12px; color: var(--v-text-dim); margin-top: 12px; line-height: 1.55;
+}
+.entrega-nota strong { color: var(--v-text-soft); }
+
+/* ====== Sección "Ejecuciones · en orden" ====== */
+.exp-section-head { margin: 26px 0 6px; }
+.exp-section-title { font-size: 17px; font-weight: 800; font-family: 'Sora', sans-serif; }
+.exp-section-sub { font-size: 12.5px; color: var(--v-text-soft); margin-top: 4px; line-height: 1.5; }
+.exp-section-sub strong { color: var(--v-text); }
+
+/* Badge de aspecto en la tarjeta */
+.exp-aspecto {
+  margin-left: auto; font-size: 11px; font-weight: 800; letter-spacing: 0.03em;
+  padding: 4px 10px; border-radius: 999px; flex: none;
+  background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); color: var(--v-accent);
+}
+.exp-aspecto.extra { background: var(--v-bg-2); border-color: var(--v-border); color: var(--v-text-dim); }
+
+/* Tarjeta "siguiente a ejecutar" */
+.exp-card.siguiente { box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.3); border-left-color: var(--v-solar); }

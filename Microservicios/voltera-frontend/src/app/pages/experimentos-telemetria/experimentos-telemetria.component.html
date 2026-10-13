@@ -19,6 +19,77 @@
   <!-- ============ VISTA: EXPERIMENTOS ============ -->
   <div *ngIf="vista === 'experimentos'">
 
+  <!-- ====== RESUMEN DE LA ENTREGA (lámina 06/20 · 35% de la nota) ====== -->
+  <div class="entrega v-card">
+    <div class="entrega-head">
+      <div>
+        <div class="entrega-title">📋 Validación de la Entrega 3 · 35% de la nota</div>
+        <div class="entrega-sub">
+          Los cuatro aspectos del enunciado — <strong>EDA, KEDA, CQRS y transferencia de estado/idempotencia</strong> —
+          deben quedar cubiertos con <strong>evidencia</strong>, no con descripción. Ejecuta cada uno para registrar su resultado.
+        </div>
+      </div>
+      <div class="entrega-score">
+        <div class="score-ring" [class.full]="progresoEntrega === 100">
+          <span class="score-num">{{ aspectosCumplidos }}/{{ experimentosEnunciado.length }}</span>
+          <span class="score-lbl">aspectos</span>
+        </div>
+        <button class="v-btn primary" (click)="ejecutarEnunciado()" [disabled]="corriendoAlguno">
+          <span class="v-spinner" *ngIf="corriendoAlguno"></span>▶ Ejecutar los 4 del enunciado
+        </button>
+      </div>
+    </div>
+
+    <div class="entrega-progress">
+      <div class="ep-track"><div class="ep-fill" [style.width.%]="progresoEntrega"></div></div>
+      <span class="ep-text">{{ progresoEntrega }}% · {{ aspectosEvaluados }}/{{ experimentosEnunciado.length }} evaluados</span>
+    </div>
+
+    <div class="v-table-wrap">
+      <table class="entrega-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Aspecto</th>
+            <th>Hipótesis</th>
+            <th>Métrica y criterio</th>
+            <th>Resultado</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let exp of experimentosEnunciado" [ngClass]="veredicto(exp)" [class.siguiente]="esSiguiente(exp)">
+            <td class="th-orden">
+              <span class="orden-num">{{ ordenEnunciado(exp) }}</span>
+              <span class="orden-next" *ngIf="esSiguiente(exp)">▶ sigue</span>
+            </td>
+            <td><span class="aspecto-chip" [ngClass]="veredicto(exp)">{{ exp.aspecto }}</span></td>
+            <td class="th-hip">{{ exp.hipotesis }}</td>
+            <td class="th-met"><strong>{{ exp.metrica }}</strong><br /><span class="crit">{{ exp.criterio }}</span></td>
+            <td class="th-res">
+              <span class="verd" [ngClass]="veredicto(exp)">
+                <ng-container [ngSwitch]="veredicto(exp)">
+                  <span *ngSwitchCase="'cumple'">✓ CUMPLE</span>
+                  <span *ngSwitchCase="'falla'">✗ NO CUMPLE</span>
+                  <span *ngSwitchDefault>• Pendiente</span>
+                </ng-container>
+              </span>
+              <div class="verd-detalle" *ngIf="exp.resultado">{{ exp.resultado.detalle }}</div>
+              <button class="v-btn ghost mini" (click)="ejecutarExperimento(exp)" [disabled]="exp.ejecutando || corriendoAlguno">
+                <span class="v-spinner" *ngIf="exp.ejecutando"></span>{{ exp.ejecutando ? '…' : 'Ejecutar' }}
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="entrega-nota">
+      Cada ejecución es <strong>independiente</strong>: crea su propio medidor con un identificador único, de modo que
+      puedes correr los aspectos en cualquier orden o repetirlos sin que uno dependa del estado de otro.
+      El botón <strong>“Ejecutar los 4 del enunciado”</strong> los corre en secuencia (1 → 2 → 3 → 4).
+    </p>
+  </div>
+
   <!-- ====== DIAGRAMA DE FLUJO ANIMADO ====== -->
   <div class="flow v-card">
     <div class="flow-node" [ngClass]="flujo.medidor">
@@ -109,19 +180,32 @@
     </div>
   </div>
 
+  <div class="exp-section-head">
+    <h2 class="exp-section-title">🔬 Ejecuciones · en orden</h2>
+    <p class="exp-section-sub">
+      Corre los experimentos <strong>en secuencia (1 → 5)</strong> o uno a uno. Cada ejecución es
+      autónoma (medidor propio con id único): no depende de las anteriores.
+    </p>
+  </div>
+
   <div class="run-all-bar">
-    <button class="v-btn primary big" (click)="ejecutarTodos()" [disabled]="corriendoAlguno">▶ Ejecutar todos</button>
-    <span class="hint">Tip: ejecuta el <strong>Experimento 1</strong> para ver el flujo completo animarse etapa por etapa.</span>
+    <button class="v-btn primary big" (click)="ejecutarTodos()" [disabled]="corriendoAlguno">
+      <span class="v-spinner" *ngIf="corriendoAlguno"></span>▶ Ejecutar todos (1 → 5)
+    </button>
+    <span class="hint">El <strong>paso 1 (EDA)</strong> anima el flujo completo etapa por etapa. KEDA, CQRS e idempotencia son los otros aspectos del 35%.</span>
   </div>
 
   <div class="exp-grid">
     <div class="exp-card v-card" *ngFor="let exp of experimentos"
          [class.ok]="exp.resultado?.ok === true"
          [class.err]="exp.resultado?.ok === false"
-         [class.running]="exp.ejecutando">
+         [class.running]="exp.ejecutando"
+         [class.siguiente]="esSiguiente(exp)">
       <div class="exp-head">
         <span class="exp-num">{{ exp.num }}</span>
         <h3>{{ exp.nombre }}</h3>
+        <span class="exp-aspecto" *ngIf="exp.aspecto">{{ exp.aspecto }}</span>
+        <span class="exp-aspecto extra" *ngIf="!exp.aspecto">extra</span>
       </div>
 
       <div class="exp-body">
