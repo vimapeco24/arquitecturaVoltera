@@ -1,42 +1,58 @@
-<section class="domain-page">
-  <header class="page-head">
-    <div>
-      <h1>Notificaciones</h1>
-      <p class="sub">Consumidor puro. Reacciona a eventos de alerta/estado y emite <code>ClienteNotificado</code>. Consume el topic <code>telemetria-alertas</code>.</p>
-    </div>
-    <button class="btn ghost" (click)="cargar()" [disabled]="cargando">↻ Refrescar</button>
-  </header>
-
-  <div class="grid">
-    <article class="card">
-      <h2>Simular evento de entrada</h2>
-      <form [formGroup]="form" class="form">
-        <label>Serial<input formControlName="medidorSerial" /></label>
-        <label>Consumo (kWh)<input type="number" formControlName="consumoKwh" /></label>
-        <label>Motivo<input formControlName="motivo" /></label>
-      </form>
-      <div class="row wrap">
-        <button class="btn" (click)="habilitado()">MedidorHabilitado</button>
-        <button class="btn" (click)="sospechosa()">LecturaSospechosa</button>
-        <button class="btn" (click)="sinReporte()">MedidorSinReporte</button>
-        <button class="btn" (click)="factura()">FacturaEmitida</button>
-      </div>
-    </article>
-
-    <article class="card">
-      <h2>Historial ({{ historial.length }})</h2>
-      <table class="tbl" *ngIf="historial.length; else vacio">
-        <thead><tr><th>Tipo</th><th>Medidor</th><th>Canal</th><th>Mensaje</th></tr></thead>
-        <tbody>
-          <tr *ngFor="let n of historial">
-            <td><span class="badge warn">{{ n.tipo }}</span></td>
-            <td>{{ n.medidorId }}</td>
-            <td>{{ n.canal }}</td>
-            <td class="msg">{{ n.mensaje }}</td>
-          </tr>
-        </tbody>
-      </table>
-      <ng-template #vacio><p class="muted">Sin notificaciones. Simula un evento.</p></ng-template>
-    </article>
+<div class="v-page v-fade">
+  <div class="v-page-head">
+    <span class="v-eyebrow">⚡ Cadena EDA · Notificaciones</span>
+    <h1>Notificaciones</h1>
+    <p>Consumidor puro. Reacciona a eventos de alerta/estado y emite <code>ClienteNotificado</code>. Consume el topic <code>topic.notificaciones</code>.</p>
   </div>
-</section>
+
+  <div class="layout">
+    <form class="panel v-card" [formGroup]="form">
+      <h3>Simular evento de entrada</h3>
+      <p class="sub">Publica un evento que dispara una notificación.</p>
+
+      <div class="row2">
+        <div class="v-field"><label>Serial</label><input class="v-input" formControlName="medidorSerial" placeholder="SER-001" /></div>
+        <div class="v-field"><label>Consumo (kWh)</label><input class="v-input" type="number" formControlName="consumoKwh" /></div>
+      </div>
+      <div class="v-field"><label>Motivo</label><input class="v-input" formControlName="motivo" placeholder="Fuera de rango" /></div>
+
+      <div class="btn-group">
+        <button class="v-btn" type="button" (click)="habilitado()">MedidorHabilitado</button>
+        <button class="v-btn" type="button" (click)="sospechosa()">LecturaSospechosa</button>
+        <button class="v-btn" type="button" (click)="sinReporte()">MedidorSinReporte</button>
+        <button class="v-btn" type="button" (click)="factura()">FacturaEmitida</button>
+      </div>
+      <p class="hint">Cada botón publica a <code>topic.notificaciones</code> / topics de estado → ClienteNotificado.</p>
+    </form>
+
+    <div class="result v-card">
+      <div class="result-head">
+        <h3>Historial</h3>
+        <span class="count">{{ historial.length }} notificaciones</span>
+      </div>
+
+      <div class="inline-query">
+        <button class="v-btn" (click)="cargar()" [disabled]="cargando">🔄 Refrescar</button>
+      </div>
+
+      <div class="v-empty" *ngIf="cargando">Cargando…</div>
+      <div class="v-empty" *ngIf="!cargando && historial.length === 0">
+        <div class="ic">🔔</div><p>Sin notificaciones. Simula un evento.</p>
+      </div>
+
+      <div class="v-table-wrap" *ngIf="!cargando && historial.length" style="margin-top:16px">
+        <table class="v-table">
+          <thead><tr><th>Tipo</th><th>Medidor</th><th>Canal</th><th>Mensaje</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let n of historial">
+              <td><span class="v-badge warn">{{ n.tipo }}</span></td>
+              <td class="v-mono">{{ n.medidorId }}</td>
+              <td>{{ n.canal }}</td>
+              <td style="font-size:13px">{{ n.mensaje }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

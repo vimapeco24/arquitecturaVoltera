@@ -5,6 +5,7 @@ import com.voltera.siniestros.domain.model.MontoReclamacion;
 import com.voltera.siniestros.domain.model.Siniestro;
 import com.voltera.siniestros.domain.model.SiniestroAprobado;
 import com.voltera.siniestros.domain.port.in.ReportarSiniestroUseCase.ComandoReportarSiniestro;
+import com.voltera.siniestros.domain.port.out.BufferOfflinePort;
 import com.voltera.siniestros.domain.port.out.EventPublisherPort;
 import com.voltera.siniestros.domain.port.out.SiniestroRepositoryPort;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,13 +30,17 @@ class SiniestroServiceTest {
 
     private SiniestroRepositoryPort repositorio;
     private EventPublisherPort eventPublisher;
+    private BufferOfflinePort buffer;
     private SiniestroService service;
 
     @BeforeEach
     void setUp() {
         repositorio = mock(SiniestroRepositoryPort.class);
         eventPublisher = mock(EventPublisherPort.class);
-        service = new SiniestroService(repositorio, eventPublisher);
+        buffer = mock(BufferOfflinePort.class);
+        service = new SiniestroService(repositorio, eventPublisher, buffer);
+        // Por defecto, el broker confirma la publicacion.
+        when(eventPublisher.publicar(any(SiniestroAprobado.class))).thenReturn(true);
     }
 
     private ComandoReportarSiniestro comandoValido() {
@@ -95,5 +100,42 @@ class SiniestroServiceTest {
 
         assertThrows(IllegalArgumentException.class, () -> service.reportar(comando));
         verify(repositorio, never()).guardar(any(Siniestro.class));
+    }
+
+    @Test
+    @DisplayName("store-and-forward: si el broker no confirma, el evento se encola en el buffer offline")
+    void siElBrokerFallaElEventoVaAlBuffer() {
+        Siniestro siniestro = Siniestro.reportar(
+                "POL-001", "PRO-001", "Dano en inversor",
+                MontoReclamacion.de(1500000), LocalDate.of(2026, 9, 1));
+        siniestro.enviarAPeritaje();
+        when(repositorio.buscarPorId(any())).thenReturn(Optional.of(siniestro));
+        when(repositorio.guardar(any(Siniestro.class))).thenAnswer(inv -> inv.getArgument(0));
+        // El broker esta caido: la publicacion no se confirma.
+        when(eventPublisher.publicar(any(SiniestroAprobado.class))).thenReturn(false);
+
+        service.aprobar(siniestro.id().valor());
+
+        // El siniestro queda APROBADO igualmente y el evento se guarda para reenvio.
+        verify(eventPublisher, times(1)).publicar(any(SiniestroAprobado.class));
+        verify(buffer, times(1)).encolar(any(SiniestroAprobado.class));
+    }
+
+    @Test
+    @DisplayName("drenar: reenvia los eventos pendientes y los confirma cuando el broker vuelve")
+    void drenarReenviaPendientes() {
+        SiniestroAprobado pendiente = new SiniestroAprobado(
+                java.util.UUID.randomUUID(), "SIN-1", "POL-1", "PRO-1",
+                BigDecimal.valueOf(1000000), "Evento pendiente",
+                java.time.Instant.now(), java.time.Instant.now());
+        when(buffer.pendientes()).thenReturn(java.util.List.of(pendiente));
+        when(buffer.tamano()).thenReturn(0);
+        when(eventPublisher.publicar(pendiente)).thenReturn(true);
+
+        var resultado = service.drenar();
+
+        assertEquals(1, resultado.reenviados());
+        assertEquals(0, resultado.pendientes());
+        verify(buffer, times(1)).confirmarEntrega(pendiente);
     }
 }

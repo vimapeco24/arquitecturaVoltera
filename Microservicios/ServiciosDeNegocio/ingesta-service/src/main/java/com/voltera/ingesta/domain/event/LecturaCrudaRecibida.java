@@ -3,7 +3,7 @@ package com.voltera.ingesta.domain.event;
 import java.time.Instant;
 
 /**
- * Evento consumido desde el topic {@code ami-lecturas-crudas} (emitido por el ACL
+ * Evento consumido desde el topic {@code topic.telemetria.medidores} (emitido por el ACL
  * de Integracion AMI). Formato canonico.
  */
 public record LecturaCrudaRecibida(

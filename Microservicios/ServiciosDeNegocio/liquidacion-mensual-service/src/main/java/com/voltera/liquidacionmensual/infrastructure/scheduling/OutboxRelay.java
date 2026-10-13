@@ -10,13 +10,13 @@ import org.springframework.stereotype.Component;
 
 /**
  * Relay del OUTBOX de Liquidacion Mensual: publica {@code LiquidacionCalculada}
- * al topic {@code liquidaciones-calculadas} (destino: Facturacion).
+ * al topic {@code topic.facturacion.liquidacion} (destino: Facturacion).
  */
 @Component
 public class OutboxRelay {
 
     private static final Logger log = LoggerFactory.getLogger(OutboxRelay.class);
-    private static final String TOPIC = "liquidaciones-calculadas";
+    private static final String TOPIC = "topic.facturacion.liquidacion";
 
     private final OutboxPort outbox;
     private final KafkaTemplate<String, String> kafkaTemplate;

@@ -11,7 +11,7 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 /**
- * Consumidor del topic {@code ordenes-instalacion} (evento externo
+ * Consumidor del topic {@code topic.prosumidor.instalacion} (evento externo
  * OrdenInstalacionCerrada). Dispara el alta del medidor de forma idempotente
  * (tabla inbox): una reentrega del mismo eventId no vuelve a habilitar.
  */
@@ -33,7 +33,7 @@ public class OrdenInstalacionConsumer {
         this.objectMapper = objectMapper;
     }
 
-    @KafkaListener(topics = "ordenes-instalacion", groupId = CONSUMIDOR)
+    @KafkaListener(topics = "topic.prosumidor.instalacion", groupId = CONSUMIDOR)
     public void escuchar(String mensaje) {
         try {
             OrdenInstalacionCerrada orden = objectMapper.readValue(mensaje, OrdenInstalacionCerrada.class);

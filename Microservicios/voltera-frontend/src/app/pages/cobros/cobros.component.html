@@ -1,0 +1,100 @@
+<div class="v-page v-fade">
+  <div class="v-page-head">
+    <span class="v-eyebrow">💵 Entrega 3 · BC Cobros</span>
+    <h1>Cobros</h1>
+    <p>
+      <span class="v-badge ok">Consumidor de eventos — idempotente</span>
+      &nbsp; El agregado <code>Movimiento</code> (con <code>Prima</code> y <code>Recibo</code>) se concilia
+      al consumir el evento <code>PagoConfirmado</code> desde el broker. Reenviar el mismo
+      <code>eventId</code> no concilia dos veces (tabla inbox).
+    </p>
+  </div>
+
+  <!-- Registro de un movimiento de cobro -->
+  <div class="result v-card">
+    <div class="result-head"><h3>Registrar movimiento de cobro</h3></div>
+    <div class="form-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-top:12px">
+      <label>Cliente
+        <input class="v-input" [(ngModel)]="form.clienteId" name="clienteId" />
+      </label>
+      <label>Póliza
+        <input class="v-input" [(ngModel)]="form.polizaId" name="polizaId" />
+      </label>
+      <label>Monto prima (COP)
+        <input class="v-input" type="number" [(ngModel)]="form.montoPrima" name="montoPrima" />
+      </label>
+      <label>Periodicidad
+        <select class="v-input" [(ngModel)]="form.periodicidad" name="periodicidad">
+          <option value="MENSUAL">MENSUAL</option>
+          <option value="TRIMESTRAL">TRIMESTRAL</option>
+          <option value="ANUAL">ANUAL</option>
+        </select>
+      </label>
+    </div>
+    <div class="form-actions" style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+      <button class="v-btn primary" (click)="registrar()" [disabled]="registrando">
+        <span class="v-spinner" *ngIf="registrando"></span>{{ registrando ? 'Registrando…' : '➕ Registrar movimiento' }}
+      </button>
+      <button class="v-btn" (click)="simularPago()" [disabled]="simulando">
+        <span class="v-spinner" *ngIf="simulando"></span>{{ simulando ? 'Procesando…' : '💳 Simular PagoConfirmado' }}
+      </button>
+      <button class="v-btn ghost" (click)="cargar()">🔄 Refrescar</button>
+    </div>
+    <p class="hint">
+      "Simular PagoConfirmado" envía POST <code>/cobros/v1/api/v1/movimientos/simular-pago</code>
+      con la póliza del formulario; concilia el movimiento (emite recibo) de forma idempotente.
+    </p>
+  </div>
+
+  <!-- Inbox de idempotencia -->
+  <div class="result v-card" style="margin-top:24px" *ngIf="inboxVista">
+    <div class="result-head">
+      <h3>Tabla Inbox (idempotencia por consumidor)</h3>
+      <span class="count">únicos {{ inboxVista.totalUnicos }} · duplicados {{ inboxVista.totalDuplicados }}</span>
+    </div>
+    <div class="v-table-wrap" *ngIf="inboxVista.filas.length" style="margin-top:12px">
+      <table class="v-table">
+        <thead><tr><th>Consumidor</th><th>Event ID</th><th>Tipo</th><th>Veces vistas</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let f of inboxVista.filas">
+            <td>{{ f.consumidor }}</td>
+            <td style="font-size:13px">{{ f.eventId }}</td>
+            <td>{{ f.tipoEvento }}</td>
+            <td class="v-mono">{{ f.vecesVistas }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="v-empty" *ngIf="inboxVista.filas.length === 0">
+      <div class="ic">📥</div><p>Inbox vacío. Simula un PagoConfirmado para poblarlo.</p>
+    </div>
+  </div>
+
+  <!-- Movimientos (lado lectura) -->
+  <div class="result v-card" style="margin-top:24px">
+    <div class="result-head"><h3>Movimientos de cobro (lado lectura)</h3></div>
+
+    <div class="v-empty" *ngIf="cargando">Cargando…</div>
+    <div class="v-empty" *ngIf="!cargando && movimientos.length === 0">
+      <div class="ic">💵</div><p>Sin movimientos. Registra uno y simula el pago.</p>
+    </div>
+
+    <div class="v-table-wrap" *ngIf="!cargando && movimientos.length" style="margin-top:16px">
+      <table class="v-table">
+        <thead><tr><th>Movimiento</th><th>Cliente</th><th>Póliza</th><th>Prima</th><th>Periodicidad</th><th>Recibo</th><th>Pagado</th><th>Estado</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let m of movimientos">
+            <td style="font-size:13px">{{ m.id }}</td>
+            <td>{{ m.clienteId }}</td>
+            <td>{{ m.polizaId }}</td>
+            <td class="v-mono">{{ m.montoPrima | number:'1.0-2' }}</td>
+            <td>{{ m.periodicidad }}</td>
+            <td style="font-size:13px">{{ m.reciboNumero || '—' }}</td>
+            <td class="v-mono">{{ m.montoPagado != null ? (m.montoPagado | number:'1.0-2') : '—' }}</td>
+            <td><span class="v-badge" [ngClass]="badge(m.estado)">{{ m.estado }}</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

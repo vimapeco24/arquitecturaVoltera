@@ -31,6 +31,7 @@ export class AppComponent {
     { path: '/pagos', label: 'Pagos', icon: '💳', step: 6 },
     { path: '/siniestros', label: 'Siniestros', icon: '🔥' },
     { path: '/reaseguro', label: 'Reaseguro', icon: '🛡️' },
+    { path: '/cobros', label: 'Cobros', icon: '💵' },
     { path: '/telemetria', label: 'Telemetría', icon: '📡' },
     { path: '/tarifa-eventos', label: 'Tarifa Eventos', icon: '💰' },
     { path: '/orquestacion', label: 'Orquestación', icon: '🧭' },

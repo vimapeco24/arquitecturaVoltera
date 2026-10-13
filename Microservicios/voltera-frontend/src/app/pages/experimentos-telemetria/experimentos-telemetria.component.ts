@@ -49,11 +49,13 @@ interface ExperimentoTelemetria {
  * Página "Experimentos de Telemetría (EDA)".
  *
  * Ejecuta secuencias reales de HTTP contra telemetria-service (8093) y
- * tarifa-eventos-service (8094) a través del gateway, para demostrar en vivo:
+ * tarifa-eventos-service (8094) a través del gateway, para demostrar en vivo
+ * los cuatro aspectos del enunciado (EDA, KEDA, CQRS, idempotencia):
  *  1. EDA end-to-end: consumo IoT → evento → broker → cargo (CQRS lectura).
- *  2. CQRS: retraso escritura → lectura.
- *  3. Idempotencia + transferencia de estado: reenviar el mismo eventId no duplica.
- *  4. Notificación liquidada: activar un medidor genera factura/tarifas.
+ *  2. KEDA: pico de ingestas → lag en el tópico → escalado de réplicas.
+ *  3. CQRS: retraso escritura → lectura.
+ *  4. Idempotencia + transferencia de estado: reenviar el mismo eventId no duplica.
+ *  5. Notificación liquidada: activar un medidor genera factura/tarifas.
  */
 @Component({
   selector: 'app-experimentos-telemetria',
@@ -259,6 +261,17 @@ export class ExperimentosTelemetriaComponent {
     },
     {
       num: 2,
+      nombre: 'KEDA · Escalamiento automático por lag',
+      hipotesis:
+        'Al inyectar un pico de ingestas de consumo (≥50 lecturas en pocos segundos), el broker acumula lag en el tópico topic.telemetria.consumo; KEDA detecta ese lag y escala las réplicas de tarifa-eventos-service. Con la cola vacía, vuelve al mínimo de réplicas.',
+      metrica:
+        'Número de réplicas de tarifa-eventos-service antes y después del pico (observable en Kiali/Prometheus) y throughput de ingesta (lecturas/s).',
+      criterio: 'Réplicas > mínimo durante el pico (lag > umbral); réplicas = mínimo en reposo.',
+      ejecutando: false,
+      ejecutar: () => this.expKedaEscalado(),
+    },
+    {
+      num: 3,
       nombre: 'CQRS · Retraso escritura → lectura',
       hipotesis:
         'La vista de lectura (cargos) se actualiza en menos de 3 s tras la ingesta (el evento viaja por el broker).',
@@ -268,7 +281,7 @@ export class ExperimentosTelemetriaComponent {
       ejecutar: () => this.expCqrsRetraso(),
     },
     {
-      num: 3,
+      num: 4,
       nombre: 'Idempotencia + transferencia de estado',
       hipotesis:
         'Reenviar el mismo evento (mismo eventId) a tarifa-eventos no crea un cargo duplicado. Los datos viajan en el evento (transferencia de estado).',
@@ -278,7 +291,7 @@ export class ExperimentosTelemetriaComponent {
       ejecutar: () => this.expIdempotencia(),
     },
     {
-      num: 4,
+      num: 5,
       nombre: 'Notificación liquidada al activar medidor',
       hipotesis:
         'Al activar un nuevo medidor/prosumidor, tarifa-eventos genera y publica una notificación con factura y tarifas (cargo fijo, precio base, precio extra).',
@@ -357,7 +370,7 @@ export class ExperimentosTelemetriaComponent {
     this.marcar('broker', 'activo', 'evento ConsumoRegistrado');
     this.log(`⚡ Evento ConsumoRegistrado publicado al broker (eventId ${ingesta.eventId.slice(0, 8)}…)`);
     await this.demora(500);
-    this.marcar('broker', 'hecho', 'topic: consumo-registrado');
+    this.marcar('broker', 'hecho', 'topic: topic.telemetria.consumo');
 
     // --- Etapa 3: CONSUMIDOR ---
     this.marcar('consumidor', 'activo', 'consumiendo…');
@@ -429,6 +442,77 @@ export class ExperimentosTelemetriaComponent {
     pasos.push(`Retraso escritura→lectura: ${delta} ms.`);
     const ok = delta < 3000;
     return { ok, detalle: `Retraso ${delta} ms · criterio < 3000 ms → ${ok ? 'CUMPLE' : 'NO CUMPLE'}.`, pasos };
+  }
+
+  /**
+   * Exp 2 — KEDA: inyecta un pico de ingestas reales de consumo contra
+   * telemetria-service para generar lag en el tópico topic.telemetria.consumo.
+   * El escalado de réplicas (KEDA por lag de la cola) NO se puede consultar
+   * desde el navegador: se observa en Prometheus/Kiali. Aquí se valida que el
+   * pico se inyecta correctamente (throughput y 0 errores) y se deja la
+   * instrucción de dónde verificar el escalado.
+   */
+  private async expKedaEscalado(): Promise<ResultadoExperimento> {
+    const pasos: string[] = [];
+    const N = 50;
+    const concurrencia = 10;
+
+    this.marcar('medidor', 'activo', 'preparando medidor…');
+    this.log(`📡 Registrando y activando medidor para el pico KEDA…`);
+    const medidor = await firstValueFrom(
+      this.telemetriaSvc.registrar({ prosumidorId: `PRO-KEDA-${Date.now()}`, umbralKwh: 100 }),
+    );
+    await firstValueFrom(this.telemetriaSvc.activar(medidor.id));
+    pasos.push(`Medidor ${medidor.id} activado (umbral 100 kWh).`);
+
+    this.marcar('medidor', 'hecho', `pico de ${N} lecturas`);
+    this.marcar('broker', 'activo', 'acumulando lag…');
+    this.log(`⚡ Inyectando pico de ${N} lecturas (consumo extra) con concurrencia ${concurrencia}…`);
+
+    // Dispara N ingestas con una ventana de concurrencia fija (workers).
+    const t0 = performance.now();
+    let siguiente = 0;
+    let ok = 0;
+    let errores = 0;
+    const worker = async () => {
+      while (true) {
+        const i = siguiente++;
+        if (i >= N) break;
+        try {
+          await firstValueFrom(this.telemetriaSvc.ingestar(medidor.id, { consumoKwh: 150 + (i % 20) }));
+          ok++;
+        } catch {
+          errores++;
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: concurrencia }, () => worker()));
+    const dur = Math.max(performance.now() - t0, 1);
+    const throughput = Math.round((N / dur) * 1000 * 10) / 10;
+
+    this.marcar('broker', 'hecho', `${ok}/${N} eventos · ${throughput}/s`);
+    pasos.push(`Pico inyectado: ${ok}/${N} lecturas en ${Math.round(dur)} ms (${throughput} lecturas/s, ${errores} errores).`);
+    this.log(`⚡ Pico inyectado: ${ok} eventos ConsumoRegistrado publicados al broker (${throughput}/s).`);
+
+    this.evento(
+      'Pico KEDA',
+      'telemetria-service',
+      `${medidor.prosumidorId} · ${ok} eventos ConsumoRegistrado en ${Math.round(dur)} ms (${throughput}/s) → lag en topic.telemetria.consumo`,
+      'emitido',
+      `keda:${medidor.id}`,
+    );
+
+    pasos.push('El escalado de réplicas de tarifa-eventos-service lo gestiona KEDA por el lag de la cola.');
+    pasos.push('Verifica en Prometheus/Kiali: réplicas > mínimo durante el pico, y vuelta al mínimo en reposo.');
+
+    const sinErrores = errores === 0 && ok === N;
+    return {
+      ok: sinErrores,
+      detalle: sinErrores
+        ? `Pico de ${ok} eventos inyectado en ${Math.round(dur)} ms (${throughput} lecturas/s). El lag en topic.telemetria.consumo dispara el escalado de KEDA en tarifa-eventos-service — obsérvalo en Prometheus/Kiali: réplicas > mínimo durante el pico, 0/mínimo en reposo (no consultable desde el navegador).`
+        : `Pico inyectado con ${errores} error(es) de ${N}. Revisa disponibilidad de telemetria-service antes de medir el escalado.`,
+      pasos,
+    };
   }
 
   /** Exp 3 — Idempotencia: reenvía el mismo eventId con simular-evento. */

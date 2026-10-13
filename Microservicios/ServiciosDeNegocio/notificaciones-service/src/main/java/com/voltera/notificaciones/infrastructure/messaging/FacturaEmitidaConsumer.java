@@ -12,7 +12,7 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 /**
- * Consume {@code facturas-emitidas}: ante FacturaEmitida (de Facturacion) notifica
+ * Consume {@code topic.facturacion.emitida}: ante FacturaEmitida (de Facturacion) notifica
  * al cliente que su factura del periodo fue emitida (diagrama DDD 02:
  * Factura -> Notificacion). Idempotente por tabla inbox (lamina 10).
  */
@@ -21,7 +21,7 @@ import org.springframework.stereotype.Component;
 public class FacturaEmitidaConsumer {
 
     private static final Logger log = LoggerFactory.getLogger(FacturaEmitidaConsumer.class);
-    private static final String CONSUMIDOR = "notificaciones-consumer#facturas-emitidas";
+    private static final String CONSUMIDOR = "notificaciones-consumer#topic.facturacion.emitida";
 
     private final NotificarClienteUseCase useCase;
     private final InboxPort inbox;
@@ -34,7 +34,7 @@ public class FacturaEmitidaConsumer {
         this.objectMapper = objectMapper;
     }
 
-    @KafkaListener(topics = "facturas-emitidas", groupId = "notificaciones-consumer")
+    @KafkaListener(topics = "topic.facturacion.emitida", groupId = "notificaciones-consumer")
     public void escuchar(String mensaje) {
         try {
             String t = mensaje == null ? "" : mensaje.trim();

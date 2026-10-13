@@ -10,7 +10,7 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 /**
- * Consume {@code telemetria-lecturas-validadas} y reacciona solo a
+ * Consume {@code topic.telemetria.validadas} y reacciona solo a
  * {@code CanalIngestaCreado} (de Ingesta): confirma el canal del medidor para
  * avanzar el alta (lamina 02: Habilitacion consume CanalIngestaCreado).
  *
@@ -32,7 +32,7 @@ public class CanalIngestaConsumer {
         this.objectMapper = objectMapper;
     }
 
-    @KafkaListener(topics = "telemetria-lecturas-validadas", groupId = "habilitacion-consumer")
+    @KafkaListener(topics = "topic.telemetria.validadas", groupId = "habilitacion-consumer")
     public void escuchar(String mensaje) {
         try {
             String t = mensaje == null ? "" : mensaje.trim();

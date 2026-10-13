@@ -11,7 +11,7 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 /**
- * Consume el topic {@code medidores-habilitacion} (emitido por habilitacion-service).
+ * Consume el topic {@code topic.prosumidor.estado} (emitido por habilitacion-service).
  * Reacciona a MedidorHabilitado (empieza a atender el medidor) y MedidorSuspendido
  * (deja de atenderlo). El tipo de evento se infiere del payload (campo 'estado') o,
  * si no está, por heuristica del contenido. Idempotente por tabla inbox (lamina 10).
@@ -21,7 +21,7 @@ import org.springframework.stereotype.Component;
 public class MedidorHabilitacionConsumer {
 
     private static final Logger log = LoggerFactory.getLogger(MedidorHabilitacionConsumer.class);
-    private static final String CONSUMIDOR = "integracion-ami-consumer#medidores-habilitacion";
+    private static final String CONSUMIDOR = "integracion-ami-consumer#topic.prosumidor.estado";
 
     private final RecibirLecturasUseCase useCase;
     private final InboxPort inbox;
@@ -34,7 +34,7 @@ public class MedidorHabilitacionConsumer {
         this.objectMapper = objectMapper;
     }
 
-    @KafkaListener(topics = "medidores-habilitacion", groupId = "integracion-ami-consumer")
+    @KafkaListener(topics = "topic.prosumidor.estado", groupId = "integracion-ami-consumer")
     public void escuchar(String mensaje) {
         try {
             JsonNode n = objectMapper.readTree(normalizar(mensaje));

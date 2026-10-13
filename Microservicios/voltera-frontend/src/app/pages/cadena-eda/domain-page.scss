@@ -65,3 +65,68 @@
 
 /* ---------- Siniestros: badge de evento emitido ---------- */
 .event-badge { margin-top: 12px; }
+
+/* ---------- Variante danger para botones (Timeout / degradar) ---------- */
+.v-btn.danger { color: var(--v-danger); }
+.v-btn.danger:hover { border-color: var(--v-danger); box-shadow: 0 10px 26px -12px rgba(248, 113, 113, 0.5); }
+
+/* ---------- Botones agrupados (acciones multiples) ---------- */
+.btn-group { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.btn-group .v-btn { flex: 0 0 auto; }
+
+/* ---------- Panel KV (conexion / sesion) ---------- */
+.kv-list { list-style: none; margin: 4px 0 16px; padding: 0; }
+.kv-list li {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 9px 0; font-size: 14px; border-bottom: 1px dashed var(--v-border);
+}
+.kv-list li:last-child { border-bottom: none; }
+.kv-list li > span { color: var(--v-text-soft); }
+.kv-list li > b { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ---------- Bloque de resultado inline ---------- */
+.result-line { margin-top: 14px; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+
+/* ---------- JSON preview ---------- */
+.json-box {
+  margin-top: 14px; background: var(--v-bg-2); border: 1px solid var(--v-border);
+  border-radius: 10px; padding: 14px 16px; font-size: 12.5px; line-height: 1.5;
+  color: var(--v-text-soft); overflow-x: auto; max-height: 240px;
+}
+
+/* ---------- Seccion full-width bajo el layout ---------- */
+.full-section { margin-top: 24px; }
+
+/* ===================== Cadena EDA (página documentativa) ===================== */
+.doc-card { padding: 24px 26px; margin-bottom: 22px; }
+.doc-card:last-child { margin-bottom: 0; }
+.doc-card .result-head { margin-bottom: 18px; }
+
+/* Flujo end-to-end como pasos numerados */
+.flujo { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.flujo li {
+  display: flex; align-items: flex-start; gap: 14px;
+  padding: 14px 16px; background: var(--v-bg-2);
+  border: 1px solid var(--v-border); border-radius: 12px;
+  transition: 0.15s;
+}
+.flujo li:hover { border-color: var(--v-primary); transform: translateX(2px); }
+.flujo .step-num {
+  flex: 0 0 auto; width: 28px; height: 28px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 13px; font-weight: 800;
+  color: var(--v-primary); background: rgba(34, 201, 138, 0.12);
+  border: 1px solid rgba(34, 201, 138, 0.3); font-variant-numeric: tabular-nums;
+}
+.flujo .step-body { display: flex; flex-direction: column; gap: 2px; }
+.flujo .step-body b { font-size: 14.5px; font-weight: 700; }
+.flujo .step-body span { font-size: 13px; color: var(--v-text-soft); line-height: 1.5; }
+
+/* Chips de regiones del event mesh */
+.chips { display: flex; flex-wrap: wrap; gap: 10px; margin: 2px 0 4px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 14px; border-radius: 999px; font-size: 13px; font-weight: 600;
+  color: var(--v-text-soft); background: var(--v-bg-2);
+  border: 1px solid var(--v-border);
+}
+.chip::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--v-accent); }

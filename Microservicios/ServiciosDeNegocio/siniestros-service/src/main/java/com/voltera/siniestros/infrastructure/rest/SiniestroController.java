@@ -2,7 +2,9 @@ package com.voltera.siniestros.infrastructure.rest;
 
 import com.voltera.siniestros.domain.port.in.AprobarSiniestroUseCase;
 import com.voltera.siniestros.domain.port.in.ConsultarSiniestroUseCase;
+import com.voltera.siniestros.domain.port.in.DrenarBufferUseCase;
 import com.voltera.siniestros.domain.port.in.ReportarSiniestroUseCase;
+import com.voltera.siniestros.infrastructure.rest.dto.BufferResponse;
 import com.voltera.siniestros.infrastructure.rest.dto.ReportarSiniestroRequest;
 import com.voltera.siniestros.infrastructure.rest.dto.SiniestroResponse;
 import jakarta.validation.Valid;
@@ -29,13 +31,16 @@ public class SiniestroController {
     private final ReportarSiniestroUseCase reportarSiniestroUseCase;
     private final AprobarSiniestroUseCase aprobarSiniestroUseCase;
     private final ConsultarSiniestroUseCase consultarSiniestroUseCase;
+    private final DrenarBufferUseCase drenarBufferUseCase;
 
     public SiniestroController(ReportarSiniestroUseCase reportarSiniestroUseCase,
                                AprobarSiniestroUseCase aprobarSiniestroUseCase,
-                               ConsultarSiniestroUseCase consultarSiniestroUseCase) {
+                               ConsultarSiniestroUseCase consultarSiniestroUseCase,
+                               DrenarBufferUseCase drenarBufferUseCase) {
         this.reportarSiniestroUseCase = reportarSiniestroUseCase;
         this.aprobarSiniestroUseCase = aprobarSiniestroUseCase;
         this.consultarSiniestroUseCase = consultarSiniestroUseCase;
+        this.drenarBufferUseCase = drenarBufferUseCase;
     }
 
     @PostMapping
@@ -60,6 +65,16 @@ public class SiniestroController {
     @PostMapping("/{id}/rechazar")
     public ResponseEntity<SiniestroResponse> rechazar(@PathVariable String id) {
         return ResponseEntity.ok(SiniestroResponse.desde(aprobarSiniestroUseCase.rechazar(id)));
+    }
+
+    /**
+     * Fuerza el drenado del buffer offline (store-and-forward): reenvia al broker
+     * los eventos SiniestroAprobado que quedaron encolados mientras el broker
+     * estuvo caido. Util para el experimento de "no perdida de eventos".
+     */
+    @PostMapping("/buffer/drenar")
+    public ResponseEntity<BufferResponse> drenarBuffer() {
+        return ResponseEntity.ok(BufferResponse.desde(drenarBufferUseCase.drenar()));
     }
 
     @GetMapping("/{id}")

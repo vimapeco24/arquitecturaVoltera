@@ -12,7 +12,7 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 /**
- * Consume {@code medidores-habilitacion}: ante MedidorHabilitado (trae 'estado')
+ * Consume {@code topic.prosumidor.estado}: ante MedidorHabilitado (trae 'estado')
  * notifica al cliente. Ignora MedidorActivado/HabilitacionFallida/MedidorSuspendido.
  * Idempotente por tabla inbox (lamina 10).
  */
@@ -21,7 +21,7 @@ import org.springframework.stereotype.Component;
 public class MedidorHabilitadoConsumer {
 
     private static final Logger log = LoggerFactory.getLogger(MedidorHabilitadoConsumer.class);
-    private static final String CONSUMIDOR = "notificaciones-consumer#medidores-habilitacion";
+    private static final String CONSUMIDOR = "notificaciones-consumer#topic.prosumidor.estado";
 
     private final NotificarClienteUseCase useCase;
     private final InboxPort inbox;
@@ -34,7 +34,7 @@ public class MedidorHabilitadoConsumer {
         this.objectMapper = objectMapper;
     }
 
-    @KafkaListener(topics = "medidores-habilitacion", groupId = "notificaciones-consumer")
+    @KafkaListener(topics = "topic.prosumidor.estado", groupId = "notificaciones-consumer")
     public void escuchar(String mensaje) {
         try {
             String t = mensaje == null ? "" : mensaje.trim();

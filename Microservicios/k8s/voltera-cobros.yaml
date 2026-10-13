@@ -1,0 +1,96 @@
+# ============================================================================
+# VOLTERA — BC COBROS (dominio seguros · Entrega 3)
+# ----------------------------------------------------------------------------
+# cobros-service (8100): agregado Movimiento (raíz) con Prima y Recibo.
+# Consume topic.cobros.pago-confirmado (PagoConfirmado) y concilia de forma
+# idempotente (tabla inbox por eventId), emitiendo el recibo. Es el "Contexto
+# Cobros" que exige la lámina 02 del enunciado (Movimiento ← PagoConfirmado).
+#
+# Aplicar:  kubectl apply -f voltera-cobros.yaml
+# Requiere: redpanda (voltera-eda.yaml) y, para KEDA, el operador instalado.
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cobros-service
+  namespace: voltera-app
+  labels: { app: cobros-service }
+  annotations:
+    voltera.io/diagrama-02: "Contexto Cobros · agregado Movimiento (Prima, Recibo)"
+    voltera.io/rol: "Concilia PagoConfirmado y emite Recibo (idempotente)"
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: cobros-service } }
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 0, maxUnavailable: 1 }
+  template:
+    metadata: { labels: { app: cobros-service, version: v1 } }
+    spec:
+      imagePullSecrets: [{ name: harbor-cred }]
+      containers:
+        - name: cobros-service
+          image: 192.168.3.13/app-voltaire/cobros-service:1.0.0
+          ports: [{ containerPort: 8100 }]
+          env:
+            - { name: EUREKA_ENABLED, value: "true" }
+            - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
+            - { name: KAFKA_BOOTSTRAP_SERVERS, value: "redpanda.voltera-app:9092" }
+          resources:
+            limits: { cpu: "500m", memory: "512Mi" }
+            requests: { cpu: "50m", memory: "160Mi" }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8100 }
+            initialDelaySeconds: 25
+            periodSeconds: 10
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cobros-service
+  namespace: voltera-app
+spec:
+  selector: { app: cobros-service }
+  ports: [{ port: 8100, targetPort: 8100 }]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: cobros-service
+  namespace: voltera-app
+spec:
+  parentRefs:
+    - name: istio-ingress
+      namespace: istio-ingress
+  rules:
+    - matches:
+        - path: { type: PathPrefix, value: /cobros }
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path: { type: ReplacePrefixMatch, replacePrefixMatch: "" }
+      backendRefs:
+        - name: cobros-service
+          port: 8100
+---
+# KEDA ScaledObject — autoescala cobros por el lag del topic 'topic.cobros.pago-confirmado'.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: cobros-scaledobject
+  namespace: voltera-app
+spec:
+  scaleTargetRef:
+    name: cobros-service
+  pollingInterval: 10
+  cooldownPeriod: 30
+  minReplicaCount: 0
+  maxReplicaCount: 5
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: redpanda.voltera-app:9092
+        consumerGroup: cobros-consumer
+        topic: topic.cobros.pago-confirmado
+        lagThreshold: "10"

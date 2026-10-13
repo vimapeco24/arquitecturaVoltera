@@ -20,6 +20,7 @@ export const SERVICIOS = {
   pagos: 'pagos',
   siniestros: 'siniestros',
   reaseguro: 'reaseguro',
+  cobros: 'cobros',
   telemetria: 'telemetria',
   tarifaEventos: 'tarifa-eventos',
   // Cadena EDA del laboratorio (láminas 02/03/04/10)

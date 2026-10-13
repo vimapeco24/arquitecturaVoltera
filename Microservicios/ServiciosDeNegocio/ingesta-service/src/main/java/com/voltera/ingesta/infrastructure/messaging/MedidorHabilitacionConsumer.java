@@ -11,7 +11,7 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 /**
- * Consume {@code medidores-habilitacion}: ante MedidorHabilitado abre el canal
+ * Consume {@code topic.prosumidor.estado}: ante MedidorHabilitado abre el canal
  * (=> CanalIngestaCreado); ante MedidorSuspendido lo cierra. Idempotente por tabla
  * inbox (lamina 10): una reentrega del mismo evento no reabre/cierra dos veces.
  */
@@ -20,7 +20,7 @@ import org.springframework.stereotype.Component;
 public class MedidorHabilitacionConsumer {
 
     private static final Logger log = LoggerFactory.getLogger(MedidorHabilitacionConsumer.class);
-    private static final String CONSUMIDOR = "ingesta-consumer#medidores-habilitacion";
+    private static final String CONSUMIDOR = "ingesta-consumer#topic.prosumidor.estado";
 
     private final IngestarLecturaUseCase useCase;
     private final InboxPort inbox;
@@ -33,7 +33,7 @@ public class MedidorHabilitacionConsumer {
         this.objectMapper = objectMapper;
     }
 
-    @KafkaListener(topics = "medidores-habilitacion", groupId = "ingesta-consumer")
+    @KafkaListener(topics = "topic.prosumidor.estado", groupId = "ingesta-consumer")
     public void escuchar(String mensaje) {
         try {
             String t = mensaje == null ? "" : mensaje.trim();

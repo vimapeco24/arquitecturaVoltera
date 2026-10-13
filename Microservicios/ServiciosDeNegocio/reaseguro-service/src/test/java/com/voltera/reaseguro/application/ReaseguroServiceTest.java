@@ -6,6 +6,7 @@ import com.voltera.reaseguro.domain.model.CesionVista;
 import com.voltera.reaseguro.domain.model.EstadoCesion;
 import com.voltera.reaseguro.infrastructure.persistence.InMemoryCesionRepository;
 import com.voltera.reaseguro.infrastructure.persistence.InMemoryCesionVistaRepository;
+import com.voltera.reaseguro.infrastructure.persistence.InMemoryInbox;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -20,13 +21,15 @@ class ReaseguroServiceTest {
 
     private InMemoryCesionRepository escrituraRepo;
     private InMemoryCesionVistaRepository lecturaRepo;
+    private InMemoryInbox inbox;
     private ReaseguroService service;
 
     @BeforeEach
     void setUp() {
         escrituraRepo = new InMemoryCesionRepository();
         lecturaRepo = new InMemoryCesionVistaRepository();
-        service = new ReaseguroService(escrituraRepo, lecturaRepo);
+        inbox = new InMemoryInbox();
+        service = new ReaseguroService(escrituraRepo, lecturaRepo, inbox);
     }
 
     private SiniestroAprobado evento(String eventId, String polizaId, BigDecimal monto) {
@@ -66,6 +69,10 @@ class ReaseguroServiceTest {
         assertEquals(primera.getId().valor(), segunda.getId().valor());
         assertEquals(1, escrituraRepo.buscarTodas().size());
         assertEquals(1, lecturaRepo.buscarTodas().size());
+
+        // La tabla INBOX registra 1 evento unico y cuenta la reentrega como duplicado.
+        assertEquals(1, service.inboxUnicos());
+        assertEquals(1, service.inboxDuplicados());
     }
 
     @Test

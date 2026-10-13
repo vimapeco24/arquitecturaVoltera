@@ -3,7 +3,7 @@ package com.voltera.telemetriacore.domain.event;
 import java.time.Instant;
 
 /**
- * Evento consumido desde {@code telemetria-lecturas-validadas} (emitido por Ingesta).
+ * Evento consumido desde {@code topic.telemetria.validadas} (emitido por Ingesta).
  */
 public record LecturaValidada(
         String eventId,

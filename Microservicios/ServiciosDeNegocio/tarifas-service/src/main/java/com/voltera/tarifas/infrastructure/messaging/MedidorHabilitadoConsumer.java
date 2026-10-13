@@ -11,7 +11,7 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 /**
- * Consume {@code medidores-habilitacion}: ante MedidorHabilitado (trae 'estado')
+ * Consume {@code topic.prosumidor.estado}: ante MedidorHabilitado (trae 'estado')
  * asigna una tarifa al medidor y emite TarifaAsignada (diagrama DDD 02). Idempotente
  * por tabla inbox (lamina 10): una reentrega no asigna tarifa dos veces.
  */
@@ -20,7 +20,7 @@ import org.springframework.stereotype.Component;
 public class MedidorHabilitadoConsumer {
 
     private static final Logger log = LoggerFactory.getLogger(MedidorHabilitadoConsumer.class);
-    private static final String CONSUMIDOR = "tarifas-consumer#medidores-habilitacion";
+    private static final String CONSUMIDOR = "tarifas-consumer#topic.prosumidor.estado";
 
     private final AsignarTarifaUseCase useCase;
     private final InboxPort inbox;
@@ -33,7 +33,7 @@ public class MedidorHabilitadoConsumer {
         this.objectMapper = objectMapper;
     }
 
-    @KafkaListener(topics = "medidores-habilitacion", groupId = "tarifas-consumer")
+    @KafkaListener(topics = "topic.prosumidor.estado", groupId = "tarifas-consumer")
     public void escuchar(String mensaje) {
         try {
             String t = mensaje == null ? "" : mensaje.trim();

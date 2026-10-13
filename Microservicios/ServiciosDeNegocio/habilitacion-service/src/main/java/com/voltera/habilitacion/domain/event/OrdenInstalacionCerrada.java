@@ -3,7 +3,7 @@ package com.voltera.habilitacion.domain.event;
 import java.time.Instant;
 
 /**
- * Evento de integracion EXTERNO consumido desde el topic {@code ordenes-instalacion}.
+ * Evento de integracion EXTERNO consumido desde el topic {@code topic.prosumidor.instalacion}.
  * Lo publica el sistema de ordenes cuando el tecnico cierra la instalacion; es el
  * disparador del alta del medidor (lamina 01/02).
  *

@@ -139,7 +139,7 @@
             <text x="41" y="97" class="lbl">productor</text>
             <line x1="74" y1="93" x2="104" y2="93" class="edge anim"/>
             <!-- topic (particion con offsets) -->
-            <text x="180" y="52" class="cap">topic · consumo-registrado</text>
+            <text x="180" y="52" class="cap">topic · topic.telemetria.consumo</text>
             <g>
               <rect x="104" y="70" width="24" height="46" rx="4" class="evt e1"/>
               <rect x="130" y="70" width="24" height="46" rx="4" class="evt e2"/>
@@ -167,7 +167,7 @@
           <p><strong>Kafka</strong> (aquí <strong>Redpanda</strong>, compatible): el broker de streaming. Los eventos se guardan en un <strong>topic</strong> particionado con offsets; los consumidores <strong>halan</strong> (pull) a su ritmo.</p>
           <div class="key"><span>IDEA CLAVE</span> Con <strong>consumer groups</strong> hace de tema y de cola: entre grupos = fan-out (todos reciben); dentro del grupo = reparto (cada partición a un worker). La clave de partición conserva el orden.</div>
           <div class="nota">
-            <b>En Voltera:</b> <code>telemetria-service</code> publica en el topic <code>consumo-registrado</code> (clave = <code>medidorId</code>). El grupo <code>tarifa-eventos-consumer</code> lo consume por pull, con contrapresión.
+            <b>En Voltera:</b> <code>telemetria-service</code> publica en el topic <code>topic.telemetria.consumo</code> (clave = <code>medidorId</code>). El grupo <code>tarifa-eventos-consumer</code> lo consume por pull, con contrapresión.
           </div>
         </div>
       </div>
@@ -238,7 +238,7 @@
           <span class="badge-int esc">ESCALABILIDAD</span>
           <p><strong>KEDA</strong> (Kubernetes Event-Driven Autoscaling): escala los servicios <strong>según los eventos</strong>, no por CPU. Un "scaler" observa la fuente (el <strong>lag</strong> de la cola) y ajusta las réplicas — puede <strong>escalar a cero</strong> en reposo y crecer cuando llegan eventos.</p>
           <div class="nota">
-            <b>En Voltera:</b> un <code>ScaledObject</code> escala <code>tarifa-eventos-service</code> por el lag del grupo <code>tarifa-eventos-consumer</code> en <code>consumo-registrado</code> (umbral 10, min 0, max 5). Un pico de telemetría agrega réplicas; en reposo baja a cero.
+            <b>En Voltera:</b> un <code>ScaledObject</code> escala <code>tarifa-eventos-service</code> por el lag del grupo <code>tarifa-eventos-consumer</code> en <code>topic.telemetria.consumo</code> (umbral 10, min 0, max 5). Un pico de telemetría agrega réplicas; en reposo baja a cero.
           </div>
         </div>
       </div>

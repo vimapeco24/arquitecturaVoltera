@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 /**
- * Evento de integracion consumido desde el topic {@code siniestro-aprobado}
+ * Evento de integracion consumido desde el topic {@code topic.siniestros.aprobado}
  * (emitido por siniestros-service). Transporta el estado necesario para crear la
  * cesion sin necesidad de consultar al servicio origen (transferencia de estado).
  */

@@ -14,15 +14,16 @@ consumido tiene un emisor correspondiente (verificado contra el código):
 
 | Evento | Topic Kafka | Emisor | Consumidor(es) |
 |---|---|---|---|
-| OrdenInstalacionCerrada | `ordenes-instalacion` | Sistema de instalación (externo) | habilitacion |
-| MedidorHabilitado | `medidores-habilitacion` | habilitacion | integracion-ami, ingesta, telemetria-core, tarifas, notificaciones |
-| LecturaCrudaRecibida | `ami-lecturas-crudas` | integracion-ami | ingesta |
-| LecturaValidada / LecturaSospechosaDetectada / CanalIngestaCreado | `telemetria-lecturas-validadas` | ingesta | telemetria-core, habilitacion (CanalIngestaCreado), notificaciones (LecturaSospechosaDetectada) |
-| ConsumoIntervaloRegistrado / MedidorSinReporte | `telemetria-consumo-intervalos` | telemetria-core | tarifas, liquidacion-mensual, notificaciones (MedidorSinReporte) |
-| TarifaAsignada | `tarifas-eventos` | tarifas | habilitacion |
-| LiquidacionCalculada | `liquidaciones-calculadas` | liquidacion-mensual | facturacion |
-| FacturaEmitida | `facturas-emitidas` | facturacion | notificaciones |
-| ClienteNotificado | `cliente-notificado` | notificaciones | (terminal / auditoría) |
+| OrdenInstalacionCerrada | `topic.prosumidor.instalacion` | Sistema de instalación (externo) | habilitacion |
+| MedidorHabilitado | `topic.prosumidor.estado` | habilitacion | integracion-ami, ingesta, telemetria-core, tarifas, notificaciones |
+| LecturaCrudaRecibida | `topic.telemetria.medidores` | integracion-ami | ingesta |
+| LecturaValidada / LecturaSospechosaDetectada / CanalIngestaCreado | `topic.telemetria.validadas` | ingesta | telemetria-core, habilitacion (CanalIngestaCreado), notificaciones (LecturaSospechosaDetectada) |
+| ConsumoIntervaloRegistrado / MedidorSinReporte | `topic.tarifas.calculo` | telemetria-core | tarifas, liquidacion-mensual, notificaciones (MedidorSinReporte) |
+| TarifaAsignada | `topic.tarifas.asignada` | tarifas | habilitacion |
+| LiquidacionCalculada | `topic.facturacion.liquidacion` | liquidacion-mensual | facturacion |
+| FacturaEmitida | `topic.facturacion.emitida` | facturacion | notificaciones |
+| ClienteNotificado | `topic.notificaciones.cliente` | notificaciones | (terminal / auditoría) |
+| PagoConfirmado | `topic.cobros.pago-confirmado` | pagos (contexto externo) | cobros (concilia Movimiento → Recibo) |
 
 ```mermaid
 flowchart LR
@@ -102,7 +103,7 @@ flowchart TB
                 tarifaev["tarifa-eventos"]
             end
 
-            broker[("Redpanda<br/>broker Kafka :9092<br/>topic: siniestro-aprobado")]
+            broker[("Redpanda<br/>broker Kafka :9092<br/>topic: topic.siniestros.aprobado")]
             keda["KEDA ScaledObject<br/>autoescala por lag"]
         end
 
@@ -187,7 +188,7 @@ flowchart LR
 | Servicio | Puerto | Rol |
 |---|---|---|
 | siniestros | 8091 | Productor del evento `SiniestroAprobado` |
-| reaseguro | 8092 | Consumidor de `siniestro-aprobado` (autoescala KEDA por lag) |
+| reaseguro | 8092 | Consumidor de `topic.siniestros.aprobado` (autoescala KEDA por lag) |
 | telemetria | 8090 | Telemetría / métricas |
 | tarifa-eventos | — | Tarifa basada en eventos |
 
@@ -235,7 +236,7 @@ sequenceDiagram
     participant RE as reaseguro-service
     participant K as KEDA
 
-    SI->>R: publica SiniestroAprobado (topic siniestro-aprobado)
+    SI->>R: publica SiniestroAprobado (topic topic.siniestros.aprobado)
     R-->>RE: entrega evento (consumer group)
     R-->>K: expone lag del consumer group
     K-->>RE: escala réplicas según lag

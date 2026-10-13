@@ -1,34 +1,52 @@
-<section class="domain-page">
-  <header class="page-head">
-    <div>
-      <h1>Integración AMI</h1>
-      <p class="sub">BC Integración AMI · Adaptador / ACL del head-end. Traduce lecturas del proveedor al formato canónico y emite <code>LecturaCrudaRecibida</code>.</p>
-    </div>
-    <button class="btn ghost" (click)="cargarConexion()">↻ Refrescar</button>
-  </header>
+<div class="v-page v-fade">
+  <div class="v-page-head">
+    <span class="v-eyebrow">⚡ Cadena EDA · Integración AMI</span>
+    <h1>Integración AMI</h1>
+    <p>BC Integración AMI · Adaptador / ACL del head-end. Traduce lecturas del proveedor al formato canónico y emite <code>LecturaCrudaRecibida</code>.</p>
+  </div>
 
-  <div class="grid">
-    <article class="card">
-      <h2>Conexión head-end</h2>
-      <ul class="kv" *ngIf="conexionAmi; else sinconx">
+  <div class="layout">
+    <div class="panel v-card">
+      <h3>Conexión head-end</h3>
+      <p class="sub">Estado del adaptador contra el proveedor AMI.</p>
+
+      <ul class="kv-list" *ngIf="conexionAmi; else sinconx">
         <li><span>Proveedor</span><b>{{ conexionAmi.proveedorAmi }}</b></li>
         <li><span>Protocolo</span><b>{{ conexionAmi.protocolo }}</b></li>
-        <li><span>Estado</span><b><span class="badge" [class.ok]="conexionAmi.estado === 'ACTIVO'" [class.err]="conexionAmi.estado !== 'ACTIVO'">{{ conexionAmi.estado }}</span></b></li>
+        <li><span>Estado</span><b><span class="v-badge" [ngClass]="conexionAmi.estado === 'ACTIVO' ? 'ok' : 'err'">{{ conexionAmi.estado }}</span></b></li>
         <li><span>Medidores atendidos</span><b>{{ conexionAmi.medidoresAtendidos }}</b></li>
       </ul>
-      <ng-template #sinconx><p class="muted">Sin datos de conexión.</p></ng-template>
-      <button class="btn danger" (click)="degradar()">Reportar degradación</button>
-    </article>
+      <ng-template #sinconx>
+        <div class="v-empty"><div class="ic">🔌</div><p>Sin datos de conexión.</p></div>
+      </ng-template>
 
-    <article class="card">
-      <h2>Inyectar lectura cruda (lote)</h2>
-      <form [formGroup]="form" (ngSubmit)="enviarLote()" class="form">
-        <label>Serial<input formControlName="medidorSerial" /></label>
-        <label>Valor<input type="number" formControlName="valor" /></label>
-        <label>Unidad<input formControlName="unidad" /></label>
-        <button class="btn primary" type="submit">Recibir lote → LecturaCrudaRecibida</button>
-      </form>
-      <pre class="json" *ngIf="ultimo">{{ ultimo | json }}</pre>
-    </article>
+      <div class="btn-group">
+        <button class="v-btn" (click)="cargarConexion()">🔄 Refrescar</button>
+        <button class="v-btn danger" (click)="degradar()">Reportar degradación</button>
+      </div>
+    </div>
+
+    <form class="result v-card" [formGroup]="form" (ngSubmit)="enviarLote()">
+      <div class="result-head">
+        <h3>Inyectar lectura cruda (lote)</h3>
+      </div>
+      <p class="sub">Simula un lote del head-end → emite <code>LecturaCrudaRecibida</code>.</p>
+
+      <div class="row3">
+        <div class="v-field"><label>Serial</label><input class="v-input" formControlName="medidorSerial" placeholder="SER-001" /></div>
+        <div class="v-field"><label>Valor</label><input class="v-input" type="number" formControlName="valor" /></div>
+        <div class="v-field"><label>Unidad</label><input class="v-input" formControlName="unidad" placeholder="kWh" /></div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="v-btn primary">Recibir lote → LecturaCrudaRecibida</button>
+      </div>
+
+      <div class="detail-box" *ngIf="ultimo">
+        <h4>Respuesta del adaptador</h4>
+        <pre class="json-box">{{ ultimo | json }}</pre>
+      </div>
+      <p class="hint">POST <code>/integracion-ami/v1/api/v1/integracion-ami/lecturas-crudas</code></p>
+    </form>
   </div>
-</section>
+</div>

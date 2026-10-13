@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
  * Relay del patron OUTBOX transaccional (lamina 10).
  *
  * <p>Cada pocos segundos lee las filas no publicadas del outbox y las envia al
- * broker (Kafka/Redpanda) en el topic 'medidores-habilitacion' usando la clave de
+ * broker (Kafka/Redpanda) en el topic 'topic.prosumidor.estado' usando la clave de
  * particion (medidorId) para preservar el orden por medidor. Solo tras un envio
  * exitoso marca la fila como publicada; si el broker esta caido, reintenta en el
  * siguiente ciclo (entrega al-menos-una-vez; los consumidores deduplican via inbox).</p>
@@ -21,7 +21,7 @@ import org.springframework.stereotype.Component;
 public class OutboxRelay {
 
     private static final Logger log = LoggerFactory.getLogger(OutboxRelay.class);
-    private static final String TOPIC = "medidores-habilitacion";
+    private static final String TOPIC = "topic.prosumidor.estado";
 
     private final OutboxPort outbox;
     private final KafkaTemplate<String, String> kafkaTemplate;

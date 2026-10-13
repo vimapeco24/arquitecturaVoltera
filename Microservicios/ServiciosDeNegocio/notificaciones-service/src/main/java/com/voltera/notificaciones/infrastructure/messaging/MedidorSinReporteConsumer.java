@@ -12,7 +12,7 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 /**
- * Consume {@code telemetria-alertas} (lámina 03 · CQRS: topic dedicado de alertas
+ * Consume {@code topic.notificaciones} (lámina 03 · CQRS: topic dedicado de alertas
  * donde publican Ingesta y Core). En ese topic conviven MedidorSinReporte (de Core)
  * y LecturaSospechosaDetectada (de Ingesta). Aquí solo reaccionamos a
  * MedidorSinReporte, que es la única que trae 'ultimaLecturaEn'. Idempotente por
@@ -23,7 +23,7 @@ import org.springframework.stereotype.Component;
 public class MedidorSinReporteConsumer {
 
     private static final Logger log = LoggerFactory.getLogger(MedidorSinReporteConsumer.class);
-    private static final String CONSUMIDOR = "notificaciones-consumer#telemetria-alertas#sinreporte";
+    private static final String CONSUMIDOR = "notificaciones-consumer#topic.notificaciones#sinreporte";
 
     private final NotificarClienteUseCase useCase;
     private final InboxPort inbox;
@@ -36,7 +36,7 @@ public class MedidorSinReporteConsumer {
         this.objectMapper = objectMapper;
     }
 
-    @KafkaListener(topics = "telemetria-alertas", groupId = "notificaciones-consumer")
+    @KafkaListener(topics = "topic.notificaciones", groupId = "notificaciones-consumer")
     public void escuchar(String mensaje) {
         try {
             String t = mensaje == null ? "" : mensaje.trim();

@@ -10,13 +10,13 @@ import org.springframework.stereotype.Component;
 
 /**
  * Relay del OUTBOX: publica MedidorHabilitado/MedidorActivado/HabilitacionFallida/
- * MedidorSuspendido al topic {@code medidores-habilitacion} (clave = medidorId).
+ * MedidorSuspendido al topic {@code topic.prosumidor.estado} (clave = medidorId).
  */
 @Component
 public class OutboxRelay {
 
     private static final Logger log = LoggerFactory.getLogger(OutboxRelay.class);
-    private static final String TOPIC = "medidores-habilitacion";
+    private static final String TOPIC = "topic.prosumidor.estado";
 
     private final OutboxPort outbox;
     private final KafkaTemplate<String, String> kafkaTemplate;

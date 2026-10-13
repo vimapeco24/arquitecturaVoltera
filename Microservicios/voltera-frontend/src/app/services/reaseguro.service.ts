@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { gw, SERVICIOS } from '../core/gateway';
-import { CesionVista, ReaseguroStats, SiniestroAprobadoEvento } from '../core/models';
+import { CesionVista, InboxVista, ReaseguroStats, SiniestroAprobadoEvento } from '../core/models';
 
 @Injectable({ providedIn: 'root' })
 export class ReaseguroService {
@@ -31,5 +31,10 @@ export class ReaseguroService {
       gw(SERVICIOS.reaseguro, 'api/v1/cesiones/simular-evento'),
       evento,
     );
+  }
+
+  /** Tabla INBOX de idempotencia (únicos/duplicados) del consumer reaseguro. */
+  inbox(): Observable<InboxVista> {
+    return this.http.get<InboxVista>(gw(SERVICIOS.reaseguro, 'api/v1/cesiones/inbox'));
   }
 }

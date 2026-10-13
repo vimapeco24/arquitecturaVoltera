@@ -11,7 +11,7 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 /**
- * Consumidor Kafka del topic {@code consumo-registrado} (emitido por
+ * Consumidor Kafka del topic {@code topic.telemetria.consumo} (emitido por
  * telemetria-service). Deserializa el JSON del evento a {@link ConsumoRegistrado}
  * y lo procesa de forma idempotente. Los errores se registran pero no se
  * relanzan, para no bloquear la particion.
@@ -35,7 +35,7 @@ public class ConsumoRegistradoConsumer {
         this.objectMapper = objectMapper;
     }
 
-    @KafkaListener(topics = "consumo-registrado", groupId = "tarifa-eventos-consumer")
+    @KafkaListener(topics = "topic.telemetria.consumo", groupId = "tarifa-eventos-consumer")
     public void escuchar(String mensaje) {
         try {
             ConsumoRegistrado evento = objectMapper.readValue(mensaje, ConsumoRegistrado.class);

@@ -12,9 +12,9 @@ import org.springframework.stereotype.Component;
  * Relay del OUTBOX de Ingesta.
  *
  * <p>Publica LecturaValidada / LecturaSospechosaDetectada / CanalIngestaCreado al
- * topic principal {@code telemetria-lecturas-validadas} (clave = medidorSerial para
+ * topic principal {@code topic.telemetria.validadas} (clave = medidorSerial para
  * preservar el orden por medidor), y además enruta las ALERTAS al topic dedicado
- * {@code telemetria-alertas} (lámina 03 · CQRS: "telemetria.alertas · publican
+ * {@code topic.notificaciones} (lámina 03 · CQRS: "telemetria.alertas · publican
  * Ingesta y Core"). Hoy la única alerta de Ingesta es
  * {@code LecturaSospechosaDetectada}.</p>
  *
@@ -25,8 +25,8 @@ import org.springframework.stereotype.Component;
 public class OutboxRelay {
 
     private static final Logger log = LoggerFactory.getLogger(OutboxRelay.class);
-    private static final String TOPIC = "telemetria-lecturas-validadas";
-    private static final String TOPIC_ALERTAS = "telemetria-alertas";
+    private static final String TOPIC = "topic.telemetria.validadas";
+    private static final String TOPIC_ALERTAS = "topic.notificaciones";
 
     private final OutboxPort outbox;
     private final KafkaTemplate<String, String> kafkaTemplate;
@@ -53,7 +53,7 @@ public class OutboxRelay {
         }
     }
 
-    /** Eventos de alerta que además se publican en {@code telemetria-alertas}. */
+    /** Eventos de alerta que además se publican en {@code topic.notificaciones}. */
     private boolean esAlerta(String tipoEvento) {
         return "LecturaSospechosaDetectada".equals(tipoEvento);
     }

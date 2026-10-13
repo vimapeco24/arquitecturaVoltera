@@ -7,6 +7,7 @@ import com.voltera.reaseguro.domain.model.EstadoCesion;
 import com.voltera.reaseguro.domain.port.in.ConsultarCesionUseCase;
 import com.voltera.reaseguro.domain.port.in.ProcesarEventoSiniestroUseCase;
 import com.voltera.reaseguro.infrastructure.rest.dto.CesionVistaResponse;
+import com.voltera.reaseguro.infrastructure.rest.dto.InboxResponse;
 import com.voltera.reaseguro.infrastructure.rest.dto.SimularEventoRequest;
 import com.voltera.reaseguro.infrastructure.rest.dto.StatsResponse;
 import jakarta.validation.Valid;
@@ -85,5 +86,18 @@ public class CesionController {
         );
         CesionRiesgo cesion = procesarUseCase.procesar(evento);
         return CesionVistaResponse.desde(consultarUseCase.porId(cesion.getId().valor()));
+    }
+
+    /**
+     * Expone la tabla INBOX de idempotencia (eventId por consumidor) con sus
+     * contadores de unicos y duplicados. Util para evidenciar que reenviar el
+     * mismo evento se descarta como duplicado sin crear una segunda cesion.
+     */
+    @GetMapping("/inbox")
+    public InboxResponse inbox() {
+        return InboxResponse.desde(
+                consultarUseCase.inboxUnicos(),
+                consultarUseCase.inboxDuplicados(),
+                consultarUseCase.inbox());
     }
 }

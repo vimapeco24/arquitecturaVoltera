@@ -11,7 +11,7 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 /**
- * Consume {@code liquidaciones-calculadas}: ante LiquidacionCalculada emite la
+ * Consume {@code topic.facturacion.liquidacion}: ante LiquidacionCalculada emite la
  * factura del periodo y publica FacturaEmitida (diagrama DDD 02:
  * Liquidacion -> Factura). Idempotente por tabla inbox (lamina 10): una
  * LiquidacionCalculada repetida no emite dos facturas.
@@ -21,7 +21,7 @@ import org.springframework.stereotype.Component;
 public class LiquidacionCalculadaConsumer {
 
     private static final Logger log = LoggerFactory.getLogger(LiquidacionCalculadaConsumer.class);
-    private static final String CONSUMIDOR = "facturacion-consumer#liquidaciones-calculadas";
+    private static final String CONSUMIDOR = "facturacion-consumer#topic.facturacion.liquidacion";
 
     private final FacturarDesdeLiquidacionUseCase useCase;
     private final InboxPort inbox;
@@ -34,7 +34,7 @@ public class LiquidacionCalculadaConsumer {
         this.objectMapper = objectMapper;
     }
 
-    @KafkaListener(topics = "liquidaciones-calculadas", groupId = "facturacion-consumer")
+    @KafkaListener(topics = "topic.facturacion.liquidacion", groupId = "facturacion-consumer")
     public void escuchar(String mensaje) {
         try {
             String t = mensaje == null ? "" : mensaje.trim();

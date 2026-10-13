@@ -81,7 +81,7 @@
       <h3>Outbox transaccional</h3>
       <span class="count">{{ outboxFilas.length }} evento(s)</span>
     </div>
-    <p class="hint" style="margin-top:0">El estado de la saga y el evento se escriben juntos; el relay publica al broker (topic <code>medidores-habilitacion</code>) y marca la fila como publicada.</p>
+    <p class="hint" style="margin-top:0">El estado de la saga y el evento se escriben juntos; el relay publica al broker (topic <code>topic.prosumidor.estado</code>) y marca la fila como publicada.</p>
 
     <div class="v-empty" *ngIf="outboxFilas.length === 0">
       <div class="ic">📤</div><p>Outbox vacío.</p>

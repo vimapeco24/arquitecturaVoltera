@@ -22,7 +22,7 @@
 # NOTA: las anclas valen dentro de ESTE archivo; se repiten por claridad.
 
 # ---------------------------------------------------------------------------
-# HABILITACION (8095) — mediador del alta; consume ordenes-instalacion
+# HABILITACION (8095) — mediador del alta; consume topic.prosumidor.instalacion
 # ---------------------------------------------------------------------------
 apiVersion: apps/v1
 kind: Deployment
@@ -30,6 +30,9 @@ metadata:
   name: habilitacion-service
   namespace: voltera-app
   labels: { app: habilitacion-service }
+  annotations:
+    voltera.io/diagrama-04: "Servicio de Transferencia de Estado"
+    voltera.io/rol: "ECST del medidor (habilitación / transferencia de estado)"
 spec:
   replicas: 1
   selector: { matchLabels: { app: habilitacion-service } }
@@ -46,10 +49,15 @@ spec:
             - { name: EUREKA_ENABLED, value: "true" }
             - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
             - { name: KAFKA_BOOTSTRAP_SERVERS, value: "redpanda.voltera-app:9092" }
-            - { name: SPRING_PROFILES_ACTIVE, value: "inbox-jdbc" }
+            - { name: SPRING_PROFILES_ACTIVE, value: "inbox-jdbc,cqrs-jdbc" }
             - { name: INBOX_URL, value: "jdbc:postgresql://timescaledb.voltera-app:5432/voltera_inbox" }
             - { name: INBOX_USER, value: "voltera" }
             - { name: INBOX_PASSWORD, valueFrom: { secretKeyRef: { name: timescaledb-cred, key: POSTGRES_PASSWORD } } }
+            # CQRS · Database per Service (diagrama 04): BD escritura + BD lectura.
+            - { name: CQRS_WRITE_URL, value: "jdbc:postgresql://timescaledb.voltera-app:5432/voltera_habilitacion_write" }
+            - { name: CQRS_READ_URL, value: "jdbc:postgresql://timescaledb.voltera-app:5432/voltera_habilitacion_read" }
+            - { name: CQRS_USER, value: "voltera" }
+            - { name: CQRS_PASSWORD, valueFrom: { secretKeyRef: { name: timescaledb-cred, key: POSTGRES_PASSWORD } } }
           resources:
             limits: { cpu: "500m", memory: "512Mi" }
             requests: { cpu: "50m", memory: "160Mi" }
@@ -79,8 +87,8 @@ spec:
       backendRefs: [{ name: habilitacion-service, port: 8095 }]
 ---
 # ---------------------------------------------------------------------------
-# INTEGRACION-AMI (8096) — ACL del head-end; consume medidores-habilitacion,
-# publica ami-lecturas-crudas
+# INTEGRACION-AMI (8096) — ACL del head-end; consume topic.prosumidor.estado,
+# publica topic.telemetria.medidores
 # ---------------------------------------------------------------------------
 apiVersion: apps/v1
 kind: Deployment
@@ -88,6 +96,9 @@ metadata:
   name: integracion-ami-service
   namespace: voltera-app
   labels: { app: integracion-ami-service }
+  annotations:
+    voltera.io/diagrama-04: "Adaptador de Proveedores"
+    voltera.io/rol: "Anti-Corruption Layer del head-end AMI"
 spec:
   replicas: 2            # min 2 (punto de entrada); KEDA/Prometheus escala hasta 20
   selector: { matchLabels: { app: integracion-ami-service } }
@@ -137,8 +148,8 @@ spec:
       backendRefs: [{ name: integracion-ami-service, port: 8096 }]
 ---
 # ---------------------------------------------------------------------------
-# INGESTA (8097) — valida/deduplica; consume ami-lecturas-crudas,
-# publica telemetria-lecturas-validadas + telemetria-alertas
+# INGESTA (8097) — valida/deduplica; consume topic.telemetria.medidores,
+# publica topic.telemetria.validadas + topic.notificaciones
 # ---------------------------------------------------------------------------
 apiVersion: apps/v1
 kind: Deployment
@@ -146,6 +157,9 @@ metadata:
   name: ingesta-service
   namespace: voltera-app
   labels: { app: ingesta-service }
+  annotations:
+    voltera.io/diagrama-04: "Servicio de Ingesta Telemetría"
+    voltera.io/rol: "Validación/deduplicación de lecturas AMI"
 spec:
   replicas: 2            # ruta critica 99,99%: min 2
   selector: { matchLabels: { app: ingesta-service } }
@@ -195,8 +209,8 @@ spec:
       backendRefs: [{ name: ingesta-service, port: 8097 }]
 ---
 # ---------------------------------------------------------------------------
-# TELEMETRIA-CORE (8098) — CQRS; consume telemetria-lecturas-validadas,
-# publica telemetria-consumo-intervalos + telemetria-alertas.
+# TELEMETRIA-CORE (8098) — CQRS; consume topic.telemetria.validadas,
+# publica topic.tarifas.calculo + topic.notificaciones.
 # Persistencia completa: redis + tsdb + inbox-jdbc.
 # ---------------------------------------------------------------------------
 apiVersion: apps/v1
@@ -205,6 +219,9 @@ metadata:
   name: telemetria-core-service
   namespace: voltera-app
   labels: { app: telemetria-core-service }
+  annotations:
+    voltera.io/diagrama-04: "Servicio de Telemetría"
+    voltera.io/rol: "CQRS core (serie de medición · escritura TSDB / lectura Redis)"
 spec:
   replicas: 2            # min 2
   selector: { matchLabels: { app: telemetria-core-service } }
@@ -259,8 +276,8 @@ spec:
       backendRefs: [{ name: telemetria-core-service, port: 8098 }]
 ---
 # ---------------------------------------------------------------------------
-# NOTIFICACIONES (8099) — consume telemetria-alertas / medidores-habilitacion /
-# facturas-emitidas; escala a cero por KEDA.
+# NOTIFICACIONES (8099) — consume topic.notificaciones / topic.prosumidor.estado /
+# topic.facturacion.emitida; escala a cero por KEDA.
 # ---------------------------------------------------------------------------
 apiVersion: apps/v1
 kind: Deployment
@@ -268,6 +285,9 @@ metadata:
   name: notificaciones-service
   namespace: voltera-app
   labels: { app: notificaciones-service }
+  annotations:
+    voltera.io/diagrama-04: "Servicio de Notificaciones"
+    voltera.io/rol: "Consumidor de alertas/estado · emite ClienteNotificado"
 spec:
   replicas: 1            # KEDA puede bajar a 0 (scale to zero)
   selector: { matchLabels: { app: notificaciones-service } }
@@ -284,10 +304,15 @@ spec:
             - { name: EUREKA_ENABLED, value: "true" }
             - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
             - { name: KAFKA_BOOTSTRAP_SERVERS, value: "redpanda.voltera-app:9092" }
-            - { name: SPRING_PROFILES_ACTIVE, value: "inbox-jdbc" }
+            - { name: SPRING_PROFILES_ACTIVE, value: "inbox-jdbc,cqrs-jdbc" }
             - { name: INBOX_URL, value: "jdbc:postgresql://timescaledb.voltera-app:5432/voltera_inbox" }
             - { name: INBOX_USER, value: "voltera" }
             - { name: INBOX_PASSWORD, valueFrom: { secretKeyRef: { name: timescaledb-cred, key: POSTGRES_PASSWORD } } }
+            # CQRS · Database per Service (diagrama 04): BD escritura + BD lectura.
+            - { name: CQRS_WRITE_URL, value: "jdbc:postgresql://timescaledb.voltera-app:5432/voltera_notif_write" }
+            - { name: CQRS_READ_URL, value: "jdbc:postgresql://timescaledb.voltera-app:5432/voltera_notif_read" }
+            - { name: CQRS_USER, value: "voltera" }
+            - { name: CQRS_PASSWORD, valueFrom: { secretKeyRef: { name: timescaledb-cred, key: POSTGRES_PASSWORD } } }
           resources:
             limits: { cpu: "500m", memory: "512Mi" }
             requests: { cpu: "50m", memory: "160Mi" }

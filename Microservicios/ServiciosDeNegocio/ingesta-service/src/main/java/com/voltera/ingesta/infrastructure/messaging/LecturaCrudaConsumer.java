@@ -11,7 +11,7 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 /**
- * Consume el topic {@code ami-lecturas-crudas} (emitido por el ACL de AMI) y lo
+ * Consume el topic {@code topic.telemetria.medidores} (emitido por el ACL de AMI) y lo
  * procesa en la sesion de ingesta (valida/deduplica/emite). Idempotente en dos
  * capas (lamina 10): tabla inbox por {@code eventId} ante reentregas del broker, y
  * ventana de duplicados del agregado ante relecturas de negocio.
@@ -21,7 +21,7 @@ import org.springframework.stereotype.Component;
 public class LecturaCrudaConsumer {
 
     private static final Logger log = LoggerFactory.getLogger(LecturaCrudaConsumer.class);
-    private static final String CONSUMIDOR = "ingesta-consumer#ami-lecturas-crudas";
+    private static final String CONSUMIDOR = "ingesta-consumer#topic.telemetria.medidores";
 
     private final IngestarLecturaUseCase useCase;
     private final InboxPort inbox;
@@ -34,7 +34,7 @@ public class LecturaCrudaConsumer {
         this.objectMapper = objectMapper;
     }
 
-    @KafkaListener(topics = "ami-lecturas-crudas", groupId = "ingesta-consumer")
+    @KafkaListener(topics = "topic.telemetria.medidores", groupId = "ingesta-consumer")
     public void escuchar(String mensaje) {
         try {
             LecturaCrudaRecibida lectura = objectMapper.readValue(mensaje, LecturaCrudaRecibida.class);

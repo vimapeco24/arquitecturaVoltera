@@ -11,7 +11,7 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 /**
- * Consume {@code medidores-habilitacion}: ante MedidorHabilitado crea la serie del
+ * Consume {@code topic.prosumidor.estado}: ante MedidorHabilitado crea la serie del
  * medidor para empezar a acumular su consumo. Idempotente por tabla inbox (lamina
  * 10): una reentrega del mismo evento no crea la serie dos veces.
  */
@@ -20,7 +20,7 @@ import org.springframework.stereotype.Component;
 public class MedidorHabilitadoConsumer {
 
     private static final Logger log = LoggerFactory.getLogger(MedidorHabilitadoConsumer.class);
-    private static final String CONSUMIDOR = "telemetria-core-consumer#medidores-habilitacion";
+    private static final String CONSUMIDOR = "telemetria-core-consumer#topic.prosumidor.estado";
 
     private final RegistrarConsumoUseCase useCase;
     private final InboxPort inbox;
@@ -33,7 +33,7 @@ public class MedidorHabilitadoConsumer {
         this.objectMapper = objectMapper;
     }
 
-    @KafkaListener(topics = "medidores-habilitacion", groupId = "telemetria-core-consumer")
+    @KafkaListener(topics = "topic.prosumidor.estado", groupId = "telemetria-core-consumer")
     public void escuchar(String mensaje) {
         try {
             String t = mensaje == null ? "" : mensaje.trim();

@@ -10,7 +10,7 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 /**
- * Consume {@code tarifas-eventos} y reacciona a {@code TarifaAsignada} (de Tarifas):
+ * Consume {@code topic.tarifas.asignada} y reacciona a {@code TarifaAsignada} (de Tarifas):
  * confirma la tarifa del medidor para avanzar el alta (lamina 02: Habilitacion
  * consume TarifaAsignada).
  */
@@ -28,7 +28,7 @@ public class TarifaAsignadaConsumer {
         this.objectMapper = objectMapper;
     }
 
-    @KafkaListener(topics = "tarifas-eventos", groupId = "habilitacion-consumer")
+    @KafkaListener(topics = "topic.tarifas.asignada", groupId = "habilitacion-consumer")
     public void escuchar(String mensaje) {
         try {
             String t = mensaje == null ? "" : mensaje.trim();

@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 
 /**
- * Consume {@code telemetria-lecturas-validadas} (emitido por Ingesta). Solo procesa
+ * Consume {@code topic.telemetria.validadas} (emitido por Ingesta). Solo procesa
  * los eventos LecturaValidada (ignora CanalIngestaCreado y LecturaSospechosaDetectada,
  * que no llevan consumo a la serie). Incorpora la lectura a la serie del medidor.
  * Idempotente por tabla inbox (lamina 10): una LecturaValidada repetida tras una
@@ -25,7 +25,7 @@ import java.time.Instant;
 public class LecturaValidadaConsumer {
 
     private static final Logger log = LoggerFactory.getLogger(LecturaValidadaConsumer.class);
-    private static final String CONSUMIDOR = "telemetria-core-consumer#telemetria-lecturas-validadas";
+    private static final String CONSUMIDOR = "telemetria-core-consumer#topic.telemetria.validadas";
 
     private final RegistrarConsumoUseCase useCase;
     private final InboxPort inbox;
@@ -38,7 +38,7 @@ public class LecturaValidadaConsumer {
         this.objectMapper = objectMapper;
     }
 
-    @KafkaListener(topics = "telemetria-lecturas-validadas", groupId = "telemetria-core-consumer")
+    @KafkaListener(topics = "topic.telemetria.validadas", groupId = "telemetria-core-consumer")
     public void escuchar(String mensaje) {
         try {
             String t = mensaje == null ? "" : mensaje.trim();

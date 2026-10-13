@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Adaptador de SALIDA (EDA): publica el evento ConsumoRegistrado en el topic
- * 'consumo-registrado' del broker (Kafka/Redpanda) usando KafkaTemplate.
+ * 'topic.telemetria.consumo' del broker (Kafka/Redpanda) usando KafkaTemplate.
  *
  * <p>La clave del mensaje es el medidorId (particionamiento por agregado: todas
  * las lecturas de un mismo medidor conservan orden dentro de su particion).</p>
@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit;
 public class KafkaEventPublisher implements EventPublisherPort {
 
     private static final Logger log = LoggerFactory.getLogger(KafkaEventPublisher.class);
-    private static final String TOPIC = "consumo-registrado";
+    private static final String TOPIC = "topic.telemetria.consumo";
 
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final ObjectMapper objectMapper;

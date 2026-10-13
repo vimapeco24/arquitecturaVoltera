@@ -335,3 +335,37 @@ export interface InboxVista {
   totalDuplicados: number;
   filas: InboxFila[];
 }
+
+/* ---------------- Cobros (8100) — BC seguros · consume PagoConfirmado ---------------- */
+export type EstadoMovimiento = 'PENDIENTE' | 'CONCILIADO';
+export type PeriodicidadPrima = 'MENSUAL' | 'TRIMESTRAL' | 'ANUAL';
+
+/** Vista de un Movimiento de cobro (agregado raíz con Prima y Recibo). */
+export interface MovimientoVista {
+  id: string;
+  clienteId: string;
+  polizaId: string;
+  montoPrima: number;
+  periodicidad: string;
+  estado: string;
+  reciboNumero: string | null;
+  montoPagado: number | null;
+  registradoEn: string | null;
+  conciliadoEn: string | null;
+}
+export interface RegistrarMovimientoRequest {
+  clienteId: string;
+  polizaId: string;
+  montoPrima: number;
+  periodicidad?: PeriodicidadPrima;
+}
+/** Evento PagoConfirmado simulado (reenviar el mismo eventId no concilia 2 veces). */
+export interface PagoConfirmadoEvento {
+  eventId: string;
+  referencia: string;
+  clienteId: string;
+  polizaId: string;
+  montoPagado: number;
+  confirmadoEn?: string;
+  emitidoEn?: string;
+}

@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 
 /**
- * Consume {@code telemetria-consumo-intervalos}: ante ConsumoIntervaloRegistrado
+ * Consume {@code topic.tarifas.calculo}: ante ConsumoIntervaloRegistrado
  * (trae 'consumoNetoKwh' e 'inicioIntervalo') tarifica el consumo del intervalo
  * (diagrama DDD 02: Tarifas consume ConsumoIntervaloRegistrado). Ignora
  * MedidorSinReporte (que trae 'ultimaLecturaEn'). Idempotente por tabla inbox
@@ -24,7 +24,7 @@ import java.time.Instant;
 public class ConsumoIntervaloConsumer {
 
     private static final Logger log = LoggerFactory.getLogger(ConsumoIntervaloConsumer.class);
-    private static final String CONSUMIDOR = "tarifas-consumer#telemetria-consumo-intervalos";
+    private static final String CONSUMIDOR = "tarifas-consumer#topic.tarifas.calculo";
 
     private final AsignarTarifaUseCase useCase;
     private final InboxPort inbox;
@@ -37,7 +37,7 @@ public class ConsumoIntervaloConsumer {
         this.objectMapper = objectMapper;
     }
 
-    @KafkaListener(topics = "telemetria-consumo-intervalos", groupId = "tarifas-consumer")
+    @KafkaListener(topics = "topic.tarifas.calculo", groupId = "tarifas-consumer")
     public void escuchar(String mensaje) {
         try {
             String t = mensaje == null ? "" : mensaje.trim();

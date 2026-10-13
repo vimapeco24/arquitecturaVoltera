@@ -34,15 +34,16 @@ replicas_deseadas = ceil( lag_total / lagThreshold )   acotado a [min, max]
 
 | Componente | Topic (real) | consumerGroup | lagThreshold | min | max |
 |---|---|---|---|---|---|
-| MS Ingesta | `ami-lecturas-crudas` | `ingesta-consumer` | 5000 | 2 | 48 |
-| Telemetría Core (escritura) | `telemetria-lecturas-validadas` | `telemetria-core-consumer` | 5000 | 2 | 48 |
-| Proyector (lectura/CQRS) | `telemetria-consumo-intervalos` | `telemetria-core-proyector` | 1000 | 1 | 24 |
+| MS Ingesta | `topic.telemetria.medidores` | `ingesta-consumer` | 5000 | 2 | 48 |
+| Telemetría Core (escritura) | `topic.telemetria.validadas` | `telemetria-core-consumer` | 5000 | 2 | 48 |
+| Proyector (lectura/CQRS) | `topic.tarifas.calculo` | `telemetria-core-proyector` | 1000 | 1 | 24 |
 | Adaptador AMI | gateway MQTT (Prometheus) | — | 10000 | 2 | 20 |
-| Notificaciones (alertas) | `telemetria-alertas` | `notificaciones-consumer` | 500 | 0 | 30 |
-| MS Habilitación | `ordenes-instalacion` | `habilitacion-consumer` | 50 | 1 | 4 |
+| Notificaciones (alertas) | `topic.notificaciones` | `notificaciones-consumer` | 500 | 0 | 30 |
+| MS Habilitación | `topic.prosumidor.instalacion` | `habilitacion-consumer` | 50 | 1 | 4 |
 
-> Nombres de topic: la lámina los escribe con punto (`ami.lecturas.crudas`); el
-> broker/código usa guion (`ami-lecturas-crudas`). Los manifiestos usan los reales.
+> Nombres de topic: alineados al diagrama (Opción B) — código y broker usan el
+> estilo con punto (`topic.telemetria.medidores`). Declaración central en
+> `k8s/voltera-topics.yaml`.
 
 > Proyector: en el código vive dentro de telemetria-core. El ScaledObject usa un
 > consumerGroup de proyección (`telemetria-core-proyector`) y apunta hoy a

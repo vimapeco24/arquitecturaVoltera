@@ -2,6 +2,7 @@ package com.voltera.telemetriacore.infrastructure.persistence;
 
 import com.voltera.telemetriacore.domain.port.out.InboxPort;
 import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -18,7 +19,7 @@ public class JdbcInbox implements InboxPort {
 
     private final JdbcTemplate jdbc;
 
-    public JdbcInbox(JdbcTemplate inboxJdbcTemplate) {
+    public JdbcInbox(@Qualifier("inboxJdbcTemplate") JdbcTemplate inboxJdbcTemplate) {
         this.jdbc = inboxJdbcTemplate;
     }
 

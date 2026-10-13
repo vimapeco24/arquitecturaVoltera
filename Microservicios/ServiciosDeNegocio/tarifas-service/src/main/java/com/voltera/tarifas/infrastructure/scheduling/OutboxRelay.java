@@ -10,13 +10,13 @@ import org.springframework.stereotype.Component;
 
 /**
  * Relay del OUTBOX del BC Tarifas: publica {@code TarifaAsignada} y
- * {@code ConsumoTarificado} al topic {@code tarifas-eventos}.
+ * {@code ConsumoTarificado} al topic {@code topic.tarifas.asignada}.
  */
 @Component
 public class OutboxRelay {
 
     private static final Logger log = LoggerFactory.getLogger(OutboxRelay.class);
-    private static final String TOPIC = "tarifas-eventos";
+    private static final String TOPIC = "topic.tarifas.asignada";
 
     private final OutboxPort outbox;
     private final KafkaTemplate<String, String> kafkaTemplate;

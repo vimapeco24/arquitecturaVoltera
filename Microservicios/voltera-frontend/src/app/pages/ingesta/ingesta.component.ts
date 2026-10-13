@@ -8,7 +8,7 @@ import { describeHttpError } from '../../core/http-error';
 /**
  * Página "Ingesta de Telemetría" (BC Telemetría · Ingesta). Valida la lectura contra
  * la regla y la ventana de duplicados; emite LecturaValidada o
- * LecturaSospechosaDetectada (esta última va además al topic telemetria-alertas).
+ * LecturaSospechosaDetectada (esta última va además al topic topic.notificaciones).
  */
 @Component({
   selector: 'app-ingesta',
@@ -51,7 +51,7 @@ export class IngestaComponent {
       next: (r) => {
         this.ultimoResultado = r.resultado;
         if (r.resultado === 'VALIDADA') this.toast.success('Lectura validada', 'LecturaValidada emitida');
-        else if (r.resultado === 'SOSPECHOSA') this.toast.error('Lectura sospechosa', 'Fuera de rango → telemetria-alertas');
+        else if (r.resultado === 'SOSPECHOSA') this.toast.error('Lectura sospechosa', 'Fuera de rango → topic.notificaciones');
         else this.toast.success('Resultado', r.resultado);
       },
       error: (e) => this.toast.error('Error al ingestar', this.msg(e)),

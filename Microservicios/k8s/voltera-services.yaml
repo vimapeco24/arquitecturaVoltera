@@ -237,6 +237,9 @@ metadata:
   name: tarifas-service
   namespace: voltera-app
   labels: { app: tarifas-service }
+  annotations:
+    voltera.io/diagrama-04: "Servicio de Tarifas"
+    voltera.io/rol: "Cálculo/asignación de tarifa (CQRS write/read)"
 spec:
   replicas: 2                                   # HA: 2 replicas base (el HPA ajusta entre min/max)
   selector: { matchLabels: { app: tarifas-service } }
@@ -251,6 +254,16 @@ spec:
           env:
             - { name: EUREKA_ENABLED, value: "true" }
             - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
+            - { name: KAFKA_BOOTSTRAP_SERVERS, value: "redpanda.voltera-app:9092" }
+            - { name: SPRING_PROFILES_ACTIVE, value: "inbox-jdbc,cqrs-jdbc" }
+            - { name: INBOX_URL, value: "jdbc:postgresql://timescaledb.voltera-app:5432/voltera_inbox" }
+            - { name: INBOX_USER, value: "voltera" }
+            - { name: INBOX_PASSWORD, valueFrom: { secretKeyRef: { name: timescaledb-cred, key: POSTGRES_PASSWORD } } }
+            # CQRS · Database per Service (diagrama 04): BD escritura + BD lectura.
+            - { name: CQRS_WRITE_URL, value: "jdbc:postgresql://timescaledb.voltera-app:5432/voltera_tarifas_write" }
+            - { name: CQRS_READ_URL, value: "jdbc:postgresql://timescaledb.voltera-app:5432/voltera_tarifas_read" }
+            - { name: CQRS_USER, value: "voltera" }
+            - { name: CQRS_PASSWORD, valueFrom: { secretKeyRef: { name: timescaledb-cred, key: POSTGRES_PASSWORD } } }
           resources:
             limits: { cpu: "500m", memory: "512Mi" }        # cpu limit para acotar el pod
             requests: { cpu: "50m", memory: "160Mi" }       # cpu request -> BASE del calculo del HPA

@@ -1,41 +1,48 @@
-<section class="domain-page">
-  <header class="page-head">
-    <div>
-      <h1>Cadena EDA · Patrones del laboratorio</h1>
-      <p class="sub">Flujo orientado a eventos end-to-end, autoescalado KEDA por lag y event mesh multi-región (lámina 04).</p>
-    </div>
-  </header>
+<div class="v-page v-fade">
+  <div class="v-page-head">
+    <span class="v-eyebrow">⚡ Lámina 04 · Arquitectura EDA</span>
+    <h1>Cadena EDA · Patrones del laboratorio</h1>
+    <p>Flujo orientado a eventos end-to-end, autoescalado KEDA por lag y event mesh multi-región.</p>
+  </div>
 
-  <article class="card">
-    <h2>Flujo end-to-end (coreografía)</h2>
+  <div class="v-card doc-card">
+    <div class="result-head"><h3>Flujo end-to-end (coreografía)</h3></div>
     <ol class="flujo">
-      <li *ngFor="let f of flujo"><b>{{ f.paso }}</b><span>{{ f.detalle }}</span></li>
+      <li *ngFor="let f of flujo; let i = index">
+        <span class="step-num">{{ i + 1 }}</span>
+        <div class="step-body">
+          <b>{{ f.paso }}</b>
+          <span>{{ f.detalle }}</span>
+        </div>
+      </li>
     </ol>
-    <p class="hint">Cada servicio reacciona al evento anterior sin coordinador central. El particionado por medidorId conserva el orden por medidor.</p>
-  </article>
+    <p class="hint">Cada servicio reacciona al evento anterior sin coordinador central. El particionado por <code>medidorId</code> conserva el orden por medidor.</p>
+  </div>
 
-  <article class="card">
-    <h2>Autoescalado KEDA (por lag del consumer group)</h2>
-    <table class="tbl">
-      <thead><tr><th>Componente</th><th>Métrica / topic</th><th>Umbral</th><th>Mín</th><th>Máx</th></tr></thead>
-      <tbody>
-        <tr *ngFor="let k of keda">
-          <td>{{ k.comp }}</td>
-          <td><code>{{ k.topic }}</code></td>
-          <td>{{ k.umbral }}</td>
-          <td>{{ k.min }}</td>
-          <td>{{ k.max }}</td>
-        </tr>
-      </tbody>
-    </table>
+  <div class="v-card doc-card">
+    <div class="result-head"><h3>Autoescalado KEDA (por lag del consumer group)</h3></div>
+    <div class="v-table-wrap">
+      <table class="v-table">
+        <thead><tr><th>Componente</th><th>Métrica / topic</th><th>Umbral</th><th>Mín</th><th>Máx</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let k of keda">
+            <td><strong>{{ k.comp }}</strong></td>
+            <td class="v-mono">{{ k.topic }}</td>
+            <td class="v-mono">{{ k.umbral }}</td>
+            <td><span class="v-badge info">{{ k.min }}</span></td>
+            <td><span class="v-badge ok">{{ k.max }}</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
     <p class="hint">réplicas = ⌈ lag ÷ umbral ⌉, acotado [mín, máx]. Notificaciones escala a cero; el máximo = particiones del topic.</p>
-  </article>
+  </div>
 
-  <article class="card">
-    <h2>Event mesh multi-región</h2>
+  <div class="v-card doc-card">
+    <div class="result-head"><h3>Event mesh multi-región</h3></div>
     <div class="chips">
       <span class="chip" *ngFor="let r of regiones">{{ r }}</span>
     </div>
     <p class="hint">Topics jerárquicos <code>voltera/&#123;país&#125;/&#123;dominio&#125;/&#123;evento&#125;</code>, replicación con mTLS entre brokers. Cruza: consumo agregado, MedidorHabilitado sin PII, alertas. No cruza: lecturas crudas ni datos personales (residencia del dato).</p>
-  </article>
-</section>
+  </div>
+</div>

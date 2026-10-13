@@ -1,0 +1,92 @@
+# ============================================================================
+# VOLTERA — DECLARACION CENTRAL DE TOPICS (alineada al Diagrama UML · lamina 04)
+# ----------------------------------------------------------------------------
+# Antes los topics se auto-creaban al primer send/listen y sus nombres vivian
+# dispersos como constantes en cada servicio. Este Job los declara de forma
+# EXPLICITA en Redpanda con los nombres del diagrama (estilo "topic.<dominio>."),
+# dejando el contrato de mensajeria en un unico lugar versionado.
+#
+# Mapeo diagrama -> canal real (los 5 topics logicos del diagrama se
+# materializan en 13 canales fisicos para no acoplar payloads heterogeneos):
+#
+#   DIAGRAMA (logico)         CANALES FISICOS (este manifiesto)
+#   topic.telemetria.medidores  topic.telemetria.medidores, topic.telemetria.validadas,
+#                               topic.telemetria.consumo
+#   topic.prosumidor.estado     topic.prosumidor.estado, topic.prosumidor.instalacion
+#   topic.tarifas.calculo       topic.tarifas.calculo, topic.tarifas.asignada
+#   topic.notificaciones        topic.notificaciones, topic.notificaciones.cliente,
+#                               topic.notificaciones.liquidada
+#   topic.proveedores.energia   (entra por el ACL integracion-ami; ver nota)
+#   (dominio seguros)           topic.siniestros.aprobado, topic.cobros.pago-confirmado
+#   (facturacion)               topic.facturacion.liquidacion, topic.facturacion.emitida
+#
+# Aplicar:  kubectl apply -f voltera-topics.yaml
+# Requiere: redpanda desplegado (voltera-eda.yaml).
+# Idempotente: 'rpk topic create' con --topic-config ignora los ya existentes.
+# ============================================================================
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: voltera-topics-init
+  namespace: voltera-app
+  labels: { app: voltera-topics, diagrama: "lamina-04" }
+spec:
+  backoffLimit: 6
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata: { labels: { app: voltera-topics } }
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: rpk-create-topics
+          image: docker.redpanda.com/redpandadata/redpanda:v24.1.1
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              BROKER="redpanda.voltera-app:9092"
+              echo "Esperando a Redpanda en $BROKER ..."
+              for i in $(seq 1 30); do
+                if rpk cluster info --brokers "$BROKER" >/dev/null 2>&1; then break; fi
+                sleep 2
+              done
+              # 1 particion por defecto (demo). Para KEDA/escala real subir -p.
+              crear() {
+                echo "topic -> $1 (particiones=$2)"
+                rpk topic create "$1" -p "$2" --brokers "$BROKER" 2>/dev/null || true
+              }
+              # --- Dominio Telemetria ---
+              crear topic.telemetria.medidores 3
+              crear topic.telemetria.validadas 3
+              crear topic.telemetria.consumo   3
+              # --- Dominio Prosumidor / Transferencia de Estado ---
+              # topic.prosumidor.estado es COMPACTADO (ECST, lámina 03): el log
+              # retiene el último valor por clave (medidorId), de modo que un
+              # consumidor nuevo reconstruye su réplica leyendo el tópico.
+              crear_compactado() {
+                echo "topic (compact) -> $1 (particiones=$2)"
+                rpk topic create "$1" -p "$2" \
+                  --topic-config cleanup.policy=compact \
+                  --topic-config min.cleanable.dirty.ratio=0.1 \
+                  --brokers "$BROKER" 2>/dev/null || true
+              }
+              crear_compactado topic.prosumidor.estado 3
+              crear topic.prosumidor.instalacion  1
+              # --- Dominio Tarifas ---
+              crear topic.tarifas.calculo   3
+              crear topic.tarifas.asignada  1
+              # --- Dominio Notificaciones ---
+              crear topic.notificaciones            3
+              crear topic.notificaciones.cliente    1
+              crear topic.notificaciones.liquidada  1
+              # --- Dominio Facturacion ---
+              crear topic.facturacion.liquidacion 1
+              crear topic.facturacion.emitida     1
+              # --- Dominio Seguros (flujo EDA siniestros/reaseguro + cobros) ---
+              crear topic.siniestros.aprobado 1
+              crear topic.cobros.pago-confirmado 1
+              echo "=== Topics declarados ==="
+              rpk topic list --brokers "$BROKER"
+          resources:
+            limits: { cpu: "200m", memory: "128Mi" }
+            requests: { cpu: "50m", memory: "64Mi" }

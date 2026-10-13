@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 /**
- * Evento de integracion consumido desde el topic {@code consumo-registrado}
+ * Evento de integracion consumido desde el topic {@code topic.telemetria.consumo}
  * (emitido por telemetria-service). Transporta el estado necesario para calcular
  * el cargo tarifario sin consultar al servicio origen (transferencia de estado).
  */

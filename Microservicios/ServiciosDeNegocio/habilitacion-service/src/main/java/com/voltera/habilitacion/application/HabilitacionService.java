@@ -65,7 +65,7 @@ public class HabilitacionService implements HabilitarMedidorUseCase {
                 "canales", dc.canalesComoTexto(),
                 // 'estado' se conserva: es el discriminador que usan los consumidores
                 // (p.ej. notificaciones) para distinguir MedidorHabilitado de los demas
-                // eventos del topic medidores-habilitacion.
+                // eventos del topic topic.prosumidor.estado.
                 "estado", medidor.estado().name()
         ));
         return medidor;

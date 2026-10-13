@@ -48,6 +48,11 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/reaseguro/reaseguro.component').then((m) => m.ReaseguroComponent),
   },
   {
+    path: 'cobros',
+    title: 'Cobros · Voltera',
+    loadComponent: () => import('./pages/cobros/cobros.component').then((m) => m.CobrosComponent),
+  },
+  {
     path: 'telemetria',
     title: 'Telemetría · Voltera',
     loadComponent: () => import('./pages/telemetria/telemetria.component').then((m) => m.TelemetriaComponent),

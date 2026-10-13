@@ -12,8 +12,8 @@ import org.springframework.stereotype.Component;
  * Relay del OUTBOX de Telemetria Core.
  *
  * <p>Publica ConsumoIntervaloRegistrado y MedidorSinReporte al topic principal
- * {@code telemetria-consumo-intervalos}, y además enruta las ALERTAS al topic
- * dedicado {@code telemetria-alertas} (lámina 03 · CQRS: "telemetria.alertas ·
+ * {@code topic.tarifas.calculo}, y además enruta las ALERTAS al topic
+ * dedicado {@code topic.notificaciones} (lámina 03 · CQRS: "telemetria.alertas ·
  * publican Ingesta y Core"). Hoy la única alerta de Core es
  * {@code MedidorSinReporte}.</p>
  *
@@ -24,8 +24,8 @@ import org.springframework.stereotype.Component;
 public class OutboxRelay {
 
     private static final Logger log = LoggerFactory.getLogger(OutboxRelay.class);
-    private static final String TOPIC = "telemetria-consumo-intervalos";
-    private static final String TOPIC_ALERTAS = "telemetria-alertas";
+    private static final String TOPIC = "topic.tarifas.calculo";
+    private static final String TOPIC_ALERTAS = "topic.notificaciones";
 
     private final OutboxPort outbox;
     private final KafkaTemplate<String, String> kafkaTemplate;
@@ -52,7 +52,7 @@ public class OutboxRelay {
         }
     }
 
-    /** Eventos de alerta que además se publican en {@code telemetria-alertas}. */
+    /** Eventos de alerta que además se publican en {@code topic.notificaciones}. */
     private boolean esAlerta(String tipoEvento) {
         return "MedidorSinReporte".equals(tipoEvento);
     }

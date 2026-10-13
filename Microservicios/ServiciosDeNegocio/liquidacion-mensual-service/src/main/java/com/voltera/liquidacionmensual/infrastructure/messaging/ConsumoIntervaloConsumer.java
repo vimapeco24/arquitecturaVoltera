@@ -11,7 +11,7 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 /**
- * Consume {@code telemetria-consumo-intervalos}: ante ConsumoIntervaloRegistrado
+ * Consume {@code topic.tarifas.calculo}: ante ConsumoIntervaloRegistrado
  * (trae 'consumoNetoKwh') acumula el consumo del medidor para la liquidacion
  * mensual (diagrama DDD 02: SerieDeMedicion -> Liquidacion). Ignora
  * MedidorSinReporte. Idempotente por tabla inbox (lamina 10): un intervalo repetido
@@ -22,7 +22,7 @@ import org.springframework.stereotype.Component;
 public class ConsumoIntervaloConsumer {
 
     private static final Logger log = LoggerFactory.getLogger(ConsumoIntervaloConsumer.class);
-    private static final String CONSUMIDOR = "liquidacion-mensual-consumer#telemetria-consumo-intervalos";
+    private static final String CONSUMIDOR = "liquidacion-mensual-consumer#topic.tarifas.calculo";
 
     private final AcumularConsumoUseCase useCase;
     private final InboxPort inbox;
@@ -35,7 +35,7 @@ public class ConsumoIntervaloConsumer {
         this.objectMapper = objectMapper;
     }
 
-    @KafkaListener(topics = "telemetria-consumo-intervalos", groupId = "liquidacion-mensual-consumer")
+    @KafkaListener(topics = "topic.tarifas.calculo", groupId = "liquidacion-mensual-consumer")
     public void escuchar(String mensaje) {
         try {
             String t = mensaje == null ? "" : mensaje.trim();

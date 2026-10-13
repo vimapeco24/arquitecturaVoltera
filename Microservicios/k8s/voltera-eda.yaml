@@ -4,7 +4,7 @@
 # Contiene TODO lo relacionado con la arquitectura orientada a eventos:
 #   a) Redpanda        -> broker compatible Kafka (single-node, demo)
 #   b) siniestros-service (8091) -> productor del evento SiniestroAprobado
-#   c) reaseguro-service  (8092) -> consumidor del topic siniestro-aprobado
+#   c) reaseguro-service  (8092) -> consumidor del topic topic.siniestros.aprobado
 #   d) KEDA ScaledObject -> autoescala reaseguro por lag del consumer group
 #   e) Event Mesh (bloque conceptual comentado) -> expansión multi-región
 #
@@ -67,7 +67,7 @@ spec:
 # b) SINIESTROS-SERVICE (8091) — productor del evento SiniestroAprobado
 # ----------------------------------------------------------------------------
 # Sigue el mismo patrón que los servicios de voltera-services.yaml.
-# Al aprobar un siniestro publica el evento en el topic 'siniestro-aprobado'.
+# Al aprobar un siniestro publica el evento en el topic 'topic.siniestros.aprobado'.
 # ============================================================================
 apiVersion: apps/v1
 kind: Deployment
@@ -134,7 +134,7 @@ spec:
           port: 8091
 ---
 # ============================================================================
-# c) REASEGURO-SERVICE (8092) — consumidor del topic siniestro-aprobado
+# c) REASEGURO-SERVICE (8092) — consumidor del topic topic.siniestros.aprobado
 # ----------------------------------------------------------------------------
 # Consumer group 'reaseguro-consumer'. KEDA lo autoescala (ver más abajo).
 # ============================================================================
@@ -206,7 +206,7 @@ spec:
 # d) KEDA ScaledObject — autoescalado dirigido por eventos (event-driven)
 # ----------------------------------------------------------------------------
 # KEDA escala reaseguro-service según el LAG del consumer group
-# 'reaseguro-consumer' en el topic 'siniestro-aprobado'.
+# 'reaseguro-consumer' en el topic 'topic.siniestros.aprobado'.
 #
 # REQUISITO: KEDA debe estar instalado en el cluster:
 #   helm repo add kedacore https://kedacore.github.io/charts
@@ -234,7 +234,7 @@ spec:
       metadata:
         bootstrapServers: redpanda.voltera-app:9092
         consumerGroup: reaseguro-consumer
-        topic: siniestro-aprobado
+        topic: topic.siniestros.aprobado
         lagThreshold: "10"     # umbral: >10 mensajes pendientes -> escala
 ---
 # ============================================================================
@@ -242,8 +242,8 @@ spec:
 # ----------------------------------------------------------------------------
 # telemetria-service (8093): emisor IoT. Ingesta consumo de prosumidores con
 #   procesamiento offline (store-and-forward) y publica el evento
-#   ConsumoRegistrado en el topic 'consumo-registrado'.
-# tarifa-eventos-service (8094): consumidor CQRS. Consume 'consumo-registrado',
+#   ConsumoRegistrado en el topic 'topic.telemetria.consumo'.
+# tarifa-eventos-service (8094): consumidor CQRS. Consume 'topic.telemetria.consumo',
 #   calcula el cargo por consumo extra y proyecta a la vista de lectura.
 #   KEDA lo autoescala por el lag del consumer group 'tarifa-eventos-consumer'.
 # ============================================================================
@@ -371,7 +371,7 @@ spec:
         - name: tarifa-eventos-service
           port: 8094
 ---
-# KEDA ScaledObject — autoescala tarifa-eventos por el lag del topic 'consumo-registrado'.
+# KEDA ScaledObject — autoescala tarifa-eventos por el lag del topic 'topic.telemetria.consumo'.
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
@@ -389,7 +389,7 @@ spec:
       metadata:
         bootstrapServers: redpanda.voltera-app:9092
         consumerGroup: tarifa-eventos-consumer
-        topic: consumo-registrado
+        topic: topic.telemetria.consumo
         lagThreshold: "10"     # umbral: >10 lecturas pendientes -> escala
 ---
 # ============================================================================

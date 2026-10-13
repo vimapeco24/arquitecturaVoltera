@@ -24,12 +24,12 @@ export class CadenaEdaComponent {
   ];
 
   readonly keda = [
-    { comp: 'MS Ingesta', topic: 'ami-lecturas-crudas', umbral: '5000', min: 2, max: 48 },
-    { comp: 'Telemetría Core', topic: 'telemetria-lecturas-validadas', umbral: '5000', min: 2, max: 48 },
-    { comp: 'Proyector', topic: 'telemetria-consumo-intervalos', umbral: '1000', min: 1, max: 24 },
+    { comp: 'MS Ingesta', topic: 'topic.telemetria.medidores', umbral: '5000', min: 2, max: 48 },
+    { comp: 'Telemetría Core', topic: 'topic.telemetria.validadas', umbral: '5000', min: 2, max: 48 },
+    { comp: 'Proyector', topic: 'topic.tarifas.calculo', umbral: '1000', min: 1, max: 24 },
     { comp: 'Adaptador AMI', topic: 'MQTT pendientes (Prometheus)', umbral: '10000', min: 2, max: 20 },
-    { comp: 'Notificaciones', topic: 'telemetria-alertas', umbral: '500', min: 0, max: 30 },
-    { comp: 'MS Habilitación', topic: 'ordenes-instalacion', umbral: '50', min: 1, max: 4 },
+    { comp: 'Notificaciones', topic: 'topic.notificaciones', umbral: '500', min: 0, max: 30 },
+    { comp: 'MS Habilitación', topic: 'topic.prosumidor.instalacion', umbral: '50', min: 1, max: 4 },
   ];
 
   readonly regiones = ['Colombia (principal)', 'Chile', 'México', 'Brasil'];

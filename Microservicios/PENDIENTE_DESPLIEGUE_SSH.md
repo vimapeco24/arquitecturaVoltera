@@ -1,3 +1,30 @@
+# DESPLIEGUE EJECUTADO 2026-10-07 (vía SSH a 192.168.3.11)
+
+Resumen de lo realizado en vivo (ns `voltera-app`), todo verificado:
+- Build+push amd64 a Harbor de las imágenes que faltaban: `telemetria-core`,
+  `ingesta`, `habilitacion`, `integracion-ami` y **rebuild** de `notificaciones` y
+  `telemetria-core` (la imagen previa de notificaciones era arm64 → `exec format error`).
+- `deploy-eda-completo.sh` aplicado: 5 servicios EDA nuevos + persistencia + KEDA.
+- **Persistencia**: PVCs no enlazaban (el clúster no tiene StorageClass) → se cambiaron
+  `redis` y `timescaledb` a `emptyDir`. TimescaleDB con `-c max_connections=400`
+  (el default 25 agotaba conexiones). Bases `voltera_tsdb` + `voltera_inbox` creadas.
+- **Scheduling**: se añadió toleration `control-plane` y se bajó el request del
+  sidecar Istio a 10m (`sidecar.istio.io/proxyCPU`) en todos los deployments para
+  caber en el master (2 CPU) mientras el worker estuvo en DiskPressure.
+- **KEDA**: `minReplicaCount=1` en ingesta/integracion-ami/telemetria-core/notificaciones
+  (1 pod en estado deseado, por pedido). El operador KEDA estaba en CrashLoopBackOff por
+  el scaler Prometheus de `integracion-ami` apuntando a `prometheus.istio-system` (no
+  existe) → trigger cambiado a Kafka (`medidores-habilitacion`). Operador estable.
+- **Fixes de código** (telemetria-core): `@Qualifier` para el `JdbcTemplate` ambiguo
+  (tsdb vs inbox) y bloque `inbox.datasource` en `application.yml` (antes caía a
+  `localhost`). Reconstruido y redeployado.
+
+Estado final: **18 pods Running**, worker DiskPressure=False, 5 servicios EDA en 1/1,
+TimescaleDB+Redis arriba, KEDA operando. `tarifa-eventos` y `telemetria-loadgen`
+quedan en 0 por diseño (scale-to-zero / generador de carga).
+
+---
+
 # PENDIENTE_DESPLIEGUE_SSH.md — Qué hacer cuando habiliten el acceso
 
 Estado al 2026-10-06: **todo el código, manifiestos, scripts y docs están listos y

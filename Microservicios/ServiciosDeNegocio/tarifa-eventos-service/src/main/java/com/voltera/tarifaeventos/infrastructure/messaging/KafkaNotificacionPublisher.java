@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * Adaptador de SALIDA: publica la NotificacionLiquidada en el <b>topico de
- * notificacion</b> 'notificacion-liquidada' del broker (Kafka/Redpanda).
+ * notificacion</b> 'topic.notificaciones.liquidada' del broker (Kafka/Redpanda).
  *
  * <p>Es best-effort: si el broker no responde, se loguea y se continua (la
  * notificacion no bloquea la activacion del medidor).</p>
@@ -19,7 +19,7 @@ import org.springframework.stereotype.Component;
 public class KafkaNotificacionPublisher implements NotificacionPublisherPort {
 
     private static final Logger log = LoggerFactory.getLogger(KafkaNotificacionPublisher.class);
-    private static final String TOPIC = "notificacion-liquidada";
+    private static final String TOPIC = "topic.notificaciones.liquidada";
 
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final ObjectMapper objectMapper;

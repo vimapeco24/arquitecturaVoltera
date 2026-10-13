@@ -81,9 +81,9 @@ export class ExperimentosComponent {
       num: 1,
       nombre: 'EDA · Los eventos no se pierden',
       hipotesis:
-        'Si el consumidor (reaseguro-service) está caído cuando se aprueba un siniestro, el evento queda en el broker y se procesa al volver.',
-      metrica: 'Número de cesiones creadas en reaseguro vs. siniestros aprobados en siniestros-service.',
-      criterio: '100% de los eventos aprobados generan cesión (eventual).',
+        'Si el broker está caído cuando se aprueba un siniestro, el evento se guarda en el buffer offline (store-and-forward) y se reenvía al recuperar la conexión; si el consumidor está caído, Kafka retiene el evento y se procesa al volver. En ambos casos no se pierde ningún evento.',
+      metrica: 'Número de cesiones creadas en reaseguro vs. siniestros aprobados, y eventos reenviados desde el buffer offline.',
+      criterio: '100% de los eventos aprobados generan cesión (eventual); 0 eventos pendientes tras drenar.',
       ejecutando: false,
       ejecutar: () => this.expEventosNoSePierden(),
     },
@@ -290,6 +290,18 @@ export class ExperimentosComponent {
 
     // Espera a que el consumidor procese los eventos (eventual consistency).
     await this.demora(2000);
+
+    // Store-and-forward: fuerza el drenado del buffer offline por si el broker
+    // estuvo caído al aprobar (los eventos encolados se reenvían ahora).
+    let drenado = '';
+    try {
+      const r = await firstValueFrom(this.siniestrosSvc.drenarBuffer());
+      drenado = ` Buffer offline: ${r.reenviados} reenviado(s), ${r.pendientes} pendiente(s).`;
+      if (r.reenviados > 0) await this.demora(1500);
+    } catch {
+      drenado = '';
+    }
+
     const cesiones = await firstValueFrom(this.reaseguroSvc.porPoliza(poliza));
     const encontradas = cesiones.length;
     const ok = encontradas >= aprobados;
@@ -297,7 +309,7 @@ export class ExperimentosComponent {
       ok,
       detalle: `Aprobados: ${aprobados} · Cesiones encontradas para ${poliza}: ${encontradas}. ${
         ok ? '100% de los eventos generaron cesión.' : 'Faltan cesiones (el consumidor puede seguir procesando; reintente).'
-      }`,
+      }${drenado}`,
     };
   }
 
@@ -393,11 +405,23 @@ export class ExperimentosComponent {
     ).length;
 
     const ok = despues === antes && antes >= 1;
+
+    // Evidencia robusta: la tabla INBOX del consumer registró la reentrega como duplicado.
+    let inboxTxt = '';
+    try {
+      const inbox = await firstValueFrom(this.reaseguroSvc.inbox());
+      const fila = inbox.filas.find((f) => f.eventId === eventId);
+      const vistas = fila?.vecesVistas ?? 0;
+      inboxTxt = ` INBOX: ${inbox.totalUnicos} únicos · ${inbox.totalDuplicados} duplicados (este eventId visto ${vistas}×).`;
+    } catch {
+      inboxTxt = '';
+    }
+
     return {
       ok,
       detalle: `Cesiones para siniestroId antes del reenvío: ${antes} · después: ${despues}. ${
         ok ? '0 duplicados — idempotencia correcta.' : 'Se detectó cambio en el conteo (posible duplicado).'
-      }`,
+      }${inboxTxt}`,
     };
   }
 }

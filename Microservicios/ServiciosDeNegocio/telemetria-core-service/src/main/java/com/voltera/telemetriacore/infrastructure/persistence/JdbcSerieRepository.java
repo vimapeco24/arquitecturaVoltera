@@ -5,6 +5,7 @@ import com.voltera.telemetriacore.domain.port.out.SerieRepositoryPort;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -38,7 +39,7 @@ public class JdbcSerieRepository implements SerieRepositoryPort {
 
     private final JdbcTemplate jdbc;
 
-    public JdbcSerieRepository(JdbcTemplate jdbc) {
+    public JdbcSerieRepository(@Qualifier("jdbcTemplate") JdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
 

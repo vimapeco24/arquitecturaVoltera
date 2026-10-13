@@ -1,54 +1,79 @@
-<section class="domain-page">
-  <header class="page-head">
-    <div>
-      <h1>Telemetría Core · CQRS</h1>
-      <p class="sub">Lado <b>command</b>: serie append-only (TSDB). Lado <b>query</b>: vista por intervalo + vista agregada (Redis), materializadas por el Proyector.</p>
-    </div>
-    <button class="btn ghost" (click)="refrescar()" [disabled]="cargando">↻ Refrescar</button>
-  </header>
+<div class="v-page v-fade">
+  <div class="v-page-head">
+    <span class="v-eyebrow">⚡ Cadena EDA · CQRS</span>
+    <h1>Telemetría Core · CQRS</h1>
+    <p>Lado <b>command</b>: serie append-only (TSDB). Lado <b>query</b>: vista por intervalo + vista agregada (Redis), materializadas por el Proyector.</p>
+  </div>
 
-  <div class="grid">
-    <article class="card">
-      <h2>Command · inyectar LecturaValidada</h2>
-      <form [formGroup]="form" (ngSubmit)="simular()" class="form">
-        <label>Serial<input formControlName="medidorSerial" /></label>
-        <label>Consumo (kWh)<input type="number" formControlName="consumoKwh" /></label>
-        <button class="btn primary" type="submit">Registrar lectura</button>
-      </form>
+  <div class="layout">
+    <form class="panel v-card" [formGroup]="form" (ngSubmit)="simular()">
+      <h3>Command · inyectar LecturaValidada</h3>
+      <p class="sub">Escribe en la serie append-only.</p>
+
+      <div class="row2">
+        <div class="v-field"><label>Serial</label><input class="v-input" formControlName="medidorSerial" placeholder="SER-001" /></div>
+        <div class="v-field"><label>Consumo (kWh)</label><input class="v-input" type="number" formControlName="consumoKwh" /></div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="v-btn primary">Registrar lectura</button>
+      </div>
       <p class="hint">Al cerrarse un intervalo de 15 min se emite <code>ConsumoIntervaloRegistrado</code> y el Proyector actualiza las dos vistas.</p>
-    </article>
+    </form>
 
-    <article class="card">
-      <h2>Query · vista agregada ({{ agregados.length }})</h2>
-      <table class="tbl" *ngIf="agregados.length; else sinAgg">
-        <thead><tr><th>Medidor</th><th>Total kWh</th><th>Intervalos</th><th>Último fin</th></tr></thead>
+    <div class="result v-card">
+      <div class="result-head">
+        <h3>Query · vista agregada</h3>
+        <span class="count">{{ agregados.length }} medidores</span>
+      </div>
+
+      <div class="inline-query">
+        <button class="v-btn" (click)="refrescar()" [disabled]="cargando">🔄 Refrescar</button>
+      </div>
+
+      <div class="v-empty" *ngIf="!agregados.length">
+        <div class="ic">📊</div><p>Sin agregados aún.</p>
+      </div>
+
+      <div class="v-table-wrap" *ngIf="agregados.length" style="margin-top:16px">
+        <table class="v-table">
+          <thead><tr><th>Medidor</th><th>Total kWh</th><th>Intervalos</th><th>Último fin</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let a of agregados">
+              <td class="v-mono">{{ a.medidorSerial }}</td>
+              <td class="v-mono"><strong>{{ a.consumoTotalKwh | number:'1.0-3' }}</strong></td>
+              <td>{{ a.intervalosRegistrados }}</td>
+              <td>{{ a.ultimoIntervaloFin || '—' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="result v-card full-section">
+    <div class="result-head">
+      <h3>Query · vista por intervalo</h3>
+      <span class="count">{{ vistas.length }} intervalos</span>
+    </div>
+
+    <div class="v-empty" *ngIf="!vistas.length">
+      <div class="ic">🕒</div><p>Sin intervalos cerrados aún.</p>
+    </div>
+
+    <div class="v-table-wrap" *ngIf="vistas.length" style="margin-top:16px">
+      <table class="v-table">
+        <thead><tr><th>Medidor</th><th>Inicio</th><th>Fin</th><th>Neto kWh</th><th>Lecturas</th></tr></thead>
         <tbody>
-          <tr *ngFor="let a of agregados">
-            <td>{{ a.medidorSerial }}</td>
-            <td>{{ a.consumoTotalKwh | number:'1.0-3' }}</td>
-            <td>{{ a.intervalosRegistrados }}</td>
-            <td>{{ a.ultimoIntervaloFin || '—' }}</td>
+          <tr *ngFor="let v of vistas">
+            <td class="v-mono">{{ v.medidorSerial }}</td>
+            <td>{{ v.inicioIntervalo }}</td>
+            <td>{{ v.finIntervalo }}</td>
+            <td class="v-mono"><strong>{{ v.consumoNetoKwh | number:'1.0-3' }}</strong></td>
+            <td>{{ v.numLecturas }}</td>
           </tr>
         </tbody>
       </table>
-      <ng-template #sinAgg><p class="muted">Sin agregados aún.</p></ng-template>
-    </article>
+    </div>
   </div>
-
-  <article class="card">
-    <h2>Query · vista por intervalo ({{ vistas.length }})</h2>
-    <table class="tbl" *ngIf="vistas.length; else sinVista">
-      <thead><tr><th>Medidor</th><th>Inicio</th><th>Fin</th><th>Neto kWh</th><th>Lecturas</th></tr></thead>
-      <tbody>
-        <tr *ngFor="let v of vistas">
-          <td>{{ v.medidorSerial }}</td>
-          <td>{{ v.inicioIntervalo }}</td>
-          <td>{{ v.finIntervalo }}</td>
-          <td>{{ v.consumoNetoKwh | number:'1.0-3' }}</td>
-          <td>{{ v.numLecturas }}</td>
-        </tr>
-      </tbody>
-    </table>
-    <ng-template #sinVista><p class="muted">Sin intervalos cerrados aún.</p></ng-template>
-  </article>
-</section>
+</div>

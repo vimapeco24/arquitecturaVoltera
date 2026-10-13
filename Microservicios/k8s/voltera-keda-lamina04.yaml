@@ -5,9 +5,9 @@
 # la lamina 12. KEDA escala por el LAG del consumer group (no por CPU):
 #     replicas_deseadas = ceil(lag_total / lagThreshold), acotado [min, max].
 #
-# NOTA sobre nombres de topic: la lamina los escribe con punto
-#   (ami.lecturas.crudas); el codigo/broker usa guion (ami-lecturas-crudas).
-#   Aqui se usan los REALES (guion) para que el scaler encuentre el topic.
+# NOTA sobre nombres de topic: ya alineados al diagrama (Opcion B). El codigo y
+#   el broker usan los nombres del diagrama con punto (p.ej. topic.telemetria.medidores).
+#   Declaracion central en voltera-topics.yaml.
 #
 # REQUISITO: KEDA instalado en el cluster:
 #   helm repo add kedacore https://kedacore.github.io/charts && helm repo update
@@ -19,7 +19,7 @@
 # ============================================================================
 
 # ---------------------------------------------------------------------------
-# 1) MS INGESTA — lag en ami-lecturas-crudas · 5000 msgs/replica · 2..48
+# 1) MS INGESTA — lag en topic.telemetria.medidores · 5000 msgs/replica · 2..48
 #    Ruta critica (99,99%): minimo 2, NO baja a cero.
 # ---------------------------------------------------------------------------
 apiVersion: keda.sh/v1alpha1
@@ -39,11 +39,11 @@ spec:
       metadata:
         bootstrapServers: redpanda.voltera-app:9092
         consumerGroup: ingesta-consumer
-        topic: ami-lecturas-crudas
+        topic: topic.telemetria.medidores
         lagThreshold: "5000"
 ---
 # ---------------------------------------------------------------------------
-# 2) TELEMETRIA CORE (escritura) — lag en telemetria-lecturas-validadas
+# 2) TELEMETRIA CORE (escritura) — lag en topic.telemetria.validadas
 #    5000 msgs/replica · 2..48
 # ---------------------------------------------------------------------------
 apiVersion: keda.sh/v1alpha1
@@ -63,11 +63,11 @@ spec:
       metadata:
         bootstrapServers: redpanda.voltera-app:9092
         consumerGroup: telemetria-core-consumer
-        topic: telemetria-lecturas-validadas
+        topic: topic.telemetria.validadas
         lagThreshold: "5000"
 ---
 # ---------------------------------------------------------------------------
-# 3) PROYECTOR (lectura · CQRS) — lag en telemetria-consumo-intervalos
+# 3) PROYECTOR (lectura · CQRS) — lag en topic.tarifas.calculo
 #    1000 msgs/replica (protege la frescura de la vista p95<=5s) · 1..24
 #
 #    En el codigo el proyector vive dentro de telemetria-core; si se despliega
@@ -92,11 +92,11 @@ spec:
       metadata:
         bootstrapServers: redpanda.voltera-app:9092
         consumerGroup: telemetria-core-proyector
-        topic: telemetria-consumo-intervalos
+        topic: topic.tarifas.calculo
         lagThreshold: "1000"
 ---
 # ---------------------------------------------------------------------------
-# 5) NOTIFICACIONES (alertas) — lag en telemetria-alertas · 500 msgs/replica
+# 5) NOTIFICACIONES (alertas) — lag en topic.notificaciones · 500 msgs/replica
 #    0..30 · SCALE TO ZERO (sin alertas no hay pods).
 #    activationLagThreshold: a partir de 1 mensaje pendiente despierta de 0.
 # ---------------------------------------------------------------------------
@@ -117,12 +117,12 @@ spec:
       metadata:
         bootstrapServers: redpanda.voltera-app:9092
         consumerGroup: notificaciones-consumer
-        topic: telemetria-alertas
+        topic: topic.notificaciones
         lagThreshold: "500"
         activationLagThreshold: "1"   # despierta de 0 con >=1 alerta pendiente
 ---
 # ---------------------------------------------------------------------------
-# 6) MS HABILITACION — lag en ordenes-instalacion · 50 msgs/replica · 1..4
+# 6) MS HABILITACION — lag en topic.prosumidor.instalacion · 50 msgs/replica · 1..4
 #    Minimo 1: mantiene los temporizadores de las altas en curso.
 # ---------------------------------------------------------------------------
 apiVersion: keda.sh/v1alpha1
@@ -142,5 +142,5 @@ spec:
       metadata:
         bootstrapServers: redpanda.voltera-app:9092
         consumerGroup: habilitacion-consumer
-        topic: ordenes-instalacion
+        topic: topic.prosumidor.instalacion
         lagThreshold: "50"

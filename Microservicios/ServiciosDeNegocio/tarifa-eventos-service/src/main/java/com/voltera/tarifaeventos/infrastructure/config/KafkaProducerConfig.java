@@ -14,7 +14,7 @@ import java.util.Map;
 
 /**
  * Configuracion del productor Kafka usado para publicar en el topico de
- * notificacion ('notificacion-liquidada'). Best-effort con timeouts cortos.
+ * notificacion ('topic.notificaciones.liquidada'). Best-effort con timeouts cortos.
  */
 @Configuration
 public class KafkaProducerConfig {

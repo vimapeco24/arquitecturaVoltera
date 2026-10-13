@@ -10,13 +10,13 @@ import org.springframework.stereotype.Component;
 
 /**
  * Relay del OUTBOX del ACL: publica LecturaCrudaRecibida y ProveedorDegradado al
- * topic {@code ami-lecturas-crudas} (clave = medidorSerial / proveedor).
+ * topic {@code topic.telemetria.medidores} (clave = medidorSerial / proveedor).
  */
 @Component
 public class OutboxRelay {
 
     private static final Logger log = LoggerFactory.getLogger(OutboxRelay.class);
-    private static final String TOPIC = "ami-lecturas-crudas";
+    private static final String TOPIC = "topic.telemetria.medidores";
 
     private final OutboxPort outbox;
     private final KafkaTemplate<String, String> kafkaTemplate;
