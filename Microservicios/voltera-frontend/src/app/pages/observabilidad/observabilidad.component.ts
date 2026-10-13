@@ -200,21 +200,28 @@ export class ObservabilidadComponent implements OnInit {
   ];
 
   /**
-   * Dashboard de Grafana que se abre YA cargado: "Istio Mesh Dashboard".
-   * El UID es estable (viene provisionado por el addon de Istio) y Prometheus
-   * es el datasource por defecto, así que abre mostrando tráfico, éxito y la
-   * tabla de latencia p50/p90/p99 por servicio sin tocar nada.
+   * Dashboard de Grafana que se abre YA cargado: el "Overview" de Voltera
+   * (uid voltera-overview), que cubre los 17 servicios, latencia por salto,
+   * mTLS, circuit breaker (503), KEDA/réplicas y códigos HTTP. Se importa con
+   * k8s/grafana-import-dashboards.sh. Si aún no está provisionado, el usuario
+   * puede pegar en el editor de endpoints una URL /d/<uid> y se respeta.
    */
   readonly grafanaDashboard = {
-    uid: '1a9a8ea49444aae205c7737573e894f9',
-    slug: 'istio-mesh-dashboard',
-    from: 'now-1h',
+    uid: 'voltera-overview',
+    slug: 'voltera-plataforma-overview-mesh-eda',
+    from: 'now-30m',
     to: 'now',
-    refresh: '15s',
+    refresh: '10s',
     // UID real del datasource Prometheus provisionado en este Grafana (evita el
     // "No data" por variable de datasource sin resolver).
     datasourceUid: 'PBFA97CFB590B2093',
     timezone: 'utc',
+  };
+
+  /** Dashboard oficial del addon de Istio (fallback si el overview no está importado). */
+  readonly grafanaIstioDashboard = {
+    uid: '1a9a8ea49444aae205c7737573e894f9',
+    slug: 'istio-mesh-dashboard',
   };
 
   /** Namespace del mesh que se abre ya filtrado en el grafo de Kiali. */
@@ -230,7 +237,7 @@ export class ObservabilidadComponent implements OnInit {
   subtituloTool(clave: ClaveTool): string {
     switch (clave) {
       case 'prometheus': return 'Abrir con consultas del mesh';
-      case 'grafana': return 'Abrir dashboard del mesh';
+      case 'grafana': return 'Overview Voltera · mesh + EDA (17 svc)';
       case 'kiali': return 'Abrir grafo del namespace';
       case 'jaeger': return 'Abrir trazas de facturación';
       default: return 'Abrir tablero';

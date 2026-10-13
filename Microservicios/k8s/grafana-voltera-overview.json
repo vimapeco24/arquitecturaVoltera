@@ -1,0 +1,152 @@
+{
+  "dashboard": {
+    "uid": "voltera-overview",
+    "title": "Voltera — Plataforma (Overview Mesh + EDA)",
+    "tags": ["voltera", "mesh", "eda", "overview"],
+    "timezone": "browser",
+    "schemaVersion": 39,
+    "refresh": "10s",
+    "style": "dark",
+    "time": { "from": "now-30m", "to": "now" },
+    "templating": {
+      "list": [
+        { "name": "DS_PROMETHEUS", "type": "datasource", "query": "prometheus", "current": { "text": "Prometheus", "value": "PBFA97CFB590B2093" } },
+        {
+          "name": "servicio", "type": "query", "label": "Servicio",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "query": "label_values(istio_requests_total{destination_service_namespace=\"voltera-app\"}, destination_workload)",
+          "includeAll": true, "multi": true, "current": { "text": "All", "value": "$__all" }
+        }
+      ]
+    },
+    "panels": [
+      { "id": 1, "type": "row", "title": "Resumen del mesh", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 } },
+      {
+        "id": 10, "type": "stat", "title": "Servicios operativos",
+        "gridPos": { "h": 5, "w": 6, "x": 0, "y": 1 },
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "color": { "mode": "fixed", "fixedColor": "green" } } },
+        "options": { "colorMode": "value", "graphMode": "area", "textMode": "value", "reduceOptions": { "calcs": ["lastNotNull"] } },
+        "targets": [ { "refId": "A", "expr": "count(count by (app) (kube_pod_status_ready{namespace=\"voltera-app\",condition=\"true\"} == 1)) or vector(0)" } ]
+      },
+      {
+        "id": 11, "type": "stat", "title": "Peticiones · req/s (mesh)",
+        "gridPos": { "h": 5, "w": 6, "x": 6, "y": 1 },
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "fieldConfig": { "defaults": { "unit": "reqps", "decimals": 2, "color": { "mode": "fixed", "fixedColor": "blue" } } },
+        "options": { "colorMode": "value", "graphMode": "area", "textMode": "value", "reduceOptions": { "calcs": ["lastNotNull"] } },
+        "targets": [ { "refId": "A", "expr": "sum(rate(istio_requests_total{destination_service_namespace=\"voltera-app\"}[2m])) or vector(0)" } ]
+      },
+      {
+        "id": 12, "type": "gauge", "title": "Éxito de peticiones",
+        "gridPos": { "h": 5, "w": 6, "x": 12, "y": 1 },
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "yellow", "value": 90 }, { "color": "green", "value": 99 } ] } } },
+        "options": { "showThresholdMarkers": true, "reduceOptions": { "calcs": ["lastNotNull"] } },
+        "targets": [ { "refId": "A", "expr": "100 * sum(rate(istio_requests_total{destination_service_namespace=\"voltera-app\",response_code!~\"5..\"}[5m])) / clamp_min(sum(rate(istio_requests_total{destination_service_namespace=\"voltera-app\"}[5m])),0.0001)" } ]
+      },
+      {
+        "id": 13, "type": "gauge", "title": "Tráfico con mTLS (STRICT)",
+        "gridPos": { "h": 5, "w": 6, "x": 18, "y": 1 },
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "yellow", "value": 80 }, { "color": "green", "value": 99 } ] } } },
+        "options": { "showThresholdMarkers": true, "reduceOptions": { "calcs": ["lastNotNull"] } },
+        "targets": [ { "refId": "A", "expr": "100 * sum(rate(istio_requests_total{destination_service_namespace=\"voltera-app\",connection_security_policy=\"mutual_tls\"}[5m])) / clamp_min(sum(rate(istio_requests_total{destination_service_namespace=\"voltera-app\"}[5m])),0.0001)" } ]
+      },
+
+      { "id": 2, "type": "row", "title": "Estado de los 17 microservicios", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 6 } },
+      {
+        "id": 20, "type": "stat", "title": "Pods ready por servicio",
+        "description": "1+ = operativo. Un panel por workload del namespace voltera-app.",
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 7 },
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "fieldConfig": { "defaults": {
+          "unit": "short", "decimals": 0,
+          "mappings": [ { "type": "value", "options": { "0": { "text": "● Caído", "color": "red" } } }, { "type": "range", "options": { "from": 1, "to": 999, "result": { "text": "● Operativo", "color": "green" } } } ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] }
+        } },
+        "options": { "colorMode": "background", "graphMode": "none", "textMode": "value_and_name", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "" } },
+        "targets": [ { "refId": "A", "expr": "sum by (app) (kube_pod_status_ready{namespace=\"voltera-app\",condition=\"true\"} == 1)", "legendFormat": "{{app}}" } ]
+      },
+
+      { "id": 3, "type": "row", "title": "Latencia por servicio (p50 / p95 / p99)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 15 } },
+      {
+        "id": 30, "type": "timeseries", "title": "Latencia p95 (ms) por servicio",
+        "gridPos": { "h": 9, "w": 12, "x": 0, "y": 16 },
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "fieldConfig": { "defaults": { "unit": "ms", "custom": { "drawStyle": "line", "fillOpacity": 12, "lineWidth": 2, "gradientMode": "opacity", "showPoints": "never" } } },
+        "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+        "targets": [ { "refId": "A", "expr": "histogram_quantile(0.95, sum by (le, destination_workload) (rate(istio_request_duration_milliseconds_bucket{destination_service_namespace=\"voltera-app\",destination_workload=~\"$servicio\"}[5m])))", "legendFormat": "{{destination_workload}}" } ]
+      },
+      {
+        "id": 31, "type": "timeseries", "title": "Latencia p50 / p95 / p99 (agregado del mesh)",
+        "gridPos": { "h": 9, "w": 12, "x": 12, "y": 16 },
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "fieldConfig": { "defaults": { "unit": "ms", "custom": { "drawStyle": "line", "fillOpacity": 12, "lineWidth": 2, "gradientMode": "opacity", "showPoints": "never" } } },
+        "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"] }, "tooltip": { "mode": "multi" } },
+        "targets": [
+          { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(istio_request_duration_milliseconds_bucket{destination_service_namespace=\"voltera-app\"}[5m])))", "legendFormat": "p50" },
+          { "refId": "B", "expr": "histogram_quantile(0.95, sum by (le) (rate(istio_request_duration_milliseconds_bucket{destination_service_namespace=\"voltera-app\"}[5m])))", "legendFormat": "p95" },
+          { "refId": "C", "expr": "histogram_quantile(0.99, sum by (le) (rate(istio_request_duration_milliseconds_bucket{destination_service_namespace=\"voltera-app\"}[5m])))", "legendFormat": "p99" }
+        ]
+      },
+      {
+        "id": 32, "type": "table", "title": "Latencia por salto (source → destination)",
+        "description": "La métrica clave del mesh: latencia p50 de cada salto entre microservicios.",
+        "gridPos": { "h": 9, "w": 24, "x": 0, "y": 25 },
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "fieldConfig": { "defaults": { "unit": "ms", "decimals": 1 } },
+        "options": { "showHeader": true },
+        "targets": [ { "refId": "A", "format": "table", "instant": true, "expr": "histogram_quantile(0.5, sum by (le, source_workload, destination_workload) (rate(istio_request_duration_milliseconds_bucket{reporter=\"destination\",destination_service_namespace=\"voltera-app\"}[5m])))" } ],
+        "transformations": [ { "id": "organize", "options": { "excludeByName": { "Time": true }, "renameByName": { "source_workload": "Origen", "destination_workload": "Destino", "Value": "p50 (ms)" } } } ]
+      },
+
+      { "id": 4, "type": "row", "title": "Tráfico, errores y códigos", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 } },
+      {
+        "id": 40, "type": "timeseries", "title": "Throughput por servicio (req/s)",
+        "gridPos": { "h": 9, "w": 12, "x": 0, "y": 35 },
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 12, "lineWidth": 2, "gradientMode": "opacity", "showPoints": "never" } } },
+        "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+        "targets": [ { "refId": "A", "expr": "sum by (destination_workload) (rate(istio_requests_total{destination_service_namespace=\"voltera-app\",destination_workload=~\"$servicio\"}[2m]))", "legendFormat": "{{destination_workload}}" } ]
+      },
+      {
+        "id": 41, "type": "piechart", "title": "Códigos de respuesta HTTP (15m)",
+        "gridPos": { "h": 9, "w": 6, "x": 12, "y": 35 },
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "options": { "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] }, "pieType": "donut" },
+        "targets": [ { "refId": "A", "expr": "sum by (response_code) (increase(istio_requests_total{destination_service_namespace=\"voltera-app\"}[15m]))", "legendFormat": "HTTP {{response_code}}" } ]
+      },
+      {
+        "id": 42, "type": "stat", "title": "Errores 5xx (15m) · Circuit Breaker",
+        "description": "503 UO = fail-fast del circuit breaker (Envoy). >0 indica cortes de la malla.",
+        "gridPos": { "h": 9, "w": 6, "x": 18, "y": 35 },
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } } },
+        "options": { "colorMode": "background", "graphMode": "area", "textMode": "value", "reduceOptions": { "calcs": ["lastNotNull"] } },
+        "targets": [ { "refId": "A", "expr": "sum(increase(istio_requests_total{destination_service_namespace=\"voltera-app\",response_code=~\"5..\"}[15m])) or vector(0)" } ]
+      },
+
+      { "id": 5, "type": "row", "title": "Escalabilidad (KEDA) y disponibilidad", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 44 } },
+      {
+        "id": 50, "type": "timeseries", "title": "Réplicas por servicio (KEDA / HPA)",
+        "description": "Ante picos de carga/lag, KEDA crea pods. Observa el escalado y la vuelta al mínimo.",
+        "gridPos": { "h": 9, "w": 12, "x": 0, "y": 45 },
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "custom": { "drawStyle": "line", "lineInterpolation": "stepAfter", "fillOpacity": 12, "lineWidth": 2, "showPoints": "always" } } },
+        "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"] } },
+        "targets": [ { "refId": "A", "expr": "sum by (app) (kube_pod_status_ready{namespace=\"voltera-app\",condition=\"true\"} == 1)", "legendFormat": "{{app}}" } ]
+      },
+      {
+        "id": 51, "type": "timeseries", "title": "Reinicios de pods (estabilidad)",
+        "gridPos": { "h": 9, "w": 12, "x": 12, "y": 45 },
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "custom": { "drawStyle": "bars", "fillOpacity": 40, "lineWidth": 1 } } },
+        "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "sum"] } },
+        "targets": [ { "refId": "A", "expr": "sum by (pod) (increase(kube_pod_container_status_restarts_total{namespace=\"voltera-app\"}[1h])) > 0", "legendFormat": "{{pod}}" } ]
+      }
+    ]
+  },
+  "overwrite": true,
+  "message": "Voltera Overview — mesh + EDA, 17 servicios, latencia por salto, mTLS, CB, KEDA"
+}

@@ -193,3 +193,20 @@ git <lo-que-sea>
   Entrega 2. facturacion = breaker agresivo (demo); el resto, límites de producción.
 - Dashboard Grafana de telemetría: `k8s/grafana-telemetria-dashboard.json`.
 - Verificado: 17 DR (YAML OK), frontend tsc + build de producción sin warnings.
+
+---
+
+## Grafana completo (sesión posterior)
+
+- **Dashboard nuevo** `k8s/grafana-voltera-overview.json` (uid `voltera-overview`, 18 paneles):
+  resumen del mesh (servicios UP, req/s, % éxito, % mTLS), estado de los 17 microservicios,
+  latencia p50/p95/p99 por servicio y **tabla de latencia por salto** (source→destination),
+  throughput por servicio, códigos HTTP (donut), **errores 5xx / circuit breaker**,
+  **réplicas por servicio (KEDA/HPA)** y reinicios de pods. Variable `$servicio` para filtrar.
+- Dashboard existente `grafana-telemetria-dashboard.json` (uid `voltera-telemetria-eda`) se conserva.
+- **Importador** `k8s/grafana-import-dashboards.sh`: hace POST /api/dashboards/db con basic
+  auth o token. Uso: `GRAFANA_URL=... GRAFANA_USER=admin GRAFANA_PASS=admin ./grafana-import-dashboards.sh`.
+- **Frontend**: el botón Grafana ahora abre el overview de Voltera (uid voltera-overview)
+  con rango/refresh/datasource resueltos; subtítulo "Overview Voltera · mesh + EDA (17 svc)".
+- Métricas requeridas: istio_requests_total, istio_request_duration_milliseconds_bucket
+  (addon Istio Prometheus) y kube_pod_status_ready / restarts_total (kube-state-metrics).
