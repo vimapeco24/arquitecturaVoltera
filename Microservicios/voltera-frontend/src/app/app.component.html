@@ -59,7 +59,7 @@
 <div class="v-toast-stack">
   <div *ngFor="let t of toastSvc.toasts()" class="v-toast" [class.ok]="t.type === 'ok'" [class.err]="t.type === 'err'">
     <div class="t-body">
-      <div class="t-title">{{ t.title }}</div>
+      <div class="t-title">{{ t.title }}<span class="t-count" *ngIf="t.count > 1"> ×{{ t.count }}</span></div>
       <div class="t-msg" *ngIf="t.msg">{{ t.msg }}</div>
     </div>
     <button class="t-close" (click)="toastSvc.dismiss(t.id)">✕</button>

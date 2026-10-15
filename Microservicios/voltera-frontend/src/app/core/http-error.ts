@@ -24,6 +24,9 @@ export function describeHttpError(e: unknown): string {
     if (e.status === 404) {
       return 'Ruta no encontrada (404). Verifica que la API esté publicada y desplegada en el gateway.';
     }
+    if (e.status === 502 || e.status === 503 || e.status === 504) {
+      return 'El servidor backend no responde en este momento (gateway WSO2 inalcanzable). Reintenta cuando el servidor y la VPN estén arriba.';
+    }
     if (e.status >= 500) {
       return `Error del servicio backend (${e.status}). ${extractMsg(e) ?? ''}`.trim();
     }
