@@ -1,0 +1,162 @@
+<div class="v-page v-fade">
+  <div class="v-page-head">
+    <span class="v-eyebrow">🧭 Guía · Cómo funciona el experimento</span>
+    <h1>Guía del Experimento Voltera</h1>
+    <p>
+      Recorrido detallado de cómo debe funcionar el experimento de punta a punta:
+      el ciclo comercial de las comunidades energéticas (6 pasos) más la cadena
+      de telemetría orientada a eventos (EDA). Cada bloque está alineado con los
+      microservicios reales desplegados y las rutas que consume este mismo front
+      a través del API Gateway WSO2.
+    </p>
+  </div>
+
+  <!-- Objetivo -->
+  <div class="v-card doc-card">
+    <div class="result-head"><h3>🎯 Objetivo</h3></div>
+    <p class="hint">
+      Demostrar una arquitectura de nueva generación para comunidades energéticas:
+      microservicios por dominio, comunicación síncrona (REST a través del gateway)
+      y asíncrona (eventos sobre Redpanda), con persistencia CQRS, idempotencia por
+      <code>inbox</code>, autoescalado dirigido por eventos (KEDA) y observabilidad
+      completa. El experimento valida que un prosumidor pueda tarificar, liquidar,
+      facturar y pagar su energía, y que la telemetría de los medidores fluya y
+      escale de forma resiliente.
+    </p>
+  </div>
+
+  <!-- Prerrequisitos -->
+  <div class="v-card doc-card">
+    <div class="result-head"><h3>✅ Prerrequisitos</h3></div>
+    <ol class="flujo">
+      <li *ngFor="let p of prerequisitos; let i = index">
+        <span class="step-num">{{ i + 1 }}</span>
+        <div class="step-body">
+          <b>{{ p.titulo }}</b>
+          <span>{{ p.detalle }}</span>
+        </div>
+      </li>
+    </ol>
+  </div>
+
+  <!-- Topología de conexión -->
+  <div class="v-card doc-card">
+    <div class="result-head"><h3>🔌 Cómo se conecta el front con el backend</h3></div>
+    <ol class="flujo">
+      <li>
+        <span class="step-num">1</span>
+        <div class="step-body">
+          <b>Token OAuth2</b>
+          <span>El navegador pide un token a <code>/api/token</code> (BFF serverless) → server-to-server a WSO2 <code>:3001/oauth2/token</code> con <code>grant_type=client_credentials</code>.</span>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">2</span>
+        <div class="step-body">
+          <b>Llamada a la API</b>
+          <span>Cada servicio Angular llama <code>/api/gw/&lt;servicio&gt;/v1/api/v1/...</code> con <code>Authorization: Bearer</code>. El BFF reenvía al gateway WSO2 <code>:3000</code>.</span>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">3</span>
+        <div class="step-body">
+          <b>Enrutamiento</b>
+          <span>WSO2 enruta al microservicio dentro de Kubernetes (namespace <code>voltera-app</code>). El front <strong>nunca</strong> habla directo con los pods.</span>
+        </div>
+      </li>
+    </ol>
+    <p class="hint">
+      Patrón de URL (ver <code>core/gateway.ts</code>): <code>gw('{{ svc.tarifas }}', 'api/v1/tarifas')</code>
+      → <code>/api/gw/{{ svc.tarifas }}/v1/api/v1/tarifas</code>.
+    </p>
+  </div>
+
+  <!-- Flujo de negocio: 6 pasos -->
+  <div class="v-card doc-card">
+    <div class="result-head">
+      <h3>⚡ Flujo de negocio (ciclo comercial · 6 pasos)</h3>
+      <span class="count">ejecútalos en orden</span>
+    </div>
+    <div class="v-table-wrap">
+      <table class="v-table">
+        <thead>
+          <tr><th>#</th><th>Servicio</th><th>Qué ocurre</th><th>Resultado esperado</th><th>Ir</th></tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let s of flujoNegocio">
+            <td><span class="step-num">{{ s.paso }}</span></td>
+            <td>
+              <strong>{{ s.servicio }}</strong>
+              <div class="v-mono api-hint">{{ s.api }}</div>
+            </td>
+            <td>{{ s.que }}</td>
+            <td>{{ s.espera }}</td>
+            <td><a class="v-btn tiny" [routerLink]="s.ruta">Abrir</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="hint">
+      El resultado del paso anterior alimenta al siguiente: la tarifa del paso 1 se
+      usa al liquidar y facturar; el pago del paso 6 confirma el ciclo y dispara la
+      conciliación en <a routerLink="/cobros">Cobros</a>.
+    </p>
+  </div>
+
+  <!-- Cadena EDA -->
+  <div class="v-card doc-card">
+    <div class="result-head"><h3>🕸️ Cadena de telemetría (EDA · coreografía)</h3></div>
+    <ol class="flujo">
+      <li *ngFor="let c of cadenaEda; let i = index">
+        <span class="step-num">{{ i + 1 }}</span>
+        <div class="step-body">
+          <b>{{ c.comp }} · <a [routerLink]="c.ruta">ver página</a></b>
+          <span>{{ c.rol }}</span>
+        </div>
+      </li>
+    </ol>
+    <p class="hint">
+      Coreografía sin coordinador central: cada servicio reacciona al evento del
+      anterior. El particionado por <code>medidorId</code> conserva el orden por
+      medidor. Más detalle en <a routerLink="/cadena-eda">Cadena EDA · KEDA</a>.
+    </p>
+  </div>
+
+  <!-- Cómo probar -->
+  <div class="v-card doc-card">
+    <div class="result-head"><h3>🧪 Cómo ejecutar la prueba</h3></div>
+    <ol class="flujo">
+      <li *ngFor="let paso of comoProbar; let i = index">
+        <span class="step-num">{{ i + 1 }}</span>
+        <div class="step-body"><span>{{ paso }}</span></div>
+      </li>
+    </ol>
+    <div class="btn-group">
+      <a class="v-btn" routerLink="/panel">◎ Ir al Panel (salud)</a>
+      <a class="v-btn" routerLink="/tarifas">⚡ Empezar en Tarifas</a>
+      <a class="v-btn" routerLink="/observabilidad">🔭 Observabilidad</a>
+    </div>
+  </div>
+
+  <!-- Resultados esperados -->
+  <div class="v-card doc-card">
+    <div class="result-head"><h3>📋 Resultados esperados (criterios de éxito)</h3></div>
+    <div class="v-table-wrap">
+      <table class="v-table">
+        <thead><tr><th>Criterio</th><th>Se considera correcto si…</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let r of resultadosEsperados">
+            <td><span class="v-badge ok">{{ r.criterio }}</span></td>
+            <td>{{ r.ok }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="hint">
+      Si algún servicio aparece DOWN en el Panel, revisa que su pod esté Running en
+      el clúster y que la API esté publicada en el gateway WSO2. Los servicios con
+      autoescalado a cero (p. ej. tarifa-eventos) pueden responder tras recibir el
+      primer evento.
+    </p>
+  </div>
+</div>

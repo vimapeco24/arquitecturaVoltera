@@ -1,0 +1,49 @@
+:host { display: block; }
+
+/* Tarjetas documentativas (mismo patrón que cadena-eda) */
+.doc-card { padding: 24px 26px; margin-bottom: 22px; }
+.doc-card:last-child { margin-bottom: 0; }
+.doc-card .result-head { margin-bottom: 18px; }
+.result-head { display: flex; align-items: center; justify-content: space-between; }
+.result-head h3 { font-size: 17px; font-weight: 700; }
+.count { font-size: 12.5px; color: var(--v-text-dim); }
+
+/* Lista de pasos numerados */
+.flujo { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.flujo li {
+  display: flex; align-items: flex-start; gap: 14px;
+  padding: 14px 16px; background: var(--v-bg-2);
+  border: 1px solid var(--v-border); border-radius: 12px;
+  transition: 0.15s;
+}
+.flujo li:hover { border-color: var(--v-primary); transform: translateX(2px); }
+.flujo .step-num {
+  flex: 0 0 auto; width: 28px; height: 28px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 13px; font-weight: 800;
+  color: var(--v-primary); background: rgba(34, 201, 138, 0.12);
+  border: 1px solid rgba(34, 201, 138, 0.3); font-variant-numeric: tabular-nums;
+}
+.flujo .step-body { display: flex; flex-direction: column; gap: 3px; }
+.flujo .step-body b { font-size: 14.5px; font-weight: 700; }
+.flujo .step-body span { font-size: 13px; color: var(--v-text-soft); line-height: 1.55; }
+
+/* Pista debajo de cada bloque */
+.hint { font-size: 12.5px; color: var(--v-text-dim); margin-top: 14px; line-height: 1.6; }
+.hint code {
+  background: var(--v-surface); padding: 1px 6px; border-radius: 5px; color: var(--v-accent);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+.hint a, .step-body a { color: var(--v-primary); text-decoration: none; }
+.hint a:hover, .step-body a:hover { text-decoration: underline; }
+
+/* Celda con el endpoint del API bajo el nombre del servicio */
+.api-hint {
+  font-size: 11.5px; color: var(--v-text-dim); margin-top: 4px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* Grupo de botones de acción */
+.btn-group { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+
+/* Botón pequeño para la columna "Ir" de la tabla */
+.v-btn.tiny { padding: 5px 12px; font-size: 12.5px; }

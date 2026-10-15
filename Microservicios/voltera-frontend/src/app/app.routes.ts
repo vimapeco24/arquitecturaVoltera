@@ -8,6 +8,11 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/dashboard/dashboard.component').then((m) => m.DashboardComponent),
   },
   {
+    path: 'guia-experimento',
+    title: 'Guía del Experimento · Voltera',
+    loadComponent: () => import('./pages/guia-experimento/guia-experimento.component').then((m) => m.GuiaExperimentoComponent),
+  },
+  {
     path: 'tarifas',
     title: 'Tarifas · Voltera',
     loadComponent: () => import('./pages/tarifas/tarifas.component').then((m) => m.TarifasComponent),

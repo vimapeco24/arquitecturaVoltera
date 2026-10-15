@@ -23,6 +23,7 @@ export class AppComponent {
 
   readonly nav: NavItem[] = [
     { path: '/panel', label: 'Panel', icon: '◎' },
+    { path: '/guia-experimento', label: 'Guía del Experimento', icon: '🧭' },
     { path: '/tarifas', label: 'Tarifas', icon: '⚡', step: 1 },
     { path: '/volumetria', label: 'Volumetría', icon: '📊', step: 2 },
     { path: '/liquidacion-p2p', label: 'Liquidación P2P', icon: '🔁', step: 3 },
