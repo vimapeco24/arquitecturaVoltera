@@ -93,4 +93,9 @@ public class FacturacionService implements EmitirFacturaUseCase, ConsultarFactur
     public List<Factura> porProsumidor(String prosumidorId) {
         return repositorio.buscarPorProsumidor(prosumidorId);
     }
+
+    @Override
+    public List<Factura> todas() {
+        return repositorio.buscarTodas();
+    }
 }

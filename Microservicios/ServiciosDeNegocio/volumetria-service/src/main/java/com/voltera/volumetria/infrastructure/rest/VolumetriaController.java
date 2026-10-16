@@ -64,9 +64,11 @@ public class VolumetriaController {
     }
 
     @GetMapping
-    public ResponseEntity<List<LecturaResponse>> porMedidor(@RequestParam String medidorId) {
-        var lista = consultarLecturaUseCase.porMedidor(medidorId).stream()
-                .map(LecturaResponse::desde).toList();
+    public ResponseEntity<List<LecturaResponse>> listar(@RequestParam(required = false) String medidorId) {
+        var fuente = (medidorId != null && !medidorId.isBlank())
+                ? consultarLecturaUseCase.porMedidor(medidorId)
+                : consultarLecturaUseCase.todas();
+        var lista = fuente.stream().map(LecturaResponse::desde).toList();
         return ResponseEntity.ok(lista);
     }
 }

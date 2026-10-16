@@ -75,4 +75,9 @@ public class PagoService implements ProcesarPagoUseCase, ConsultarPagoUseCase {
     public List<OrdenPago> porProsumidor(String prosumidorId) {
         return repositorio.buscarPorProsumidor(prosumidorId);
     }
+
+    @Override
+    public List<OrdenPago> todas() {
+        return repositorio.buscarTodas();
+    }
 }

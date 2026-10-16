@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 # Construye las 16 imagenes de backend Voltera para linux/amd64 y las sube a Harbor.
+#
+# ⚠️ ANTES DE DESPLEGAR: leer DESPLIEGUE-SEGURO.md (este directorio).
+#    Validar en que nodo esta cada servicio y la carga del nodo ANTES de subir,
+#    para no saturar el master (6GB) y evitar OOM en cascada. Desplegar de uno en uno.
+#
 # Estrategia documentada que SI funciona con el Harbor de cert autofirmado:
 #   docker buildx build --load  (carga al daemon local, que confia en el insecure registry)
 #   docker push                 (push normal desde el daemon)

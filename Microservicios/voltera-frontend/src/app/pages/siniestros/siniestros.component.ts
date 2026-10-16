@@ -50,15 +50,28 @@ export class SiniestrosComponent {
   }
 
   aprobar(s: Siniestro): void {
-    this.svc.aprobar(s.id).subscribe({
-      next: (r) => {
-        this.ultimo = r;
-        this.ultimoAprobadoId = r.id;
-        this.toast.success('Siniestro aprobado', `${r.id} · evento SiniestroAprobado emitido`);
-        this.listar();
-      },
-      error: (e) => this.toast.error('Error al aprobar', this.msg(e)),
-    });
+    // La maquina de estados exige REPORTADO -> EN_PERITAJE -> APROBADO.
+    // Si el siniestro aun esta REPORTADO, se envia a peritaje antes de aprobar
+    // (encadenado) para que el boton "Aprobar" funcione en un solo clic.
+    const aprobarAhora = () =>
+      this.svc.aprobar(s.id).subscribe({
+        next: (r) => {
+          this.ultimo = r;
+          this.ultimoAprobadoId = r.id;
+          this.toast.success('Siniestro aprobado', `${r.id} · evento SiniestroAprobado emitido`);
+          this.listar();
+        },
+        error: (e) => this.toast.error('Error al aprobar', this.msg(e)),
+      });
+
+    if (s.estado === 'REPORTADO') {
+      this.svc.peritaje(s.id).subscribe({
+        next: () => aprobarAhora(),
+        error: (e) => this.toast.error('Error al enviar a peritaje', this.msg(e)),
+      });
+    } else {
+      aprobarAhora();
+    }
   }
 
   listar(): void {

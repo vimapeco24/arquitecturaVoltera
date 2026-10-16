@@ -81,8 +81,11 @@ public class LiquidacionMensualController {
     }
 
     @GetMapping
-    public ResponseEntity<List<LiquidacionResponse>> porProsumidor(@RequestParam String prosumidorId) {
-        return ResponseEntity.ok(consultarUseCase.porProsumidor(prosumidorId).stream()
+    public ResponseEntity<List<LiquidacionResponse>> listar(@RequestParam(required = false) String prosumidorId) {
+        var fuente = (prosumidorId != null && !prosumidorId.isBlank())
+                ? consultarUseCase.porProsumidor(prosumidorId)
+                : consultarUseCase.todas();
+        return ResponseEntity.ok(fuente.stream()
                 .map(LiquidacionResponse::desde).toList());
     }
 }

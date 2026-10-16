@@ -12,6 +12,14 @@ export class SiniestrosService {
     return this.http.post<Siniestro>(gw(SERVICIOS.siniestros, 'api/v1/siniestros'), body);
   }
 
+  /**
+   * Envía un siniestro REPORTADO a peritaje (EN_PERITAJE). Paso obligatorio de la
+   * máquina de estados antes de aprobar: REPORTADO -> EN_PERITAJE -> APROBADO.
+   */
+  peritaje(id: string): Observable<Siniestro> {
+    return this.http.post<Siniestro>(gw(SERVICIOS.siniestros, `api/v1/siniestros/${id}/peritaje`), {});
+  }
+
   aprobar(id: string): Observable<Siniestro> {
     return this.http.post<Siniestro>(gw(SERVICIOS.siniestros, `api/v1/siniestros/${id}/aprobar`), {});
   }

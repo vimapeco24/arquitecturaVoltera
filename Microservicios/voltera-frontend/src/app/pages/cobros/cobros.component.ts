@@ -69,7 +69,9 @@ export class CobrosComponent {
   /** Simula un PagoConfirmado para la póliza del formulario (concilia y emite recibo). */
   simularPago(): void {
     this.simulando = true;
-    const ahora = new Date().toISOString().slice(0, 19);
+    // Instante ISO-8601 con zona ('Z'); el backend lo deserializa como Instant.
+    // No recortar con slice(0,19): quitaría la 'Z' y provocaría 400 Bad Request.
+    const ahora = new Date().toISOString();
     const evento: PagoConfirmadoEvento = {
       eventId: `EVT-PAGO-${Date.now()}`,
       referencia: `REC-${Date.now()}`,

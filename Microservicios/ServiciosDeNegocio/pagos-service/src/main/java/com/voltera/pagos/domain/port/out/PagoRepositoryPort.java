@@ -12,5 +12,6 @@ public interface PagoRepositoryPort {
     /** Soporta idempotencia: busca una orden existente por su referencia externa. */
     Optional<OrdenPago> buscarPorReferencia(String referencia);
     List<OrdenPago> buscarPorProsumidor(String prosumidorId);
+    List<OrdenPago> buscarTodas();
     void eliminar(PagoId id);
 }

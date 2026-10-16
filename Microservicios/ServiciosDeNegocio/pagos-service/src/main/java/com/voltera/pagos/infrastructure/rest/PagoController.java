@@ -64,8 +64,11 @@ public class PagoController {
     }
 
     @GetMapping
-    public ResponseEntity<List<PagoResponse>> porProsumidor(@RequestParam String prosumidorId) {
-        return ResponseEntity.ok(consultarPagoUseCase.porProsumidor(prosumidorId).stream()
+    public ResponseEntity<List<PagoResponse>> listar(@RequestParam(required = false) String prosumidorId) {
+        var fuente = (prosumidorId != null && !prosumidorId.isBlank())
+                ? consultarPagoUseCase.porProsumidor(prosumidorId)
+                : consultarPagoUseCase.todas();
+        return ResponseEntity.ok(fuente.stream()
                 .map(PagoResponse::desde).toList());
     }
 }

@@ -41,6 +41,11 @@ public class InMemoryTransaccionRepository implements TransaccionRepositoryPort 
     }
 
     @Override
+    public List<TransaccionP2P> buscarTodas() {
+        return List.copyOf(almacen.values());
+    }
+
+    @Override
     public void eliminar(TransaccionId id) {
         almacen.remove(id.valor());
     }

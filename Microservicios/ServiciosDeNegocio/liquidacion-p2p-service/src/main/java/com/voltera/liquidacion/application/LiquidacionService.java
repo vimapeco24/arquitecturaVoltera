@@ -77,4 +77,9 @@ public class LiquidacionService implements EmparejarOrdenesUseCase, ConsultarTra
     public List<TransaccionP2P> porProsumidor(String prosumidorId) {
         return repositorio.buscarPorProsumidor(prosumidorId);
     }
+
+    @Override
+    public List<TransaccionP2P> todas() {
+        return repositorio.buscarTodas();
+    }
 }

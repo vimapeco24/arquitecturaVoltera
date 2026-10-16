@@ -1,0 +1,219 @@
+# ============================================================================
+# VOLTERA — KEDA AJUSTADO AL HARDWARE REAL (estabilidad)
+# ----------------------------------------------------------------------------
+# La lamina 04 define maxReplicaCount hasta 48 (= particiones). Eso es correcto
+# en teoria, pero este cluster tiene solo master(6GB)+worker(8GB) y cada pod
+# consume ~280-320 Mi. Permitir que KEDA cree decenas de pods garantiza un OOM
+# del nodo (es exactamente lo que tumbo MetalLB/apiserver/Istio).
+#
+# Este manifiesto mantiene el AUTOESCALADO POR LAG de Kafka (KEDA real), pero
+# acota maxReplicaCount a lo que el hardware soporta. Los umbrales (lagThreshold)
+# y los minReplicaCount se conservan segun la lamina.
+#
+#   Cambios vs. lamina:  maxReplicaCount  48 -> 6   /  30 -> 4  /  20 -> 4
+#   Sin cambios:         minReplicaCount, lagThreshold, consumerGroup, topic.
+#
+# Cuando se amplie el hardware (mas RAM o mas workers), subir estos 'max' hacia
+# los valores de la lamina (voltera-keda-lamina04.yaml).
+#
+# REQUISITO: KEDA instalado (helm install keda kedacore/keda -n keda).
+# Aplicar:   kubectl apply -f voltera-keda-ajustado.yaml
+# ============================================================================
+
+# ---------------------------------------------------------------------------
+# INGESTA — ruta critica (min 2, NO baja a cero). lag ami-lecturas-crudas.
+# ---------------------------------------------------------------------------
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: ingesta-scaledobject
+  namespace: voltera-app
+spec:
+  scaleTargetRef:
+    name: ingesta-service
+  pollingInterval: 10
+  cooldownPeriod: 300
+  minReplicaCount: 1          # min operativo del cluster (la lamina pide 2; con 14GB se deja 1)
+  maxReplicaCount: 6          # ANTES 48 -> acotado al hardware
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: redpanda.voltera-app:9092
+        consumerGroup: ingesta-consumer
+        topic: ami-lecturas-crudas
+        lagThreshold: "5000"
+---
+# ---------------------------------------------------------------------------
+# TELEMETRIA CORE (escritura) — lag telemetria-lecturas-validadas.
+# ---------------------------------------------------------------------------
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: telemetria-core-scaledobject
+  namespace: voltera-app
+spec:
+  scaleTargetRef:
+    name: telemetria-core-service
+  pollingInterval: 10
+  cooldownPeriod: 300
+  minReplicaCount: 1
+  maxReplicaCount: 4          # ANTES 48 -> acotado (es el pod mas pesado: 640Mi)
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: redpanda.voltera-app:9092
+        consumerGroup: telemetria-core-consumer
+        topic: telemetria-lecturas-validadas
+        lagThreshold: "5000"
+---
+# ---------------------------------------------------------------------------
+# NOTIFICACIONES — scale to zero. lag telemetria-alertas.
+# ---------------------------------------------------------------------------
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: notificaciones-scaledobject
+  namespace: voltera-app
+spec:
+  scaleTargetRef:
+    name: notificaciones-service
+  pollingInterval: 10
+  cooldownPeriod: 60
+  minReplicaCount: 0          # scale to zero (sin alertas, 0 pods)
+  maxReplicaCount: 4          # ANTES 30 -> acotado
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: redpanda.voltera-app:9092
+        consumerGroup: notificaciones-consumer
+        topic: telemetria-alertas
+        lagThreshold: "500"
+        activationLagThreshold: "1"
+---
+# ---------------------------------------------------------------------------
+# HABILITACION — min 1 (mantiene temporizadores de altas). lag ordenes-instalacion.
+# ---------------------------------------------------------------------------
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: habilitacion-scaledobject
+  namespace: voltera-app
+spec:
+  scaleTargetRef:
+    name: habilitacion-service
+  pollingInterval: 10
+  cooldownPeriod: 300
+  minReplicaCount: 1
+  maxReplicaCount: 4
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: redpanda.voltera-app:9092
+        consumerGroup: habilitacion-consumer
+        topic: ordenes-instalacion
+        lagThreshold: "50"
+---
+# ---------------------------------------------------------------------------
+# REASEGURO — tiene VISTA DE LECTURA CQRS consultable desde el front, por eso
+# min=1 (debe haber siempre 1 pod para servir GET /cesiones; con min=0 la pagina
+# daba 503 "no healthy upstream" cuando KEDA lo escalaba a cero sin carga).
+# KEDA sigue escalando hacia arriba por lag (max 4). lag topic.siniestros.aprobado.
+# ---------------------------------------------------------------------------
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: reaseguro-scaledobject
+  namespace: voltera-app
+spec:
+  scaleTargetRef:
+    name: reaseguro-service
+  pollingInterval: 10
+  cooldownPeriod: 30
+  minReplicaCount: 1          # vista de lectura CQRS siempre disponible (antes 0)
+  maxReplicaCount: 4
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: redpanda.voltera-app:9092
+        consumerGroup: reaseguro-consumer
+        topic: topic.siniestros.aprobado
+        lagThreshold: "10"
+---
+# ---------------------------------------------------------------------------
+# TARIFA-EVENTOS — vista de lectura CQRS (cargos) consultable desde el front:
+# min=1 para que GET /cargos no de 503 en reposo. KEDA escala por lag (max 4).
+# ---------------------------------------------------------------------------
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: tarifa-eventos-scaledobject
+  namespace: voltera-app
+spec:
+  scaleTargetRef:
+    name: tarifa-eventos-service
+  pollingInterval: 10
+  cooldownPeriod: 30
+  minReplicaCount: 1          # vista de lectura CQRS siempre disponible (antes 0)
+  maxReplicaCount: 4
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: redpanda.voltera-app:9092
+        consumerGroup: tarifa-eventos-consumer
+        topic: topic.telemetria.consumo
+        lagThreshold: "10"
+---
+# ---------------------------------------------------------------------------
+# COBROS — vista de lectura CQRS (movimientos) consultable desde el front:
+# min=1 para que GET /movimientos no de 503 en reposo. KEDA escala por lag (max 4).
+# ---------------------------------------------------------------------------
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: cobros-scaledobject
+  namespace: voltera-app
+spec:
+  scaleTargetRef:
+    name: cobros-service
+  pollingInterval: 10
+  cooldownPeriod: 30
+  minReplicaCount: 1          # vista de lectura CQRS siempre disponible (antes 0)
+  maxReplicaCount: 4
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: redpanda.voltera-app:9092
+        consumerGroup: cobros-consumer
+        topic: topic.cobros.pago-confirmado
+        lagThreshold: "10"
+---
+# ---------------------------------------------------------------------------
+# INTEGRACION-AMI — scaler KAFKA sobre medidores-habilitacion.
+# NOTA: la lamina proponia un scaler Prometheus sobre la metrica
+# 'mqtt_broker_pending_messages', pero en esta demo NO existe un gateway MQTT
+# real que publique esa serie, de modo que el ScaledObject quedaba READY=False
+# y el servicio no escalaba. Se usa el scaler Kafka sobre el topic que el
+# servicio realmente consume (medidores-habilitacion), que si existe en el
+# broker. Si en el futuro se despliega el exporter MQTT, volver al scaler
+# Prometheus de voltera-keda-ami-prometheus.yaml.
+# Min 1 (punto de entrada), max acotado al hardware.
+# ---------------------------------------------------------------------------
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: integracion-ami-scaledobject
+  namespace: voltera-app
+spec:
+  scaleTargetRef:
+    name: integracion-ami-service
+  pollingInterval: 15
+  cooldownPeriod: 300
+  minReplicaCount: 1          # la lamina pide 2; con 14GB se deja 1
+  maxReplicaCount: 4          # ANTES 20 -> acotado
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: redpanda.voltera-app:9092
+        consumerGroup: integracion-ami-consumer
+        topic: medidores-habilitacion
+        lagThreshold: "500"

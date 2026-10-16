@@ -41,7 +41,11 @@ export class ReaseguroComponent {
   /** Simula el reenvío de un evento SiniestroAprobado (prueba de idempotencia). */
   simular(): void {
     this.simulando = true;
-    const ahora = new Date().toISOString().slice(0, 19);
+    // El backend deserializa estos campos como java.time.Instant, que exige un
+    // instante ISO-8601 con zona (sufijo 'Z'). toISOString() ya lo produce
+    // (p.ej. 2026-10-16T03:15:00.000Z); NO recortarlo con slice(0,19) porque
+    // eso elimina la 'Z' y el servicio responde 400 Bad Request.
+    const ahora = new Date().toISOString();
     const evento: SiniestroAprobadoEvento = {
       eventId: `EVT-SIM-${Date.now()}`,
       siniestroId: `SIN-SIM-${Date.now()}`,

@@ -18,5 +18,7 @@ public interface FacturaRepositoryPort {
 
     List<Factura> buscarPorProsumidor(String prosumidorId);
 
+    List<Factura> buscarTodas();
+
     void eliminar(FacturaId id);
 }

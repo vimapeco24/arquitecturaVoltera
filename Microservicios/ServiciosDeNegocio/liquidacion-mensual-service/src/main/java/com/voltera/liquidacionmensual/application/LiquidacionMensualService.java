@@ -78,4 +78,9 @@ public class LiquidacionMensualService implements GestionarLiquidacionUseCase, C
     public List<LiquidacionMensual> porProsumidor(String prosumidorId) {
         return repositorio.buscarPorProsumidor(prosumidorId);
     }
+
+    @Override
+    public List<LiquidacionMensual> todas() {
+        return repositorio.buscarTodas();
+    }
 }

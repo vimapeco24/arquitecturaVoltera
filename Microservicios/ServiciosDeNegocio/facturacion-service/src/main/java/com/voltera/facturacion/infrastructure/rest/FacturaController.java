@@ -83,9 +83,12 @@ public class FacturaController {
     }
 
     @GetMapping
-    public ResponseEntity<List<FacturaResponse>> porProsumidor(
-            @org.springframework.web.bind.annotation.RequestParam String prosumidorId) {
-        var facturas = consultarFacturaUseCase.porProsumidor(prosumidorId).stream()
+    public ResponseEntity<List<FacturaResponse>> listar(
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String prosumidorId) {
+        var fuente = (prosumidorId != null && !prosumidorId.isBlank())
+                ? consultarFacturaUseCase.porProsumidor(prosumidorId)
+                : consultarFacturaUseCase.todas();
+        var facturas = fuente.stream()
                 .map(FacturaResponse::desde)
                 .toList();
         return ResponseEntity.ok(facturas);

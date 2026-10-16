@@ -12,4 +12,6 @@ public interface ConsultarTransaccionUseCase {
     TransaccionP2P porId(String transaccionId);
 
     List<TransaccionP2P> porProsumidor(String prosumidorId);
+
+    List<TransaccionP2P> todas();
 }

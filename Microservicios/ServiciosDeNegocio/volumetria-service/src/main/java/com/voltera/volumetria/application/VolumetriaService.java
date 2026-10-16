@@ -62,4 +62,9 @@ public class VolumetriaService implements IngestarLecturaUseCase, ConsultarLectu
     public List<LecturaTelemetria> porMedidor(String medidorId) {
         return repositorio.buscarPorMedidor(medidorId);
     }
+
+    @Override
+    public List<LecturaTelemetria> todas() {
+        return repositorio.buscarTodas();
+    }
 }

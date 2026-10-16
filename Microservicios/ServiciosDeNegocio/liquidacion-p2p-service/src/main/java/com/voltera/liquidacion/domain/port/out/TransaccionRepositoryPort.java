@@ -17,5 +17,7 @@ public interface TransaccionRepositoryPort {
 
     List<TransaccionP2P> buscarPorProsumidor(String prosumidorId);
 
+    List<TransaccionP2P> buscarTodas();
+
     void eliminar(TransaccionId id);
 }

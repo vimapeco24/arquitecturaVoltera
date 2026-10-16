@@ -12,4 +12,6 @@ public interface ConsultarLecturaUseCase {
     LecturaTelemetria porId(String lecturaId);
 
     List<LecturaTelemetria> porMedidor(String medidorId);
+
+    List<LecturaTelemetria> todas();
 }

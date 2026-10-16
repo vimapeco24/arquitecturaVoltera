@@ -42,6 +42,11 @@ public class InMemoryFacturaRepository implements FacturaRepositoryPort {
     }
 
     @Override
+    public List<Factura> buscarTodas() {
+        return List.copyOf(almacen.values());
+    }
+
+    @Override
     public void eliminar(FacturaId id) {
         almacen.remove(id.valor());
     }

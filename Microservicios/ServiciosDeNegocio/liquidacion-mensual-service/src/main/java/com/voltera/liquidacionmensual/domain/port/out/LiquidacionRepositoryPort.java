@@ -17,5 +17,7 @@ public interface LiquidacionRepositoryPort {
 
     List<LiquidacionMensual> buscarPorProsumidor(String prosumidorId);
 
+    List<LiquidacionMensual> buscarTodas();
+
     void eliminar(LiquidacionId id);
 }

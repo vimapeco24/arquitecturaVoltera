@@ -26,6 +26,11 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 NS="voltera-app"
 
+# ⚠️ ANTES DE DESPLEGAR: leer DESPLIEGUE-SEGURO.md (este directorio).
+#    1) kubectl get pods -n voltera-app -o wide   -> saber en que nodo esta cada servicio
+#    2) kubectl top nodes                         -> master debe estar < 85% mem
+#    Desplegar de uno en uno y verificar 2/2 Ready entre cada uno (no saturar el master 6GB).
+
 DRY=""
 WITH_MESH=0
 for arg in "$@"; do
@@ -72,10 +77,17 @@ if [ -z "$DRY" ]; then
   done
 fi
 
-echo ">> (4) KEDA: ScaledObjects por lag + Adaptador AMI (Prometheus)"
+echo ">> (4) KEDA: ScaledObjects AJUSTADOS AL HARDWARE (autoescalado por lag, max acotado)"
 echo "   (si el CRD keda.sh no existe, estos recursos se omiten; instala KEDA primero)"
-apply "$HERE/voltera-keda-lamina04.yaml" || echo "   KEDA no instalado: ScaledObjects omitidos."
-apply "$HERE/voltera-keda-ami-prometheus.yaml" || true
+# Se usa voltera-keda-ajustado.yaml (max acotado a 4-6) en lugar de la lamina
+# (max 48), para no saturar el cluster de 14GB y evitar OOM del nodo.
+# El integracion-ami usa scaler Kafka (no Prometheus) porque no hay gateway MQTT real.
+apply "$HERE/voltera-keda-ajustado.yaml" || echo "   KEDA no instalado: ScaledObjects omitidos."
+
+echo ">> (4b) Reparto de carga + topes de memoria (estabilidad: evita OOM del master)"
+if [ -z "$DRY" ]; then
+  bash "$HERE/aplicar-scheduling.sh" || echo "   (scheduling: revisar manualmente)"
+fi
 
 if [ "$WITH_MESH" = "1" ]; then
   echo ">> (5) Event mesh multi-region"

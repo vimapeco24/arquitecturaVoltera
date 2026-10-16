@@ -284,6 +284,7 @@ export class ExperimentosComponent {
           fechaOcurrencia: '2026-09-14T10:00:00',
         }),
       );
+      await firstValueFrom(this.siniestrosSvc.peritaje(s.id));
       await firstValueFrom(this.siniestrosSvc.aprobar(s.id));
       aprobados++;
     }
@@ -348,6 +349,8 @@ export class ExperimentosComponent {
         fechaOcurrencia: '2026-09-14T10:00:00',
       }),
     );
+    // Peritaje obligatorio antes de aprobar (REPORTADO -> EN_PERITAJE -> APROBADO).
+    await firstValueFrom(this.siniestrosSvc.peritaje(s.id));
     const tAprobar = performance.now();
     await firstValueFrom(this.siniestrosSvc.aprobar(s.id));
 
@@ -375,7 +378,9 @@ export class ExperimentosComponent {
 
   /** Exp 4 — Idempotencia: reenvía el mismo eventId y verifica que no duplica. */
   private async expIdempotencia(): Promise<ResultadoExperimento> {
-    const ahora = new Date().toISOString().slice(0, 19);
+    // Instante ISO-8601 con zona ('Z'); el backend lo deserializa como Instant.
+    // No recortar con slice(0,19): quitaría la 'Z' y provocaría 400 Bad Request.
+    const ahora = new Date().toISOString();
     const eventId = `EVT-IDEMP-${Date.now()}`;
     const siniestroId = `SIN-IDEMP-${Date.now()}`;
     const poliza = `POL-EDA-E4-${Date.now()}`;

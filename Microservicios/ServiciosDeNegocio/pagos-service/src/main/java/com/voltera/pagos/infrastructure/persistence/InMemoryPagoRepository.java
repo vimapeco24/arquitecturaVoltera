@@ -41,6 +41,11 @@ public class InMemoryPagoRepository implements PagoRepositoryPort {
     }
 
     @Override
+    public List<OrdenPago> buscarTodas() {
+        return List.copyOf(almacen.values());
+    }
+
+    @Override
     public void eliminar(PagoId id) {
         almacen.remove(id.valor());
     }

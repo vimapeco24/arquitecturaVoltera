@@ -159,7 +159,7 @@ export class ExperimentosService {
         medidorId: 'MED-LOAD-001',
         kwh: 12.5,
         direccion: 'CONSUMO',
-        capturadaEn: '2026-01-01T10:00:00',
+        capturadaEn: '2026-01-01T10:00:00Z',
       },
       nota: 'Carga de escritura. Genera estado en memoria en el servicio.',
     },

@@ -12,4 +12,6 @@ public interface ConsultarFacturaUseCase {
     Factura porId(String facturaId);
 
     List<Factura> porProsumidor(String prosumidorId);
+
+    List<Factura> todas();
 }

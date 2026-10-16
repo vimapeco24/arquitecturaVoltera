@@ -7,4 +7,5 @@ import java.util.List;
 public interface ConsultarPagoUseCase {
     OrdenPago porId(String pagoId);
     List<OrdenPago> porProsumidor(String prosumidorId);
+    List<OrdenPago> todas();
 }

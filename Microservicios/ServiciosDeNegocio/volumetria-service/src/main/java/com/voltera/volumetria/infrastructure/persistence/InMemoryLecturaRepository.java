@@ -37,6 +37,11 @@ public class InMemoryLecturaRepository implements LecturaRepositoryPort {
     }
 
     @Override
+    public List<LecturaTelemetria> buscarTodas() {
+        return List.copyOf(almacen.values());
+    }
+
+    @Override
     public void eliminar(LecturaId id) {
         almacen.remove(id.valor());
     }

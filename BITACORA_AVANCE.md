@@ -267,3 +267,60 @@ El usuario envió el enunciado de la lámina 05 y pidió ajustar Integración. R
 
 Las 5 vistas ArchiMate + DDD cubren toda la Entrega 1. Vistas usan iconos ArchiMate nativos
 (visibles en draw.io/Lucid EDU). DDD en tabla + mapa son limpios para Lucidchart estándar.
+
+---
+
+## ⚠️ PROCEDIMIENTO OBLIGATORIO DE DESPLIEGUE — Validar ubicación del servicio ANTES de subir
+
+> **Regla de oro:** antes de desplegar o re-desplegar CUALQUIER microservicio, primero
+> **validar en qué nodo (master o worker) está corriendo y cómo está la carga de ese nodo.**
+> El master (6 GB, corre control-plane + etcd) se satura con facilidad: si se le suma un pod
+> pesado sin verificar, entra en OOM y tumba en cascada apiserver → MetalLB (LB .220 deja de
+> anunciarse) → Istio → el gateway WSO2 no alcanza el backend (500/503). Ya pasó una vez.
+
+### Pasos ANTES de subir/re-desplegar un servicio
+
+1. **Ver dónde vive cada pod y cómo está repartida la carga:**
+   ```bash
+   kubectl get pods -n voltera-app -o custom-columns="POD:.metadata.name,NODE:.spec.nodeName" --no-headers | sort -k2
+   kubectl get pods -n voltera-app -o custom-columns="N:.spec.nodeName" --no-headers | sort | uniq -c   # balance master/worker
+   ```
+2. **Ver uso real de recursos por nodo (NO solo requests):**
+   ```bash
+   kubectl top nodes
+   ```
+   - Si el **master** está > 85% de memoria → NO desplegar ahí; anclar el servicio al **worker**
+     (o esperar/liberar). El worker (8 GB) tiene más margen.
+3. **Confirmar el objetivo de reparto** (fuente de verdad en `Microservicios/k8s/voltera-scheduling.yaml`):
+   - WORKER (anclados): `volumetria-service`, `liquidacion-p2p-service`, `siniestros-service`.
+   - El resto queda libre; el scheduler decide, pero vigilar que el master no pase de ~85%.
+4. **Desplegar de UNO EN UNO**, nunca todos a la vez, y **verificar readiness entre cada uno**
+   antes de pasar al siguiente (evita picos simultáneos de arranque de la JVM):
+   ```bash
+   kubectl set image deploy/<svc> -n voltera-app <svc>=192.168.3.13/app-voltaire/<svc>:<TAG>
+   kubectl get pods -n voltera-app -l app=<svc> -o wide   # esperar 2/2 Ready antes del siguiente
+   ```
+5. **NO usar `rollout status` bloqueante** por SSH contra el master si está cargado: cuelga la
+   sesión. Usar consultas de un solo golpe con `--request-timeout=20s`.
+
+### Cómo el gateway encuentra el servicio esté donde esté (por qué la distribución es segura)
+- Las 16 APIs en WSO2 apuntan al **LoadBalancer `http://192.168.3.220/{servicio}`**, NUNCA a una
+  IP de pod. Si el pod cambia de nodo (reprogramación o escalado KEDA), el backend NO cambia.
+- El Service `istio-ingress` tiene **`externalTrafficPolicy: Cluster`** → el tráfico que entra por
+  `.220` se balancea a cualquier pod en cualquier nodo (master o worker). La distribución es
+  transparente para el gateway.
+- Por eso: SIEMPRE registrar el endpoint de una API nueva en WSO2 como `http://192.168.3.220/<ctx>`
+  (ver cómo se creó CobrosAPI), nunca con IP de pod ni de nodo.
+
+### Topes para no saturar (ya aplicados, mantener)
+- Todos los deployments de negocio tienen `limits.memory` (512Mi; telemetria-core 640Mi) →
+  ningún pod puede disparar el OOM del nodo. Script: `Microservicios/k8s/aplicar-scheduling.sh`.
+- KEDA con `maxReplicaCount` acotado al hardware (4–6, NO 48) → el autoescalado no revienta el
+  cluster. Fichero: `Microservicios/k8s/voltera-keda-ajustado.yaml`.
+
+### Checklist rápido antes de `build-push-all.sh` / re-deploy
+- [ ] `kubectl top nodes` → master < 85% mem
+- [ ] `kubectl get pods -n voltera-app -o wide` → saber nodo de cada pod y balance
+- [ ] Desplegar de uno en uno, esperar `2/2 Ready` entre cada uno
+- [ ] Verificar vía gateway: `GET https://192.168.3.13:8243/<svc>/v1/actuator/health` → 200
+- [ ] Endpoint de API nueva en WSO2 = `http://192.168.3.220/<ctx>` (LB, no pod)

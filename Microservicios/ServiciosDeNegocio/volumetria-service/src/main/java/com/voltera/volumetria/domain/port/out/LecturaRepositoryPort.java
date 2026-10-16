@@ -17,5 +17,7 @@ public interface LecturaRepositoryPort {
 
     List<LecturaTelemetria> buscarPorMedidor(String medidorId);
 
+    List<LecturaTelemetria> buscarTodas();
+
     void eliminar(LecturaId id);
 }

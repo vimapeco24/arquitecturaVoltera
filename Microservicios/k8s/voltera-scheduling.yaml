@@ -1,0 +1,37 @@
+# ============================================================================
+# VOLTERA — Reparto de carga y topes de recursos (ESTABILIDAD DEL CLUSTER)
+# ----------------------------------------------------------------------------
+# Contexto del hardware (demo académica, recursos muy ajustados):
+#   master  k8s-atiesia-master   -> 4 vCPU / 6 GB  (ademas corre control-plane + etcd)
+#   worker  k8s-atiesia-worker-01-> 4 vCPU / 8 GB
+#
+# PROBLEMA observado: el master llegaba a 90% de RAM con 13 pods de negocio +
+# control-plane, entrando en thrashing (load 66, sin swap). Eso tumbaba por OOM
+# al kube-apiserver, a MetalLB (el LoadBalancer .220 dejaba de anunciarse) y a
+# Cilium/Istio, dejando el backend inalcanzable desde el gateway WSO2 (503/500).
+#
+# SOLUCION aplicada aqui (persistente, para que NO se pierda en el proximo
+# deploy-eda-completo.sh): anclar al WORKER los servicios stateless de menor
+# criticidad para descargar el master, sin saturar el worker.
+#
+# Estos 3 servicios se movieron en caliente (kubectl patch) y aqui queda la
+# version declarativa. El patch se aplica como 'merge' sobre el Deployment ya
+# existente, por lo que NO reemplaza la plantilla completa.
+#
+# Aplicar (idempotente):
+#   kubectl -n voltera-app patch deploy volumetria-service     --type merge --patch-file <(sed -n '/volumetria/,/---/p' ...) 
+#   -- o simplemente:  ./aplicar-scheduling.sh  (ver abajo, mas comodo)
+#
+# Reversible:  kubectl -n voltera-app patch deploy <svc> --type json \
+#                -p '[{"op":"remove","path":"/spec/template/spec/nodeSelector"}]'
+# ============================================================================
+#
+# NOTA: este archivo documenta el estado deseado. Como los Deployments ya
+# existen en voltera-eda.yaml / voltera-negocio-eda.yaml / voltera-services.yaml,
+# el reparto se aplica con 'kubectl patch' (ver aplicar-scheduling.sh) para no
+# duplicar las plantillas. Mantener esta tabla como fuente de verdad del reparto:
+#
+#   WORKER (anclados aqui):  volumetria-service · liquidacion-p2p-service · siniestros-service
+#   MASTER (resto):          control-plane, etcd y los demas servicios de negocio
+#
+# Si en el futuro se agrega un segundo worker, mover mas servicios aqui.

@@ -37,6 +37,11 @@ public class InMemoryLiquidacionRepository implements LiquidacionRepositoryPort 
     }
 
     @Override
+    public List<LiquidacionMensual> buscarTodas() {
+        return List.copyOf(almacen.values());
+    }
+
+    @Override
     public void eliminar(LiquidacionId id) {
         almacen.remove(id.valor());
     }
