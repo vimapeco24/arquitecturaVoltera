@@ -3,7 +3,8 @@
 .shell {
   display: grid;
   grid-template-columns: var(--v-sidebar-w) 1fr;
-  min-height: 100vh;
+  height: 100vh;            /* altura fija: el scroll ocurre dentro de cada panel */
+  overflow: hidden;
   transition: grid-template-columns 0.24s ease;
 }
 .shell.collapsed { grid-template-columns: 82px 1fr; }
@@ -15,9 +16,7 @@
   display: flex;
   flex-direction: column;
   padding: 20px 14px;
-  position: sticky;
-  top: 0;
-  height: 100vh;
+  height: 100vh;            /* ocupa toda la altura del shell */
   /* el sidebar nunca se desborda; el menu interno hace scroll si no cabe */
   overflow: hidden;
 }
@@ -87,16 +86,21 @@
 .side-foot .course { font-size: 11px; color: var(--v-text-dim); margin-top: 3px; line-height: 1.4; }
 
 /* ---------------- Main ---------------- */
-.main { display: flex; flex-direction: column; min-width: 0; }
+.main {
+  display: flex; flex-direction: column; min-width: 0;
+  height: 100vh;           /* altura fija dentro del grid */
+  overflow: hidden;        /* el scroll lo hace .content, no toda la columna */
+}
 
 .topbar {
   height: var(--v-topbar-h);
+  flex-shrink: 0;          /* el topbar queda fijo arriba; no se encoge ni scrollea */
   display: flex; align-items: center; gap: 18px;
   padding: 0 26px;
   border-bottom: 1px solid var(--v-border);
   background: rgba(11, 18, 32, 0.72);
   backdrop-filter: blur(14px);
-  position: sticky; top: 0; z-index: 20;
+  z-index: 20;
 }
 .hamb {
   background: transparent; border: none; cursor: pointer;
@@ -120,7 +124,12 @@
 .gw-chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--v-primary); box-shadow: 0 0 0 4px rgba(34, 201, 138, 0.16); animation: pulse 2s infinite; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
-.content { flex: 1; }
+.content {
+  flex: 1;
+  min-height: 0;           /* permite que overflow funcione dentro del flex */
+  overflow-y: auto;        /* el contenido de cada pagina scrollea aqui */
+  overflow-x: hidden;
+}
 
 .t-body { flex: 1; }
 .t-count { font-weight: 700; opacity: 0.85; margin-left: 4px; }
