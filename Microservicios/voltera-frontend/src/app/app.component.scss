@@ -18,6 +18,8 @@
   position: sticky;
   top: 0;
   height: 100vh;
+  /* el sidebar nunca se desborda; el menu interno hace scroll si no cabe */
+  overflow: hidden;
 }
 
 .brand {
@@ -35,7 +37,27 @@
 .brand-text .name { font-family: 'Sora'; font-weight: 800; font-size: 19px; letter-spacing: -0.02em; }
 .brand-text .tag { font-size: 11px; color: var(--v-text-dim); font-weight: 600; letter-spacing: 0.02em; }
 
-.menu { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.menu {
+  display: flex; flex-direction: column; gap: 4px; flex: 1;
+  /* scroll vertical cuando los items no caben: permite recorrer todo el menu
+     de arriba a abajo sin que se corten las ultimas paginas (p.ej. Habilitacion). */
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;            /* imprescindible en flex para que overflow funcione */
+  padding-right: 4px;       /* espacio para la barra de scroll */
+  scrollbar-width: thin;    /* Firefox */
+  scrollbar-color: var(--v-surface-3) transparent;
+}
+/* Barra de scroll discreta (WebKit/Chrome/Safari) */
+.menu::-webkit-scrollbar { width: 7px; }
+.menu::-webkit-scrollbar-track { background: transparent; }
+.menu::-webkit-scrollbar-thumb {
+  background: var(--v-surface-3);
+  border-radius: 999px;
+}
+.menu::-webkit-scrollbar-thumb:hover { background: var(--v-text-dim); }
+
+.brand { flex-shrink: 0; }
 .menu-item {
   display: flex; align-items: center; gap: 13px;
   padding: 11px 12px; border-radius: 11px;
@@ -60,7 +82,7 @@
 }
 .menu-item.active .step { background: rgba(34, 201, 138, 0.2); color: var(--v-primary); }
 
-.side-foot { padding: 16px 10px 4px; border-top: 1px solid var(--v-border); margin-top: 12px; }
+.side-foot { padding: 16px 10px 4px; border-top: 1px solid var(--v-border); margin-top: 12px; flex-shrink: 0; }
 .side-foot .uni { font-size: 12.5px; font-weight: 700; color: var(--v-text-soft); }
 .side-foot .course { font-size: 11px; color: var(--v-text-dim); margin-top: 3px; line-height: 1.4; }
 
