@@ -7,6 +7,7 @@ import com.voltera.notificaciones.domain.event.FacturaEmitida;
 import com.voltera.notificaciones.domain.model.Notificacion;
 import com.voltera.notificaciones.domain.port.in.NotificarClienteUseCase;
 import com.voltera.notificaciones.domain.port.out.OutboxPort;
+import com.voltera.notificaciones.infrastructure.rest.dto.NotificacionResponse;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,41 +31,41 @@ public class NotificacionController {
     }
 
     @GetMapping
-    public List<Notificacion> historial() {
-        return useCase.historial();
+    public List<NotificacionResponse> historial() {
+        return useCase.historial().stream().map(NotificacionResponse::desde).toList();
     }
 
     public record SimularHabilitadoRequest(@NotBlank String medidorId, String serial) {}
 
     @PostMapping("/simular/medidor-habilitado")
-    public Notificacion simularHabilitado(@RequestBody SimularHabilitadoRequest req) {
-        return useCase.notificarMedidorHabilitado(
-                new MedidorHabilitado(req.medidorId(), req.serial(), "ACTIVADO"));
+    public NotificacionResponse simularHabilitado(@RequestBody SimularHabilitadoRequest req) {
+        return NotificacionResponse.desde(useCase.notificarMedidorHabilitado(
+                new MedidorHabilitado(req.medidorId(), req.serial(), "ACTIVADO")));
     }
 
     public record SimularSospechosaRequest(@NotBlank String medidorSerial, double consumoKwh, String motivo) {}
 
     @PostMapping("/simular/lectura-sospechosa")
-    public Notificacion simularSospechosa(@RequestBody SimularSospechosaRequest req) {
-        return useCase.notificarLecturaSospechosa(
-                new LecturaSospechosaDetectada(req.medidorSerial(), req.consumoKwh(), req.motivo()));
+    public NotificacionResponse simularSospechosa(@RequestBody SimularSospechosaRequest req) {
+        return NotificacionResponse.desde(useCase.notificarLecturaSospechosa(
+                new LecturaSospechosaDetectada(req.medidorSerial(), req.consumoKwh(), req.motivo())));
     }
 
     public record SimularSinReporteRequest(@NotBlank String medidorSerial, String ultimaLecturaEn) {}
 
     @PostMapping("/simular/medidor-sin-reporte")
-    public Notificacion simularSinReporte(@RequestBody SimularSinReporteRequest req) {
-        return useCase.notificarMedidorSinReporte(
-                new MedidorSinReporte(req.medidorSerial(), req.ultimaLecturaEn()));
+    public NotificacionResponse simularSinReporte(@RequestBody SimularSinReporteRequest req) {
+        return NotificacionResponse.desde(useCase.notificarMedidorSinReporte(
+                new MedidorSinReporte(req.medidorSerial(), req.ultimaLecturaEn())));
     }
 
     public record SimularFacturaRequest(@NotBlank String medidorSerial, String facturaId,
                                         String periodo, double monto) {}
 
     @PostMapping("/simular/factura-emitida")
-    public Notificacion simularFactura(@RequestBody SimularFacturaRequest req) {
-        return useCase.notificarFacturaEmitida(
-                new FacturaEmitida(req.facturaId(), req.medidorSerial(), req.periodo(), req.monto()));
+    public NotificacionResponse simularFactura(@RequestBody SimularFacturaRequest req) {
+        return NotificacionResponse.desde(useCase.notificarFacturaEmitida(
+                new FacturaEmitida(req.facturaId(), req.medidorSerial(), req.periodo(), req.monto())));
     }
 
     @GetMapping("/outbox")
