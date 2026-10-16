@@ -26,6 +26,10 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 NS="voltera-app"
 
+# ⛔ PASO 0 OBLIGATORIO (todos los servicios, sin excepcion): leer y tener aplicado
+#    Microservicios/voltera-k8s-qa-sync.patch (replicas 1, min=1/max=1, JVM tuning,
+#    requests 256Mi, affinity worker, topics KEDA). Verificar con:
+#      git apply --check Microservicios/voltera-k8s-qa-sync.patch
 # ⚠️ ANTES DE DESPLEGAR: leer DESPLIEGUE-SEGURO.md (este directorio).
 #    1) kubectl get pods -n voltera-app -o wide   -> saber en que nodo esta cada servicio
 #    2) kubectl top nodes                         -> master debe estar < 85% mem

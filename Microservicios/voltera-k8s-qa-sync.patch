@@ -1,0 +1,993 @@
+From 634eeab0ce0d26593f1727049373ed43db9d69c8 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 15 Oct 2026 23:28:55 -0500
+Subject: [PATCH] k8s(QA): sincroniza manifiestos con el estado ajustado del
+ cluster
+
+- replicas 1; HPA y KEDA fijos en min=1/max=1
+- ajuste JVM (JAVA_TOOL_OPTIONS, SERVER_TOMCAT_THREADS_MAX=20) en servicios Spring Boot
+- requests.memory 256Mi (consumo real medido)
+- toleration control-plane y nodeAffinity preferida al worker (telemetria, telemetria-core, tarifas, tarifa-eventos)
+- KEDA: topic de notificaciones (sin topic, suma sus 3 topics)
+- HPA renombrados para coincidir con los del cluster (+ service-registry)
+- DESPLIEGUE-SEGURO.md: master 7GB y estado QA documentado
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01KaPxAQD7VZMsqzTZbg9Jta
+---
+ Microservicios/k8s/DESPLIEGUE-SEGURO.md       | 23 +++++-
+ Microservicios/k8s/aplicar-scheduling.sh      | 18 +++++
+ Microservicios/k8s/mesh/04-hpa.yaml           | 75 ++++++++++---------
+ Microservicios/k8s/pagos-deployment.yaml      |  7 +-
+ Microservicios/k8s/voltera-cobros.yaml        | 13 +++-
+ Microservicios/k8s/voltera-eda.yaml           | 58 +++++++++++---
+ Microservicios/k8s/voltera-keda-ajustado.yaml | 36 ++++-----
+ Microservicios/k8s/voltera-negocio-eda.yaml   | 52 ++++++++++---
+ Microservicios/k8s/voltera-registry.yaml      | 10 ++-
+ Microservicios/k8s/voltera-scheduling.yaml    |  4 +-
+ Microservicios/k8s/voltera-services.yaml      | 61 ++++++++++++---
+ 11 files changed, 259 insertions(+), 98 deletions(-)
+
+diff --git a/Microservicios/k8s/DESPLIEGUE-SEGURO.md b/Microservicios/k8s/DESPLIEGUE-SEGURO.md
+index 755f3b8..f889718 100644
+--- a/Microservicios/k8s/DESPLIEGUE-SEGURO.md
++++ b/Microservicios/k8s/DESPLIEGUE-SEGURO.md
+@@ -4,7 +4,7 @@
+ 
+ ## Regla de oro
+ Antes de subir/re-desplegar CUALQUIER microservicio, **validar primero en qué nodo está y la
+-carga de ese nodo**. El master tiene solo **6 GB** y además corre el control-plane + etcd; si se
++carga de ese nodo**. El master tiene **7 GB / 4 vCPU** (subido desde 6 GB el 16-oct-2026) y además corre el control-plane + etcd; si se
+ le suma un pod pesado sin verificar, entra en **OOM** y tumba en cascada:
+ 
+ ```
+@@ -73,3 +73,24 @@ usa `externalTrafficPolicy: Cluster`, que balancea a cualquier pod en cualquier
+ - [ ] desplegar de uno en uno, esperar `2/2 Ready` entre cada uno
+ - [ ] `GET .../<svc>/v1/actuator/health` por el gateway → 200
+ - [ ] endpoint de API nueva en WSO2 = `http://192.168.3.220/<ctx>` (LB, no pod)
++
++## Estado QA ajustado (oct-2026) — ya reflejado en los manifiestos
++Tras la recuperación del clúster (etcd corrupto por apagado brusco, 7-oct) y la
++revisión de capacidad (15/16-oct) se dejó este estado, que ya está en los YAML:
++
++| Ajuste | Dónde | Por qué |
++|---|---|---|
++| `replicas: 1` y HPA/KEDA con `min=1, max=1` | `voltera-*.yaml`, `mesh/04-hpa.yaml`, `voltera-keda-ajustado.yaml` | el clúster no tiene RAM para 2 réplicas ni para picos de arranque de la JVM |
++| `JAVA_TOOL_OPTIONS` + `SERVER_TOMCAT_THREADS_MAX=20` | env de los 17 servicios Spring Boot | ~300Mi → ~210Mi por servicio |
++| `requests.memory: 256Mi` | los mismos | requests honestos: el scheduler reparte según el consumo real |
++| toleration del control-plane | todos los servicios de negocio | el master también ejecuta servicios (estado real del clúster) |
++| `nodeAffinity` preferida hacia el worker | telemetria, telemetria-core, tarifas, tarifa-eventos | equilibra ~10 pods por nodo |
++| KEDA: topics corregidos | reaseguro → `topic.siniestros.aprobado`, tarifa-eventos → `topic.telemetria.consumo`, notificaciones → sin `topic` (suma sus 3 topics) | con el topic equivocado la métrica quedaba `<unknown>` |
++
++**Para volver a demostrar autoescalado:** subir primero la RAM del worker, luego
++`maxReplicas` / `maxReplicaCount` (p.ej. 4–5). Recordar que todos los topics tienen
++**1 partición**: KEDA nunca pasará de 1 consumidor útil por grupo hasta aumentar
++particiones (`rpk topic add-partitions <topic> --num N`).
++
++**Backup de etcd:** diario a las 02:30 UTC en el master (`/etc/cron.d/etcd-backup`,
++guarda 7 en `/var/backups/etcd/`).
+diff --git a/Microservicios/k8s/aplicar-scheduling.sh b/Microservicios/k8s/aplicar-scheduling.sh
+index 0a63587..7de5a37 100644
+--- a/Microservicios/k8s/aplicar-scheduling.sh
++++ b/Microservicios/k8s/aplicar-scheduling.sh
+@@ -19,6 +19,11 @@ WORKER_LABEL='node-role.kubernetes.io/worker'
+ # Servicios que se anclan al worker para descargar el master.
+ ANCLAR_WORKER=(volumetria-service liquidacion-p2p-service siniestros-service)
+ 
++# Servicios con PREFERENCIA SUAVE por el worker (oct-2026): van al worker si cabe,
++# y usan el master solo como respaldo (nunca quedan Pending por esta regla).
++PREFERIR_WORKER=(telemetria-service telemetria-core-service tarifas-service tarifa-eventos-service)
++AFFINITY_PATCH='{"spec":{"template":{"spec":{"affinity":{"nodeAffinity":{"preferredDuringSchedulingIgnoredDuringExecution":[{"weight":100,"preference":{"matchExpressions":[{"key":"node-role.kubernetes.io/control-plane","operator":"DoesNotExist"}]}}]}}}}}}'
++
+ revert=0
+ [ "${1:-}" = "--revert" ] && revert=1
+ 
+@@ -36,6 +41,19 @@ for svc in "${ANCLAR_WORKER[@]}"; do
+   fi
+ done
+ 
++echo
++echo "== Preferencia suave por el worker (nodeAffinity preferred) =="
++for svc in "${PREFERIR_WORKER[@]}"; do
++  if [ "$revert" = "1" ]; then
++    kubectl -n "$NS" patch deploy "$svc" --type json \
++      -p '[{"op":"remove","path":"/spec/template/spec/affinity"}]' 2>/dev/null \
++      && echo " - $svc: affinity quitada" || echo " - $svc: (sin affinity)"
++  else
++    kubectl -n "$NS" patch deploy "$svc" --type merge -p "$AFFINITY_PATCH" \
++      && echo " - $svc: prefiere worker"
++  fi
++done
++
+ if [ "$revert" = "1" ]; then
+   echo "Revert completado."
+   exit 0
+diff --git a/Microservicios/k8s/mesh/04-hpa.yaml b/Microservicios/k8s/mesh/04-hpa.yaml
+index 9d8bf42..0ad692e 100644
+--- a/Microservicios/k8s/mesh/04-hpa.yaml
++++ b/Microservicios/k8s/mesh/04-hpa.yaml
+@@ -18,97 +18,100 @@
+ #   kubectl -n voltera-app get hpa -w
+ #   kubectl -n voltera-app get pods -w
+ #   -> se anota el timestamp del primer pod nuevo (segundos/ms hasta escalar).
++#
++# ESTADO QA (oct-2026): los HPA quedan FIJOS en min=1 / max=1 por capacidad del
++# cluster (2 nodos). Los nombres coinciden con los HPA reales del cluster (sin
++# prefijo 'hpa-'); asi un 'kubectl apply' actualiza los existentes en vez de
++# crear un segundo HPA sobre el mismo Deployment. Para volver a demostrar
++# escalado, subir maxReplicas (p.ej. 5) cuando haya RAM disponible.
+ # ============================================================================
+ apiVersion: autoscaling/v2
+ kind: HorizontalPodAutoscaler
+ metadata:
+-  name: hpa-facturacion-service
++  name: facturacion-service
+   namespace: voltera-app
+ spec:
+-  scaleTargetRef:
+-    apiVersion: apps/v1
+-    kind: Deployment
+-    name: facturacion-service
+-  minReplicas: 2
+-  maxReplicas: 6
++  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: facturacion-service }
++  minReplicas: 1
++  maxReplicas: 1          # QA: fijo en 1 (oct-2026)
+   metrics:
+     - type: Resource
+-      resource:
+-        name: cpu
+-        target:
+-          type: Utilization
+-          averageUtilization: 50
+-  behavior:
+-    scaleUp:
+-      stabilizationWindowSeconds: 0     # reacciona rapido (bueno para la demo)
+-      policies:
+-        - { type: Pods, value: 2, periodSeconds: 15 }   # hasta +2 pods cada 15s
+-    scaleDown:
+-      stabilizationWindowSeconds: 60    # baja mas despacio para no oscilar
+-      policies:
+-        - { type: Pods, value: 1, periodSeconds: 30 }
++      resource: { name: cpu, target: { type: Utilization, averageUtilization: 50 } }
+ ---
+ apiVersion: autoscaling/v2
+ kind: HorizontalPodAutoscaler
+ metadata:
+-  name: hpa-liquidacion-mensual-service
++  name: liquidacion-mensual-service
+   namespace: voltera-app
+ spec:
+   scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: liquidacion-mensual-service }
+   minReplicas: 1
+-  maxReplicas: 5
++  maxReplicas: 1          # QA: fijo en 1 (oct-2026)
+   metrics:
+     - type: Resource
+-      resource: { name: cpu, target: { type: Utilization, averageUtilization: 60 } }
++      resource: { name: cpu, target: { type: Utilization, averageUtilization: 50 } }
+ ---
+ apiVersion: autoscaling/v2
+ kind: HorizontalPodAutoscaler
+ metadata:
+-  name: hpa-liquidacion-p2p-service
++  name: liquidacion-p2p-service
+   namespace: voltera-app
+ spec:
+   scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: liquidacion-p2p-service }
+   minReplicas: 1
+-  maxReplicas: 5
++  maxReplicas: 1          # QA: fijo en 1 (oct-2026)
+   metrics:
+     - type: Resource
+-      resource: { name: cpu, target: { type: Utilization, averageUtilization: 60 } }
++      resource: { name: cpu, target: { type: Utilization, averageUtilization: 50 } }
+ ---
+ apiVersion: autoscaling/v2
+ kind: HorizontalPodAutoscaler
+ metadata:
+-  name: hpa-volumetria-service
++  name: volumetria-service
+   namespace: voltera-app
+ spec:
+   scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: volumetria-service }
+   minReplicas: 1
+-  maxReplicas: 5
++  maxReplicas: 1          # QA: fijo en 1 (oct-2026)
+   metrics:
+     - type: Resource
+-      resource: { name: cpu, target: { type: Utilization, averageUtilization: 60 } }
++      resource: { name: cpu, target: { type: Utilization, averageUtilization: 50 } }
+ ---
+ apiVersion: autoscaling/v2
+ kind: HorizontalPodAutoscaler
+ metadata:
+-  name: hpa-tarifas-service
++  name: tarifas-service
+   namespace: voltera-app
+ spec:
+   scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: tarifas-service }
+   minReplicas: 1
+-  maxReplicas: 5
++  maxReplicas: 1          # QA: fijo en 1 (oct-2026)
+   metrics:
+     - type: Resource
+-      resource: { name: cpu, target: { type: Utilization, averageUtilization: 60 } }
++      resource: { name: cpu, target: { type: Utilization, averageUtilization: 50 } }
+ ---
+ apiVersion: autoscaling/v2
+ kind: HorizontalPodAutoscaler
+ metadata:
+-  name: hpa-pagos-service
++  name: pagos-service
+   namespace: voltera-app
+ spec:
+   scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: pagos-service }
+   minReplicas: 1
+-  maxReplicas: 5
++  maxReplicas: 1          # QA: fijo en 1 (oct-2026)
++  metrics:
++    - type: Resource
++      resource: { name: cpu, target: { type: Utilization, averageUtilization: 50 } }
++---
++apiVersion: autoscaling/v2
++kind: HorizontalPodAutoscaler
++metadata:
++  name: service-registry
++  namespace: voltera-app
++spec:
++  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: service-registry }
++  minReplicas: 1
++  maxReplicas: 1          # QA: fijo en 1 (oct-2026)
+   metrics:
+     - type: Resource
+-      resource: { name: cpu, target: { type: Utilization, averageUtilization: 60 } }
++      resource: { name: cpu, target: { type: Utilization, averageUtilization: 50 } }
+diff --git a/Microservicios/k8s/pagos-deployment.yaml b/Microservicios/k8s/pagos-deployment.yaml
+index a50a93d..6263bfb 100644
+--- a/Microservicios/k8s/pagos-deployment.yaml
++++ b/Microservicios/k8s/pagos-deployment.yaml
+@@ -5,7 +5,7 @@ metadata:
+   namespace: voltera-app
+   labels: { app: pagos-service }
+ spec:
+-  replicas: 1
++  replicas: 1                                   # QA: 1 replica fija (oct-2026, capacidad del cluster)
+   selector: { matchLabels: { app: pagos-service } }
+   strategy:
+     type: RollingUpdate
+@@ -27,9 +27,12 @@ spec:
+           env:
+             - { name: EUREKA_ENABLED, value: "true" }
+             - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
++            # Ajuste JVM (oct-2026): baja ~300Mi -> ~210Mi por servicio en QA
++            - { name: JAVA_TOOL_OPTIONS, value: "-Xmx128m -Xss512k -XX:TieredStopAtLevel=1 -XX:ReservedCodeCacheSize=48m -XX:MaxMetaspaceSize=160m" }
++            - { name: SERVER_TOMCAT_THREADS_MAX, value: "20" }
+           resources:
+             limits: { cpu: "500m", memory: "512Mi" }
+-            requests: { cpu: "50m", memory: "160Mi" }
++            requests: { cpu: "50m", memory: "256Mi" }
+           readinessProbe:
+             httpGet: { path: /actuator/health, port: 8085 }
+             initialDelaySeconds: 25
+diff --git a/Microservicios/k8s/voltera-cobros.yaml b/Microservicios/k8s/voltera-cobros.yaml
+index a445c62..3ad5276 100644
+--- a/Microservicios/k8s/voltera-cobros.yaml
++++ b/Microservicios/k8s/voltera-cobros.yaml
+@@ -19,7 +19,7 @@ metadata:
+     voltera.io/diagrama-02: "Contexto Cobros · agregado Movimiento (Prima, Recibo)"
+     voltera.io/rol: "Concilia PagoConfirmado y emite Recibo (idempotente)"
+ spec:
+-  replicas: 1
++  replicas: 1                                   # QA: 1 replica fija (oct-2026, capacidad del cluster)
+   selector: { matchLabels: { app: cobros-service } }
+   strategy:
+     type: RollingUpdate
+@@ -27,6 +27,8 @@ spec:
+   template:
+     metadata: { labels: { app: cobros-service, version: v1 } }
+     spec:
++      tolerations:                         # el master tambien ejecuta servicios de negocio
++        - { key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule }
+       imagePullSecrets: [{ name: harbor-cred }]
+       containers:
+         - name: cobros-service
+@@ -36,9 +38,12 @@ spec:
+             - { name: EUREKA_ENABLED, value: "true" }
+             - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
+             - { name: KAFKA_BOOTSTRAP_SERVERS, value: "redpanda.voltera-app:9092" }
++            # Ajuste JVM (oct-2026): baja ~300Mi -> ~210Mi por servicio en QA
++            - { name: JAVA_TOOL_OPTIONS, value: "-Xmx128m -Xss512k -XX:TieredStopAtLevel=1 -XX:ReservedCodeCacheSize=48m -XX:MaxMetaspaceSize=160m" }
++            - { name: SERVER_TOMCAT_THREADS_MAX, value: "20" }
+           resources:
+             limits: { cpu: "500m", memory: "512Mi" }
+-            requests: { cpu: "50m", memory: "160Mi" }
++            requests: { cpu: "50m", memory: "256Mi" }
+           readinessProbe:
+             httpGet: { path: /actuator/health, port: 8100 }
+             initialDelaySeconds: 25
+@@ -85,8 +90,8 @@ spec:
+     name: cobros-service
+   pollingInterval: 10
+   cooldownPeriod: 30
+-  minReplicaCount: 0
+-  maxReplicaCount: 5
++  minReplicaCount: 1          # QA: fijo en 1 (oct-2026)
++  maxReplicaCount: 1          # QA: fijo en 1; subir cuando haya capacidad
+   triggers:
+     - type: kafka
+       metadata:
+diff --git a/Microservicios/k8s/voltera-eda.yaml b/Microservicios/k8s/voltera-eda.yaml
+index a218da9..b720375 100644
+--- a/Microservicios/k8s/voltera-eda.yaml
++++ b/Microservicios/k8s/voltera-eda.yaml
+@@ -76,7 +76,7 @@ metadata:
+   namespace: voltera-app
+   labels: { app: siniestros-service }
+ spec:
+-  replicas: 1
++  replicas: 1                                   # QA: 1 replica fija (oct-2026, capacidad del cluster)
+   selector: { matchLabels: { app: siniestros-service } }
+   # maxSurge=0: el worker tiene poca RAM y no admite un pod extra durante el
+   # rollout, así que se termina el pod viejo antes de crear el nuevo.
+@@ -86,6 +86,8 @@ spec:
+   template:
+     metadata: { labels: { app: siniestros-service, version: v1 } }   # version -> Kiali/telemetria
+     spec:
++      tolerations:                         # el master tambien ejecuta servicios de negocio
++        - { key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule }
+       imagePullSecrets: [{ name: harbor-cred }]
+       containers:
+         - name: siniestros-service
+@@ -95,9 +97,12 @@ spec:
+             - { name: EUREKA_ENABLED, value: "true" }
+             - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
+             - { name: KAFKA_BOOTSTRAP_SERVERS, value: "redpanda.voltera-app:9092" }
++            # Ajuste JVM (oct-2026): baja ~300Mi -> ~210Mi por servicio en QA
++            - { name: JAVA_TOOL_OPTIONS, value: "-Xmx128m -Xss512k -XX:TieredStopAtLevel=1 -XX:ReservedCodeCacheSize=48m -XX:MaxMetaspaceSize=160m" }
++            - { name: SERVER_TOMCAT_THREADS_MAX, value: "20" }
+           resources:
+             limits: { cpu: "500m", memory: "512Mi" }        # cpu limit para acotar el pod
+-            requests: { cpu: "50m", memory: "160Mi" }       # cpu request -> BASE del calculo del HPA
++            requests: { cpu: "50m", memory: "256Mi" }       # cpu request -> BASE del calculo del HPA
+           readinessProbe:
+             httpGet: { path: /actuator/health, port: 8091 }
+             initialDelaySeconds: 25
+@@ -145,7 +150,7 @@ metadata:
+   namespace: voltera-app
+   labels: { app: reaseguro-service }
+ spec:
+-  replicas: 1
++  replicas: 1                                   # QA: 1 replica fija (oct-2026, capacidad del cluster)
+   selector: { matchLabels: { app: reaseguro-service } }
+   # maxSurge=0: el worker tiene poca RAM y no admite un pod extra durante el
+   # rollout, así que se termina el pod viejo antes de crear el nuevo.
+@@ -155,6 +160,8 @@ spec:
+   template:
+     metadata: { labels: { app: reaseguro-service, version: v1 } }   # version -> Kiali/telemetria
+     spec:
++      tolerations:                         # el master tambien ejecuta servicios de negocio
++        - { key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule }
+       imagePullSecrets: [{ name: harbor-cred }]
+       containers:
+         - name: reaseguro-service
+@@ -164,9 +171,12 @@ spec:
+             - { name: EUREKA_ENABLED, value: "true" }
+             - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
+             - { name: KAFKA_BOOTSTRAP_SERVERS, value: "redpanda.voltera-app:9092" }
++            # Ajuste JVM (oct-2026): baja ~300Mi -> ~210Mi por servicio en QA
++            - { name: JAVA_TOOL_OPTIONS, value: "-Xmx128m -Xss512k -XX:TieredStopAtLevel=1 -XX:ReservedCodeCacheSize=48m -XX:MaxMetaspaceSize=160m" }
++            - { name: SERVER_TOMCAT_THREADS_MAX, value: "20" }
+           resources:
+             limits: { cpu: "500m", memory: "512Mi" }        # cpu limit para acotar el pod
+-            requests: { cpu: "50m", memory: "160Mi" }       # cpu request -> BASE del calculo del HPA
++            requests: { cpu: "50m", memory: "256Mi" }       # cpu request -> BASE del calculo del HPA
+           readinessProbe:
+             httpGet: { path: /actuator/health, port: 8092 }
+             initialDelaySeconds: 25
+@@ -227,8 +237,8 @@ spec:
+     name: reaseguro-service
+   pollingInterval: 10
+   cooldownPeriod: 30
+-  minReplicaCount: 0    # scale to zero cuando no hay eventos
+-  maxReplicaCount: 5
++  minReplicaCount: 1          # QA: fijo en 1 (oct-2026)
++  maxReplicaCount: 1          # QA: fijo en 1; subir cuando haya capacidad
+   triggers:
+     - type: kafka
+       metadata:
+@@ -254,7 +264,7 @@ metadata:
+   namespace: voltera-app
+   labels: { app: telemetria-service }
+ spec:
+-  replicas: 1
++  replicas: 1                                   # QA: 1 replica fija (oct-2026, capacidad del cluster)
+   selector: { matchLabels: { app: telemetria-service } }
+   strategy:
+     type: RollingUpdate
+@@ -262,6 +272,15 @@ spec:
+   template:
+     metadata: { labels: { app: telemetria-service, version: v1 } }
+     spec:
++      tolerations:                         # el master tambien ejecuta servicios de negocio
++        - { key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule }
++      affinity:                            # preferir el worker (si cabe); el master queda de respaldo
++        nodeAffinity:
++          preferredDuringSchedulingIgnoredDuringExecution:
++            - weight: 100
++              preference:
++                matchExpressions:
++                  - { key: node-role.kubernetes.io/control-plane, operator: DoesNotExist }
+       imagePullSecrets: [{ name: harbor-cred }]
+       containers:
+         - name: telemetria-service
+@@ -271,9 +290,12 @@ spec:
+             - { name: EUREKA_ENABLED, value: "true" }
+             - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
+             - { name: KAFKA_BOOTSTRAP_SERVERS, value: "redpanda.voltera-app:9092" }
++            # Ajuste JVM (oct-2026): baja ~300Mi -> ~210Mi por servicio en QA
++            - { name: JAVA_TOOL_OPTIONS, value: "-Xmx128m -Xss512k -XX:TieredStopAtLevel=1 -XX:ReservedCodeCacheSize=48m -XX:MaxMetaspaceSize=160m" }
++            - { name: SERVER_TOMCAT_THREADS_MAX, value: "20" }
+           resources:
+             limits: { cpu: "500m", memory: "512Mi" }
+-            requests: { cpu: "50m", memory: "160Mi" }
++            requests: { cpu: "50m", memory: "256Mi" }
+           readinessProbe:
+             httpGet: { path: /actuator/health, port: 8093 }
+             initialDelaySeconds: 25
+@@ -316,7 +338,7 @@ metadata:
+   namespace: voltera-app
+   labels: { app: tarifa-eventos-service }
+ spec:
+-  replicas: 1
++  replicas: 1                                   # QA: 1 replica fija (oct-2026, capacidad del cluster)
+   selector: { matchLabels: { app: tarifa-eventos-service } }
+   strategy:
+     type: RollingUpdate
+@@ -324,6 +346,15 @@ spec:
+   template:
+     metadata: { labels: { app: tarifa-eventos-service, version: v1 } }
+     spec:
++      tolerations:                         # el master tambien ejecuta servicios de negocio
++        - { key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule }
++      affinity:                            # preferir el worker (si cabe); el master queda de respaldo
++        nodeAffinity:
++          preferredDuringSchedulingIgnoredDuringExecution:
++            - weight: 100
++              preference:
++                matchExpressions:
++                  - { key: node-role.kubernetes.io/control-plane, operator: DoesNotExist }
+       imagePullSecrets: [{ name: harbor-cred }]
+       containers:
+         - name: tarifa-eventos-service
+@@ -333,9 +364,12 @@ spec:
+             - { name: EUREKA_ENABLED, value: "true" }
+             - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
+             - { name: KAFKA_BOOTSTRAP_SERVERS, value: "redpanda.voltera-app:9092" }
++            # Ajuste JVM (oct-2026): baja ~300Mi -> ~210Mi por servicio en QA
++            - { name: JAVA_TOOL_OPTIONS, value: "-Xmx128m -Xss512k -XX:TieredStopAtLevel=1 -XX:ReservedCodeCacheSize=48m -XX:MaxMetaspaceSize=160m" }
++            - { name: SERVER_TOMCAT_THREADS_MAX, value: "20" }
+           resources:
+             limits: { cpu: "500m", memory: "512Mi" }
+-            requests: { cpu: "50m", memory: "160Mi" }
++            requests: { cpu: "50m", memory: "256Mi" }
+           readinessProbe:
+             httpGet: { path: /actuator/health, port: 8094 }
+             initialDelaySeconds: 25
+@@ -382,8 +416,8 @@ spec:
+     name: tarifa-eventos-service
+   pollingInterval: 10
+   cooldownPeriod: 30
+-  minReplicaCount: 0    # scale to zero cuando no hay eventos de consumo
+-  maxReplicaCount: 5
++  minReplicaCount: 1          # QA: fijo en 1 (oct-2026)
++  maxReplicaCount: 1          # QA: fijo en 1; subir cuando haya capacidad
+   triggers:
+     - type: kafka
+       metadata:
+diff --git a/Microservicios/k8s/voltera-keda-ajustado.yaml b/Microservicios/k8s/voltera-keda-ajustado.yaml
+index 2781b17..17b73ce 100644
+--- a/Microservicios/k8s/voltera-keda-ajustado.yaml
++++ b/Microservicios/k8s/voltera-keda-ajustado.yaml
+@@ -33,8 +33,8 @@ spec:
+     name: ingesta-service
+   pollingInterval: 10
+   cooldownPeriod: 300
+-  minReplicaCount: 1          # min operativo del cluster (la lamina pide 2; con 14GB se deja 1)
+-  maxReplicaCount: 6          # ANTES 48 -> acotado al hardware
++  minReplicaCount: 1          # QA: fijo en 1 (oct-2026)
++  maxReplicaCount: 1          # QA: fijo en 1; subir cuando haya capacidad
+   triggers:
+     - type: kafka
+       metadata:
+@@ -56,8 +56,8 @@ spec:
+     name: telemetria-core-service
+   pollingInterval: 10
+   cooldownPeriod: 300
+-  minReplicaCount: 1
+-  maxReplicaCount: 4          # ANTES 48 -> acotado (es el pod mas pesado: 640Mi)
++  minReplicaCount: 1          # QA: fijo en 1 (oct-2026)
++  maxReplicaCount: 1          # QA: fijo en 1; subir cuando haya capacidad
+   triggers:
+     - type: kafka
+       metadata:
+@@ -79,16 +79,16 @@ spec:
+     name: notificaciones-service
+   pollingInterval: 10
+   cooldownPeriod: 60
+-  minReplicaCount: 0          # scale to zero (sin alertas, 0 pods)
+-  maxReplicaCount: 4          # ANTES 30 -> acotado
++  minReplicaCount: 1          # QA: fijo en 1 (oct-2026)
++  maxReplicaCount: 1          # QA: fijo en 1; subir cuando haya capacidad
+   triggers:
+     - type: kafka
+       metadata:
+         bootstrapServers: redpanda.voltera-app:9092
+         consumerGroup: notificaciones-consumer
+-        topic: telemetria-alertas
++        # sin 'topic': KEDA suma el lag de los 3 topics del grupo
++        # (topic.notificaciones, topic.facturacion.emitida, topic.prosumidor.estado)
+         lagThreshold: "500"
+-        activationLagThreshold: "1"
+ ---
+ # ---------------------------------------------------------------------------
+ # HABILITACION — min 1 (mantiene temporizadores de altas). lag ordenes-instalacion.
+@@ -103,8 +103,8 @@ spec:
+     name: habilitacion-service
+   pollingInterval: 10
+   cooldownPeriod: 300
+-  minReplicaCount: 1
+-  maxReplicaCount: 4
++  minReplicaCount: 1          # QA: fijo en 1 (oct-2026)
++  maxReplicaCount: 1          # QA: fijo en 1; subir cuando haya capacidad
+   triggers:
+     - type: kafka
+       metadata:
+@@ -129,8 +129,8 @@ spec:
+     name: reaseguro-service
+   pollingInterval: 10
+   cooldownPeriod: 30
+-  minReplicaCount: 1          # vista de lectura CQRS siempre disponible (antes 0)
+-  maxReplicaCount: 4
++  minReplicaCount: 1          # QA: fijo en 1 (oct-2026)
++  maxReplicaCount: 1          # QA: fijo en 1; subir cuando haya capacidad
+   triggers:
+     - type: kafka
+       metadata:
+@@ -153,8 +153,8 @@ spec:
+     name: tarifa-eventos-service
+   pollingInterval: 10
+   cooldownPeriod: 30
+-  minReplicaCount: 1          # vista de lectura CQRS siempre disponible (antes 0)
+-  maxReplicaCount: 4
++  minReplicaCount: 1          # QA: fijo en 1 (oct-2026)
++  maxReplicaCount: 1          # QA: fijo en 1; subir cuando haya capacidad
+   triggers:
+     - type: kafka
+       metadata:
+@@ -177,8 +177,8 @@ spec:
+     name: cobros-service
+   pollingInterval: 10
+   cooldownPeriod: 30
+-  minReplicaCount: 1          # vista de lectura CQRS siempre disponible (antes 0)
+-  maxReplicaCount: 4
++  minReplicaCount: 1          # QA: fijo en 1 (oct-2026)
++  maxReplicaCount: 1          # QA: fijo en 1; subir cuando haya capacidad
+   triggers:
+     - type: kafka
+       metadata:
+@@ -208,8 +208,8 @@ spec:
+     name: integracion-ami-service
+   pollingInterval: 15
+   cooldownPeriod: 300
+-  minReplicaCount: 1          # la lamina pide 2; con 14GB se deja 1
+-  maxReplicaCount: 4          # ANTES 20 -> acotado
++  minReplicaCount: 1          # QA: fijo en 1 (oct-2026)
++  maxReplicaCount: 1          # QA: fijo en 1; subir cuando haya capacidad
+   triggers:
+     - type: kafka
+       metadata:
+diff --git a/Microservicios/k8s/voltera-negocio-eda.yaml b/Microservicios/k8s/voltera-negocio-eda.yaml
+index 8ea53cd..b04be71 100644
+--- a/Microservicios/k8s/voltera-negocio-eda.yaml
++++ b/Microservicios/k8s/voltera-negocio-eda.yaml
+@@ -34,12 +34,14 @@ metadata:
+     voltera.io/diagrama-04: "Servicio de Transferencia de Estado"
+     voltera.io/rol: "ECST del medidor (habilitación / transferencia de estado)"
+ spec:
+-  replicas: 1
++  replicas: 1                                   # QA: 1 replica fija (oct-2026, capacidad del cluster)
+   selector: { matchLabels: { app: habilitacion-service } }
+   strategy: { type: RollingUpdate, rollingUpdate: { maxSurge: 0, maxUnavailable: 1 } }
+   template:
+     metadata: { labels: { app: habilitacion-service, version: v1 } }
+     spec:
++      tolerations:                         # el master tambien ejecuta servicios de negocio
++        - { key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule }
+       imagePullSecrets: [{ name: harbor-cred }]
+       containers:
+         - name: habilitacion-service
+@@ -58,9 +60,12 @@ spec:
+             - { name: CQRS_READ_URL, value: "jdbc:postgresql://timescaledb.voltera-app:5432/voltera_habilitacion_read" }
+             - { name: CQRS_USER, value: "voltera" }
+             - { name: CQRS_PASSWORD, valueFrom: { secretKeyRef: { name: timescaledb-cred, key: POSTGRES_PASSWORD } } }
++            # Ajuste JVM (oct-2026): baja ~300Mi -> ~210Mi por servicio en QA
++            - { name: JAVA_TOOL_OPTIONS, value: "-Xmx128m -Xss512k -XX:TieredStopAtLevel=1 -XX:ReservedCodeCacheSize=48m -XX:MaxMetaspaceSize=160m" }
++            - { name: SERVER_TOMCAT_THREADS_MAX, value: "20" }
+           resources:
+             limits: { cpu: "500m", memory: "512Mi" }
+-            requests: { cpu: "50m", memory: "160Mi" }
++            requests: { cpu: "50m", memory: "256Mi" }
+           readinessProbe:
+             httpGet: { path: /actuator/health, port: 8095 }
+             initialDelaySeconds: 25
+@@ -100,12 +105,14 @@ metadata:
+     voltera.io/diagrama-04: "Adaptador de Proveedores"
+     voltera.io/rol: "Anti-Corruption Layer del head-end AMI"
+ spec:
+-  replicas: 2            # min 2 (punto de entrada); KEDA/Prometheus escala hasta 20
++  replicas: 1                                   # QA: 1 replica fija (oct-2026, capacidad del cluster)
+   selector: { matchLabels: { app: integracion-ami-service } }
+   strategy: { type: RollingUpdate, rollingUpdate: { maxSurge: 0, maxUnavailable: 1 } }
+   template:
+     metadata: { labels: { app: integracion-ami-service, version: v1 } }
+     spec:
++      tolerations:                         # el master tambien ejecuta servicios de negocio
++        - { key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule }
+       imagePullSecrets: [{ name: harbor-cred }]
+       containers:
+         - name: integracion-ami-service
+@@ -119,9 +126,12 @@ spec:
+             - { name: INBOX_URL, value: "jdbc:postgresql://timescaledb.voltera-app:5432/voltera_inbox" }
+             - { name: INBOX_USER, value: "voltera" }
+             - { name: INBOX_PASSWORD, valueFrom: { secretKeyRef: { name: timescaledb-cred, key: POSTGRES_PASSWORD } } }
++            # Ajuste JVM (oct-2026): baja ~300Mi -> ~210Mi por servicio en QA
++            - { name: JAVA_TOOL_OPTIONS, value: "-Xmx128m -Xss512k -XX:TieredStopAtLevel=1 -XX:ReservedCodeCacheSize=48m -XX:MaxMetaspaceSize=160m" }
++            - { name: SERVER_TOMCAT_THREADS_MAX, value: "20" }
+           resources:
+             limits: { cpu: "500m", memory: "512Mi" }
+-            requests: { cpu: "50m", memory: "160Mi" }
++            requests: { cpu: "50m", memory: "256Mi" }
+           readinessProbe:
+             httpGet: { path: /actuator/health, port: 8096 }
+             initialDelaySeconds: 25
+@@ -161,12 +171,14 @@ metadata:
+     voltera.io/diagrama-04: "Servicio de Ingesta Telemetría"
+     voltera.io/rol: "Validación/deduplicación de lecturas AMI"
+ spec:
+-  replicas: 2            # ruta critica 99,99%: min 2
++  replicas: 1                                   # QA: 1 replica fija (oct-2026, capacidad del cluster)
+   selector: { matchLabels: { app: ingesta-service } }
+   strategy: { type: RollingUpdate, rollingUpdate: { maxSurge: 0, maxUnavailable: 1 } }
+   template:
+     metadata: { labels: { app: ingesta-service, version: v1 } }
+     spec:
++      tolerations:                         # el master tambien ejecuta servicios de negocio
++        - { key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule }
+       imagePullSecrets: [{ name: harbor-cred }]
+       containers:
+         - name: ingesta-service
+@@ -180,9 +192,12 @@ spec:
+             - { name: INBOX_URL, value: "jdbc:postgresql://timescaledb.voltera-app:5432/voltera_inbox" }
+             - { name: INBOX_USER, value: "voltera" }
+             - { name: INBOX_PASSWORD, valueFrom: { secretKeyRef: { name: timescaledb-cred, key: POSTGRES_PASSWORD } } }
++            # Ajuste JVM (oct-2026): baja ~300Mi -> ~210Mi por servicio en QA
++            - { name: JAVA_TOOL_OPTIONS, value: "-Xmx128m -Xss512k -XX:TieredStopAtLevel=1 -XX:ReservedCodeCacheSize=48m -XX:MaxMetaspaceSize=160m" }
++            - { name: SERVER_TOMCAT_THREADS_MAX, value: "20" }
+           resources:
+             limits: { cpu: "500m", memory: "512Mi" }
+-            requests: { cpu: "50m", memory: "160Mi" }
++            requests: { cpu: "50m", memory: "256Mi" }
+           readinessProbe:
+             httpGet: { path: /actuator/health, port: 8097 }
+             initialDelaySeconds: 25
+@@ -223,12 +238,21 @@ metadata:
+     voltera.io/diagrama-04: "Servicio de Telemetría"
+     voltera.io/rol: "CQRS core (serie de medición · escritura TSDB / lectura Redis)"
+ spec:
+-  replicas: 2            # min 2
++  replicas: 1                                   # QA: 1 replica fija (oct-2026, capacidad del cluster)
+   selector: { matchLabels: { app: telemetria-core-service } }
+   strategy: { type: RollingUpdate, rollingUpdate: { maxSurge: 0, maxUnavailable: 1 } }
+   template:
+     metadata: { labels: { app: telemetria-core-service, version: v1 } }
+     spec:
++      tolerations:                         # el master tambien ejecuta servicios de negocio
++        - { key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule }
++      affinity:                            # preferir el worker (si cabe); el master queda de respaldo
++        nodeAffinity:
++          preferredDuringSchedulingIgnoredDuringExecution:
++            - weight: 100
++              preference:
++                matchExpressions:
++                  - { key: node-role.kubernetes.io/control-plane, operator: DoesNotExist }
+       imagePullSecrets: [{ name: harbor-cred }]
+       containers:
+         - name: telemetria-core-service
+@@ -247,9 +271,12 @@ spec:
+             - { name: INBOX_URL, value: "jdbc:postgresql://timescaledb.voltera-app:5432/voltera_inbox" }
+             - { name: INBOX_USER, value: "voltera" }
+             - { name: INBOX_PASSWORD, valueFrom: { secretKeyRef: { name: timescaledb-cred, key: POSTGRES_PASSWORD } } }
++            # Ajuste JVM (oct-2026): baja ~300Mi -> ~210Mi por servicio en QA
++            - { name: JAVA_TOOL_OPTIONS, value: "-Xmx128m -Xss512k -XX:TieredStopAtLevel=1 -XX:ReservedCodeCacheSize=48m -XX:MaxMetaspaceSize=160m" }
++            - { name: SERVER_TOMCAT_THREADS_MAX, value: "20" }
+           resources:
+             limits: { cpu: "700m", memory: "640Mi" }
+-            requests: { cpu: "100m", memory: "200Mi" }
++            requests: { cpu: "100m", memory: "256Mi" }
+           readinessProbe:
+             httpGet: { path: /actuator/health, port: 8098 }
+             initialDelaySeconds: 30
+@@ -289,12 +316,14 @@ metadata:
+     voltera.io/diagrama-04: "Servicio de Notificaciones"
+     voltera.io/rol: "Consumidor de alertas/estado · emite ClienteNotificado"
+ spec:
+-  replicas: 1            # KEDA puede bajar a 0 (scale to zero)
++  replicas: 1                                   # QA: 1 replica fija (oct-2026, capacidad del cluster)
+   selector: { matchLabels: { app: notificaciones-service } }
+   strategy: { type: RollingUpdate, rollingUpdate: { maxSurge: 0, maxUnavailable: 1 } }
+   template:
+     metadata: { labels: { app: notificaciones-service, version: v1 } }
+     spec:
++      tolerations:                         # el master tambien ejecuta servicios de negocio
++        - { key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule }
+       imagePullSecrets: [{ name: harbor-cred }]
+       containers:
+         - name: notificaciones-service
+@@ -313,9 +342,12 @@ spec:
+             - { name: CQRS_READ_URL, value: "jdbc:postgresql://timescaledb.voltera-app:5432/voltera_notif_read" }
+             - { name: CQRS_USER, value: "voltera" }
+             - { name: CQRS_PASSWORD, valueFrom: { secretKeyRef: { name: timescaledb-cred, key: POSTGRES_PASSWORD } } }
++            # Ajuste JVM (oct-2026): baja ~300Mi -> ~210Mi por servicio en QA
++            - { name: JAVA_TOOL_OPTIONS, value: "-Xmx128m -Xss512k -XX:TieredStopAtLevel=1 -XX:ReservedCodeCacheSize=48m -XX:MaxMetaspaceSize=160m" }
++            - { name: SERVER_TOMCAT_THREADS_MAX, value: "20" }
+           resources:
+             limits: { cpu: "500m", memory: "512Mi" }
+-            requests: { cpu: "50m", memory: "160Mi" }
++            requests: { cpu: "50m", memory: "256Mi" }
+           readinessProbe:
+             httpGet: { path: /actuator/health, port: 8099 }
+             initialDelaySeconds: 25
+diff --git a/Microservicios/k8s/voltera-registry.yaml b/Microservicios/k8s/voltera-registry.yaml
+index 2dc4e27..3620f90 100644
+--- a/Microservicios/k8s/voltera-registry.yaml
++++ b/Microservicios/k8s/voltera-registry.yaml
+@@ -26,17 +26,23 @@ metadata:
+   namespace: voltera-app
+   labels: { app: service-registry }
+ spec:
+-  replicas: 1
++  replicas: 1                                   # QA: 1 replica fija (oct-2026, capacidad del cluster)
+   selector: { matchLabels: { app: service-registry } }
+   template:
+     metadata: { labels: { app: service-registry } }
+     spec:
++      tolerations:                         # el master tambien ejecuta servicios de negocio
++        - { key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule }
+       imagePullSecrets: [{ name: harbor-cred }]
+       containers:
+         - name: service-registry
+           image: 192.168.3.13/app-voltaire/service-registry:1.0.0
+           ports: [{ containerPort: 8761 }]
+-          resources: { limits: { memory: "400Mi" }, requests: { memory: "200Mi" } }
++          env:
++            # Ajuste JVM (oct-2026): baja ~300Mi -> ~210Mi por servicio en QA
++            - { name: JAVA_TOOL_OPTIONS, value: "-Xmx128m -Xss512k -XX:TieredStopAtLevel=1 -XX:ReservedCodeCacheSize=48m -XX:MaxMetaspaceSize=160m" }
++            - { name: SERVER_TOMCAT_THREADS_MAX, value: "20" }
++          resources: { limits: { memory: "400Mi" }, requests: { memory: "256Mi" } }
+           readinessProbe:
+             httpGet: { path: /actuator/health, port: 8761 }
+             initialDelaySeconds: 20
+diff --git a/Microservicios/k8s/voltera-scheduling.yaml b/Microservicios/k8s/voltera-scheduling.yaml
+index e0bd217..7081569 100644
+--- a/Microservicios/k8s/voltera-scheduling.yaml
++++ b/Microservicios/k8s/voltera-scheduling.yaml
+@@ -2,7 +2,7 @@
+ # VOLTERA — Reparto de carga y topes de recursos (ESTABILIDAD DEL CLUSTER)
+ # ----------------------------------------------------------------------------
+ # Contexto del hardware (demo académica, recursos muy ajustados):
+-#   master  k8s-atiesia-master   -> 4 vCPU / 6 GB  (ademas corre control-plane + etcd)
++#   master  k8s-atiesia-master   -> 4 vCPU / 7 GB  (ademas corre control-plane + etcd; 6->7 GB el 16-oct-2026)
+ #   worker  k8s-atiesia-worker-01-> 4 vCPU / 8 GB
+ #
+ # PROBLEMA observado: el master llegaba a 90% de RAM con 13 pods de negocio +
+@@ -32,6 +32,8 @@
+ # duplicar las plantillas. Mantener esta tabla como fuente de verdad del reparto:
+ #
+ #   WORKER (anclados aqui):  volumetria-service · liquidacion-p2p-service · siniestros-service
++#   WORKER (preferencia suave, nodeAffinity preferred):
++#                            telemetria-service · telemetria-core-service · tarifas-service · tarifa-eventos-service
+ #   MASTER (resto):          control-plane, etcd y los demas servicios de negocio
+ #
+ # Si en el futuro se agrega un segundo worker, mover mas servicios aqui.
+diff --git a/Microservicios/k8s/voltera-services.yaml b/Microservicios/k8s/voltera-services.yaml
+index be3fb18..0dddddf 100644
+--- a/Microservicios/k8s/voltera-services.yaml
++++ b/Microservicios/k8s/voltera-services.yaml
+@@ -6,11 +6,13 @@ metadata:
+   namespace: voltera-app
+   labels: { app: facturacion-service }
+ spec:
+-  replicas: 2                                   # HA: 2 replicas base (el HPA ajusta entre min/max)
++  replicas: 1                                   # QA: 1 replica fija (oct-2026, capacidad del cluster)
+   selector: { matchLabels: { app: facturacion-service } }
+   template:
+     metadata: { labels: { app: facturacion-service, version: v1 } }   # version -> Kiali/telemetria
+     spec:
++      tolerations:                         # el master tambien ejecuta servicios de negocio
++        - { key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule }
+       imagePullSecrets: [{ name: harbor-cred }]
+       containers:
+         - name: facturacion-service
+@@ -19,9 +21,12 @@ spec:
+           env:
+             - { name: EUREKA_ENABLED, value: "true" }
+             - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
++            # Ajuste JVM (oct-2026): baja ~300Mi -> ~210Mi por servicio en QA
++            - { name: JAVA_TOOL_OPTIONS, value: "-Xmx128m -Xss512k -XX:TieredStopAtLevel=1 -XX:ReservedCodeCacheSize=48m -XX:MaxMetaspaceSize=160m" }
++            - { name: SERVER_TOMCAT_THREADS_MAX, value: "20" }
+           resources:
+             limits: { cpu: "500m", memory: "512Mi" }        # cpu limit para acotar el pod
+-            requests: { cpu: "50m", memory: "160Mi" }       # cpu request -> BASE del calculo del HPA
++            requests: { cpu: "50m", memory: "256Mi" }       # cpu request -> BASE del calculo del HPA
+           readinessProbe:
+             httpGet: { path: /actuator/health, port: 8088 }
+             initialDelaySeconds: 25
+@@ -64,11 +69,13 @@ metadata:
+   namespace: voltera-app
+   labels: { app: liquidacion-mensual-service }
+ spec:
+-  replicas: 2                                   # HA: 2 replicas base (el HPA ajusta entre min/max)
++  replicas: 1                                   # QA: 1 replica fija (oct-2026, capacidad del cluster)
+   selector: { matchLabels: { app: liquidacion-mensual-service } }
+   template:
+     metadata: { labels: { app: liquidacion-mensual-service, version: v1 } }   # version -> Kiali/telemetria
+     spec:
++      tolerations:                         # el master tambien ejecuta servicios de negocio
++        - { key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule }
+       imagePullSecrets: [{ name: harbor-cred }]
+       containers:
+         - name: liquidacion-mensual-service
+@@ -77,9 +84,12 @@ spec:
+           env:
+             - { name: EUREKA_ENABLED, value: "true" }
+             - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
++            # Ajuste JVM (oct-2026): baja ~300Mi -> ~210Mi por servicio en QA
++            - { name: JAVA_TOOL_OPTIONS, value: "-Xmx128m -Xss512k -XX:TieredStopAtLevel=1 -XX:ReservedCodeCacheSize=48m -XX:MaxMetaspaceSize=160m" }
++            - { name: SERVER_TOMCAT_THREADS_MAX, value: "20" }
+           resources:
+             limits: { cpu: "500m", memory: "512Mi" }        # cpu limit para acotar el pod
+-            requests: { cpu: "50m", memory: "160Mi" }       # cpu request -> BASE del calculo del HPA
++            requests: { cpu: "50m", memory: "256Mi" }       # cpu request -> BASE del calculo del HPA
+           readinessProbe:
+             httpGet: { path: /actuator/health, port: 8082 }
+             initialDelaySeconds: 25
+@@ -122,11 +132,13 @@ metadata:
+   namespace: voltera-app
+   labels: { app: liquidacion-p2p-service }
+ spec:
+-  replicas: 2                                   # HA: 2 replicas base (el HPA ajusta entre min/max)
++  replicas: 1                                   # QA: 1 replica fija (oct-2026, capacidad del cluster)
+   selector: { matchLabels: { app: liquidacion-p2p-service } }
+   template:
+     metadata: { labels: { app: liquidacion-p2p-service, version: v1 } }   # version -> Kiali/telemetria
+     spec:
++      tolerations:                         # el master tambien ejecuta servicios de negocio
++        - { key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule }
+       imagePullSecrets: [{ name: harbor-cred }]
+       containers:
+         - name: liquidacion-p2p-service
+@@ -135,9 +147,12 @@ spec:
+           env:
+             - { name: EUREKA_ENABLED, value: "true" }
+             - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
++            # Ajuste JVM (oct-2026): baja ~300Mi -> ~210Mi por servicio en QA
++            - { name: JAVA_TOOL_OPTIONS, value: "-Xmx128m -Xss512k -XX:TieredStopAtLevel=1 -XX:ReservedCodeCacheSize=48m -XX:MaxMetaspaceSize=160m" }
++            - { name: SERVER_TOMCAT_THREADS_MAX, value: "20" }
+           resources:
+             limits: { cpu: "500m", memory: "512Mi" }        # cpu limit para acotar el pod
+-            requests: { cpu: "50m", memory: "160Mi" }       # cpu request -> BASE del calculo del HPA
++            requests: { cpu: "50m", memory: "256Mi" }       # cpu request -> BASE del calculo del HPA
+           readinessProbe:
+             httpGet: { path: /actuator/health, port: 8081 }
+             initialDelaySeconds: 25
+@@ -180,11 +195,13 @@ metadata:
+   namespace: voltera-app
+   labels: { app: volumetria-service }
+ spec:
+-  replicas: 2                                   # HA: 2 replicas base (el HPA ajusta entre min/max)
++  replicas: 1                                   # QA: 1 replica fija (oct-2026, capacidad del cluster)
+   selector: { matchLabels: { app: volumetria-service } }
+   template:
+     metadata: { labels: { app: volumetria-service, version: v1 } }   # version -> Kiali/telemetria
+     spec:
++      tolerations:                         # el master tambien ejecuta servicios de negocio
++        - { key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule }
+       imagePullSecrets: [{ name: harbor-cred }]
+       containers:
+         - name: volumetria-service
+@@ -193,9 +210,12 @@ spec:
+           env:
+             - { name: EUREKA_ENABLED, value: "true" }
+             - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
++            # Ajuste JVM (oct-2026): baja ~300Mi -> ~210Mi por servicio en QA
++            - { name: JAVA_TOOL_OPTIONS, value: "-Xmx128m -Xss512k -XX:TieredStopAtLevel=1 -XX:ReservedCodeCacheSize=48m -XX:MaxMetaspaceSize=160m" }
++            - { name: SERVER_TOMCAT_THREADS_MAX, value: "20" }
+           resources:
+             limits: { cpu: "500m", memory: "512Mi" }        # cpu limit para acotar el pod
+-            requests: { cpu: "50m", memory: "160Mi" }       # cpu request -> BASE del calculo del HPA
++            requests: { cpu: "50m", memory: "256Mi" }       # cpu request -> BASE del calculo del HPA
+           readinessProbe:
+             httpGet: { path: /actuator/health, port: 8083 }
+             initialDelaySeconds: 25
+@@ -241,11 +261,20 @@ metadata:
+     voltera.io/diagrama-04: "Servicio de Tarifas"
+     voltera.io/rol: "Cálculo/asignación de tarifa (CQRS write/read)"
+ spec:
+-  replicas: 2                                   # HA: 2 replicas base (el HPA ajusta entre min/max)
++  replicas: 1                                   # QA: 1 replica fija (oct-2026, capacidad del cluster)
+   selector: { matchLabels: { app: tarifas-service } }
+   template:
+     metadata: { labels: { app: tarifas-service, version: v1 } }   # version -> Kiali/telemetria
+     spec:
++      tolerations:                         # el master tambien ejecuta servicios de negocio
++        - { key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule }
++      affinity:                            # preferir el worker (si cabe); el master queda de respaldo
++        nodeAffinity:
++          preferredDuringSchedulingIgnoredDuringExecution:
++            - weight: 100
++              preference:
++                matchExpressions:
++                  - { key: node-role.kubernetes.io/control-plane, operator: DoesNotExist }
+       imagePullSecrets: [{ name: harbor-cred }]
+       containers:
+         - name: tarifas-service
+@@ -264,9 +293,12 @@ spec:
+             - { name: CQRS_READ_URL, value: "jdbc:postgresql://timescaledb.voltera-app:5432/voltera_tarifas_read" }
+             - { name: CQRS_USER, value: "voltera" }
+             - { name: CQRS_PASSWORD, valueFrom: { secretKeyRef: { name: timescaledb-cred, key: POSTGRES_PASSWORD } } }
++            # Ajuste JVM (oct-2026): baja ~300Mi -> ~210Mi por servicio en QA
++            - { name: JAVA_TOOL_OPTIONS, value: "-Xmx128m -Xss512k -XX:TieredStopAtLevel=1 -XX:ReservedCodeCacheSize=48m -XX:MaxMetaspaceSize=160m" }
++            - { name: SERVER_TOMCAT_THREADS_MAX, value: "20" }
+           resources:
+             limits: { cpu: "500m", memory: "512Mi" }        # cpu limit para acotar el pod
+-            requests: { cpu: "50m", memory: "160Mi" }       # cpu request -> BASE del calculo del HPA
++            requests: { cpu: "50m", memory: "256Mi" }       # cpu request -> BASE del calculo del HPA
+           readinessProbe:
+             httpGet: { path: /actuator/health, port: 8084 }
+             initialDelaySeconds: 25
+@@ -309,7 +341,7 @@ metadata:
+   namespace: voltera-app
+   labels: { app: pagos-service }
+ spec:
+-  replicas: 2                                   # HA: 2 replicas base (el HPA ajusta entre min/max)
++  replicas: 1                                   # QA: 1 replica fija (oct-2026, capacidad del cluster)
+   selector: { matchLabels: { app: pagos-service } }
+   # maxSurge=0: el worker tiene poca RAM y no admite un pod extra durante el rollout,
+   # así que se termina el pod viejo antes de crear el nuevo (evita quedar Pending).
+@@ -319,6 +351,8 @@ spec:
+   template:
+     metadata: { labels: { app: pagos-service, version: v1 } }   # version -> Kiali/telemetria
+     spec:
++      tolerations:                         # el master tambien ejecuta servicios de negocio
++        - { key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule }
+       imagePullSecrets: [{ name: harbor-cred }]
+       containers:
+         - name: pagos-service
+@@ -327,9 +361,12 @@ spec:
+           env:
+             - { name: EUREKA_ENABLED, value: "true" }
+             - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
++            # Ajuste JVM (oct-2026): baja ~300Mi -> ~210Mi por servicio en QA
++            - { name: JAVA_TOOL_OPTIONS, value: "-Xmx128m -Xss512k -XX:TieredStopAtLevel=1 -XX:ReservedCodeCacheSize=48m -XX:MaxMetaspaceSize=160m" }
++            - { name: SERVER_TOMCAT_THREADS_MAX, value: "20" }
+           resources:
+             limits: { cpu: "500m", memory: "512Mi" }        # cpu limit para acotar el pod
+-            requests: { cpu: "50m", memory: "160Mi" }       # cpu request -> BASE del calculo del HPA
++            requests: { cpu: "50m", memory: "256Mi" }       # cpu request -> BASE del calculo del HPA
+           readinessProbe:
+             httpGet: { path: /actuator/health, port: 8085 }
+             initialDelaySeconds: 25
+-- 
+2.43.0
+

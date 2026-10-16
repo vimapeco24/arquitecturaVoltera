@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Construye las 16 imagenes de backend Voltera para linux/amd64 y las sube a Harbor.
 #
+# ⛔ PASO 0 OBLIGATORIO (todos los servicios, sin excepcion): leer y tener aplicado
+#    Microservicios/voltera-k8s-qa-sync.patch  (replicas 1, min=1/max=1, JVM tuning,
+#    requests 256Mi, affinity worker, topics KEDA). Verificar:
+#      git apply --check Microservicios/voltera-k8s-qa-sync.patch
+#    Ver DESPLIEGUE-SEGURO.md (PASO 0) antes de continuar.
+#
 # ⚠️ ANTES DE DESPLEGAR: leer DESPLIEGUE-SEGURO.md (este directorio).
 #    Validar en que nodo esta cada servicio y la carga del nodo ANTES de subir,
 #    para no saturar el master (6GB) y evitar OOM en cascada. Desplegar de uno en uno.

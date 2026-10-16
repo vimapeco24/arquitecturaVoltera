@@ -2,6 +2,30 @@
 
 > **Leer ANTES de ejecutar `build-push-all.sh` o `deploy-eda-completo.sh`.**
 
+## ⛔ PASO 0 OBLIGATORIO — para TODOS los servicios, SIN EXCEPCIÓN
+Antes de cargar/desplegar CUALQUIER servicio, **leer y tener aplicado** el patch de
+sincronización QA que deja los manifiestos en el estado que el clúster soporta sin saturarse:
+
+```
+Microservicios/voltera-k8s-qa-sync.patch
+```
+
+Qué garantiza ese patch (y por qué NO saltárselo en ningún servicio):
+- `replicas: 1` y HPA/KEDA `min=1 / max=1` → el clúster no tiene RAM para 2 réplicas ni picos de JVM.
+- `JAVA_TOOL_OPTIONS` + `SERVER_TOMCAT_THREADS_MAX=20` en los 17 Spring Boot → ~300Mi baja a ~210Mi.
+- `requests.memory: 256Mi` honestos → el scheduler reparte según consumo real.
+- toleration del control-plane + `nodeAffinity` preferida al worker → ~10 pods por nodo.
+- topics KEDA corregidos (reaseguro, tarifa-eventos, notificaciones) → métricas válidas.
+
+Revisar/aplicar antes de desplegar:
+```bash
+# ver qué cambia (debe estar ya reflejado en los YAML):
+git apply --check Microservicios/voltera-k8s-qa-sync.patch   # sin salida = ya aplicado
+# si NO está aplicado todavía:
+git apply Microservicios/voltera-k8s-qa-sync.patch
+```
+Si un deployment nuevo no respeta estos límites, **ajustarlo al patch antes de subirlo**.
+
 ## Regla de oro
 Antes de subir/re-desplegar CUALQUIER microservicio, **validar primero en qué nodo está y la
 carga de ese nodo**. El master tiene solo **6 GB** y además corre el control-plane + etcd; si se
