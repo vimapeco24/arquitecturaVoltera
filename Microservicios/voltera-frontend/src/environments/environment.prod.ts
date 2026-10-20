@@ -19,6 +19,13 @@ export const environment = {
   production: true,
   gatewayBase: '/api/gw',
   tokenUrl: '/api/token',
+  /**
+   * Base directa del blockchain-gateway (Render, público). Si está definida,
+   * el marketplace P2P llama directo a esta URL (no pasa por WSO2/BFF, que vive
+   * en LAN privada). Formato: https://voltera-blockchain-gateway.onrender.com
+   * Vacío = usa el gateway normal (gatewayBase + /blockchain).
+   */
+  blockchainBase: 'https://voltera-blockchain-gateway.onrender.com',
   oauth: {
     consumerKey: '',
     consumerSecret: '',

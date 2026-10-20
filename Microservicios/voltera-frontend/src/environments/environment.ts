@@ -10,6 +10,11 @@ export const environment = {
   gatewayBase: '/gw',
   /** Endpoint OAuth2 token (proxyeado a https://192.168.3.13:9443). */
   tokenUrl: '/oauth2/token',
+  /**
+   * Base directa del blockchain-gateway. En dev se deja vacío para usar el
+   * proxy local; el marketplace cae al gateway normal (gatewayBase + /blockchain).
+   */
+  blockchainBase: '',
   /** Credenciales del cliente OAuth2 (client_credentials). */
   oauth: {
     consumerKey: 'ndzpaXfp_KkDgRacWPzwfZvAjLMa',
