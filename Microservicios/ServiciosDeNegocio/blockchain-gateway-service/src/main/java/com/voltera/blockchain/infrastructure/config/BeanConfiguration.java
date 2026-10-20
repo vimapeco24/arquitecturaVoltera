@@ -86,8 +86,15 @@ public class BeanConfiguration {
         return new AnclajeService(repo, cadena, publicador, hash, props.getNetwork());
     }
 
+    /**
+     * Normaliza la clave privada: quita espacios, tabuladores y saltos de línea
+     * (que a veces se cuelan al pegar el secret en paneles de PaaS) y garantiza
+     * el prefijo 0x. Sin esto, un salto accidental hace fallar web3j con
+     * NumberFormatException ("... under radix 16") y el servicio no arranca.
+     */
     private static String normalizar(String pk) {
         if (pk == null) return "";
-        return pk.startsWith("0x") ? pk : "0x" + pk;
+        String limpio = pk.replaceAll("\\s+", "");
+        return limpio.startsWith("0x") ? limpio : "0x" + limpio;
     }
 }
