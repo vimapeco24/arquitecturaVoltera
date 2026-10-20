@@ -16,7 +16,7 @@
 
   .mp-stats {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(6, 1fr);
     gap: 14px;
     margin-bottom: 18px;
     .stat {
@@ -26,6 +26,7 @@
       gap: 4px;
       .n { font-size: 26px; font-weight: 700; line-height: 1; }
       .n.ok { color: var(--v-ok, #2ecc71); }
+      .n.warn { color: var(--v-warn, #f1c40f); }
       .l { font-size: 12px; color: var(--v-text-dim, #8a93a6); text-transform: uppercase; letter-spacing: .04em; }
     }
   }
@@ -101,4 +102,53 @@
     .mp-stats { grid-template-columns: repeat(2, 1fr); }
     .mp-grid { grid-template-columns: 1fr; }
   }
+}
+
+/* ---- Mejoras Nivel 2: auto-refresco, quitar orden, filtros, timeline ---- */
+.mp {
+  .net-bar .net-item.auto { margin-left: auto; }
+  .auto-toggle {
+    display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+    font-size: 12px; color: var(--v-text-dim, #8a93a6);
+    user-select: none;
+    input { accent-color: var(--v-ok, #2ecc71); cursor: pointer; }
+  }
+
+  /* botón para quitar una orden del libro */
+  .order { position: relative; }
+  .order .rm {
+    position: absolute; top: 6px; right: 6px;
+    width: 18px; height: 18px; line-height: 16px; text-align: center;
+    border: none; border-radius: 50%; cursor: pointer; padding: 0;
+    background: transparent; color: var(--v-text-dim, #8a93a6);
+    font-size: 11px; opacity: 0; transition: opacity .15s;
+  }
+  .order:hover .rm { opacity: 1; }
+  .order .rm:hover { background: var(--v-err, #e74c3c); color: #fff; }
+
+  /* acciones y filtros del registro de contratos */
+  .result-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .filtros { display: inline-flex; gap: 6px; }
+  .chip {
+    border: 1px solid var(--v-border, #2a3140); background: transparent;
+    color: var(--v-text-dim, #8a93a6); border-radius: 999px;
+    padding: 4px 12px; font-size: 12px; cursor: pointer; transition: all .15s;
+  }
+  .chip:hover { border-color: var(--v-accent, #4aa3ff); color: var(--v-text, #e8ecf3); }
+  .chip.on { background: var(--v-accent, #4aa3ff); border-color: var(--v-accent, #4aa3ff); color: #fff; }
+
+  /* timeline de hitos del contrato */
+  .timeline { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; }
+  .timeline .hito { cursor: default; }
+  .timeline .verif { font-weight: 700; margin-left: 2px; }
+  .timeline .verif.ok { color: var(--v-ok, #2ecc71); }
+  .timeline .verif.err { color: var(--v-err, #e74c3c); }
+}
+
+@media (max-width: 1100px) {
+  .mp .mp-stats { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 640px) {
+  .mp .mp-stats { grid-template-columns: repeat(2, 1fr); }
+  .mp .net-bar .net-item.auto { margin-left: 0; }
 }

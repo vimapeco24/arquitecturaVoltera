@@ -1,7 +1,7 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
-import { forkJoin } from 'rxjs';
+import { Subscription, interval } from 'rxjs';
 import { BlockchainService } from '../../services/blockchain.service';
 import { LiquidacionP2pService } from '../../services/liquidacion-p2p.service';
 import { ToastService } from '../../core/toast.service';
@@ -18,17 +18,34 @@ interface Orden {
   creadaEn: string;
 }
 
-/** Contrato = transacción P2P casada + su estado de anclaje on-chain. */
+/** Un hito en la vida de un contrato (para el timeline). */
+interface Hito {
+  etiqueta: string;
+  ts: string;
+  icono: string;
+}
+
+/** Contrato = transacción P2P casada + su estado de anclaje on-chain + historial. */
 interface Contrato {
   tx: TransaccionP2P;
   anclaje?: Anclaje;
+  hitos: Hito[];
+  verificado?: 'ok' | 'err';
 }
+
+type FiltroEstado = 'TODOS' | 'CONFIRMADO' | 'PENDIENTE' | 'SIN ANCLAR';
+
+const LS_ORDENES = 'voltera.mp.ordenes.v1';
+const LS_CONTRATOS = 'voltera.mp.contratos.v1';
 
 /**
  * Marketplace P2P de energía de Voltera. Los prosumidores publican ofertas de
  * venta/compra de excedentes; al casar una venta con una compra se crea el
  * contrato (vía liquidacion-p2p) y se ancla en Polygon (vía blockchain-gateway),
  * dejando trazabilidad on-chain (hash + txHash + enlace a PolygonScan).
+ *
+ * Persiste el libro y los contratos en localStorage y auto-refresca el estado
+ * on-chain para que los anclajes PENDIENTE pasen a CONFIRMADO sin recargar.
  */
 @Component({
   selector: 'app-blockchain',
@@ -37,34 +54,30 @@ interface Contrato {
   templateUrl: './blockchain.component.html',
   styleUrl: './marketplace.scss',
 })
-export class BlockchainComponent implements OnInit {
+export class BlockchainComponent implements OnInit, OnDestroy {
   private fb = inject(FormBuilder);
   private bc = inject(BlockchainService);
   private p2p = inject(LiquidacionP2pService);
   private toast = inject(ToastService);
 
-  // Libro de órdenes (cliente)
+  // Libro de órdenes (cliente, persistido)
   ventas: Orden[] = [];
   compras: Orden[] = [];
   ventaSel?: Orden;
   compraSel?: Orden;
 
-  // Contratos casados + anclaje
+  // Contratos casados + anclaje (persistidos)
   contratos: Contrato[] = [];
   cargando = false;
   casando = false;
   redInfo?: RedInfo;
 
-  // Métricas del marketplace
-  get totalKwh(): number {
-    return this.contratos.reduce((s, c) => s + Number(c.tx.energiaKwh || 0), 0);
-  }
-  get totalConfirmados(): number {
-    return this.contratos.filter((c) => c.anclaje?.estado === 'CONFIRMADO').length;
-  }
-  get volumenCop(): number {
-    return this.contratos.reduce((s, c) => s + Number(c.tx.valorTotal || 0), 0);
-  }
+  // Auto-refresco on-chain
+  autoRefresco = true;
+  private sub?: Subscription;
+
+  // Filtro de la tabla
+  filtro: FiltroEstado = 'TODOS';
 
   form: FormGroup = this.fb.group({
     tipo: ['VENTA', Validators.required],
@@ -73,12 +86,47 @@ export class BlockchainComponent implements OnInit {
     precioKwh: [450, [Validators.required, Validators.min(1)]],
   });
 
-  ngOnInit(): void {
-    this.sembrarDemo();
-    this.listarContratos();
-    this.cargarRed();
+  // ---------------- Métricas del marketplace ----------------
+  get totalKwh(): number {
+    return this.contratos.reduce((s, c) => s + Number(c.tx.energiaKwh || 0), 0);
+  }
+  get totalConfirmados(): number {
+    return this.contratos.filter((c) => c.anclaje?.estado === 'CONFIRMADO').length;
+  }
+  get totalPendientes(): number {
+    return this.contratos.filter((c) => c.anclaje?.estado === 'PENDIENTE').length;
+  }
+  get volumenCop(): number {
+    return this.contratos.reduce((s, c) => s + Number(c.tx.valorTotal || 0), 0);
+  }
+  get precioPromedio(): number {
+    if (!this.contratos.length) return 0;
+    const n = this.contratos.reduce((s, c) => s + Number(c.tx.precioCasacionKwh || 0), 0);
+    return n / this.contratos.length;
   }
 
+  /** Contratos visibles según el filtro de estado. */
+  get contratosFiltrados(): Contrato[] {
+    if (this.filtro === 'TODOS') return this.contratos;
+    if (this.filtro === 'SIN ANCLAR') return this.contratos.filter((c) => !c.anclaje);
+    return this.contratos.filter((c) => c.anclaje?.estado === this.filtro);
+  }
+
+  ngOnInit(): void {
+    this.restaurar();
+    if (!this.ventas.length && !this.compras.length && !this.contratos.length) {
+      this.sembrarDemo();
+    }
+    this.cargarRed();
+    this.listarContratos();
+    this.iniciarAutoRefresco();
+  }
+
+  ngOnDestroy(): void {
+    this.sub?.unsubscribe();
+  }
+
+  // ---------------- Red / contrato ----------------
   private cargarRed(): void {
     this.bc.red().subscribe({
       next: (r) => (this.redInfo = r),
@@ -86,7 +134,26 @@ export class BlockchainComponent implements OnInit {
     });
   }
 
-  /** Publica una oferta en el libro (estado del cliente). */
+  // ---------------- Auto-refresco ----------------
+  toggleAutoRefresco(): void {
+    this.autoRefresco = !this.autoRefresco;
+    if (this.autoRefresco) this.iniciarAutoRefresco();
+    else this.sub?.unsubscribe();
+  }
+
+  private iniciarAutoRefresco(): void {
+    this.sub?.unsubscribe();
+    if (!this.autoRefresco) return;
+    // Refresca el estado on-chain cada 10 s si hay anclajes pendientes.
+    this.sub = interval(10000).subscribe(() => {
+      if (this.contratos.some((c) => c.anclaje?.estado === 'PENDIENTE') || !this.contratos.length) {
+        this.listarContratos(true);
+      }
+      this.cargarRed();
+    });
+  }
+
+  // ---------------- Libro de órdenes ----------------
   publicar(): void {
     if (this.form.invalid) { this.form.markAllAsTouched(); return; }
     const v = this.form.value;
@@ -100,7 +167,16 @@ export class BlockchainComponent implements OnInit {
     };
     if (orden.tipo === 'VENTA') this.ventas = [orden, ...this.ventas];
     else this.compras = [orden, ...this.compras];
+    this.persistir();
     this.toast.success('Oferta publicada', `${orden.tipo} · ${orden.kwh} kWh @ ${orden.precioKwh}`);
+  }
+
+  quitarOrden(o: Orden): void {
+    if (o.tipo === 'VENTA') this.ventas = this.ventas.filter((x) => x.id !== o.id);
+    else this.compras = this.compras.filter((x) => x.id !== o.id);
+    if (this.ventaSel?.id === o.id) this.ventaSel = undefined;
+    if (this.compraSel?.id === o.id) this.compraSel = undefined;
+    this.persistir();
   }
 
   seleccionarVenta(o: Orden): void { this.ventaSel = this.ventaSel?.id === o.id ? undefined : o; }
@@ -111,6 +187,12 @@ export class BlockchainComponent implements OnInit {
     return !!this.ventaSel && !!this.compraSel
       && this.ventaSel.prosumidorId !== this.compraSel.prosumidorId
       && this.ventaSel.precioKwh <= this.compraSel.precioKwh;
+  }
+
+  /** kWh que realmente se casarían (mínimo entre oferta y demanda). */
+  get kwhCasables(): number {
+    if (!this.ventaSel || !this.compraSel) return 0;
+    return Math.min(this.ventaSel.kwh, this.compraSel.kwh);
   }
 
   /** Casa venta+compra: crea el contrato en liquidacion-p2p y lo ancla en blockchain. */
@@ -131,9 +213,8 @@ export class BlockchainComponent implements OnInit {
     }).subscribe({
       next: (tx) => {
         this.toast.success('Contrato casado', `${tx.id} · ${tx.tipoCasacion}`);
-        // Retira las órdenes casadas del libro.
-        this.ventas = this.ventas.filter((o) => o.id !== venta.id);
-        this.compras = this.compras.filter((o) => o.id !== compra.id);
+        // Retira las órdenes casadas del libro (o reduce si fue casación parcial).
+        this.aplicarCasacionAlLibro(venta, compra, tx);
         this.ventaSel = this.compraSel = undefined;
         // Ancla el contrato en la cadena.
         this.anclarContrato(tx);
@@ -142,7 +223,26 @@ export class BlockchainComponent implements OnInit {
     });
   }
 
+  /** Quita o reduce las órdenes del libro según la casación (total o parcial). */
+  private aplicarCasacionAlLibro(venta: Orden, compra: Orden, tx: TransaccionP2P): void {
+    const pendVenta = Number(tx.pendienteVentaKwh || 0);
+    const pendCompra = Number(tx.pendienteCompraKwh || 0);
+    this.ventas = this.ventas.flatMap((o) => {
+      if (o.id !== venta.id) return [o];
+      return pendVenta > 0 ? [{ ...o, kwh: pendVenta }] : [];
+    });
+    this.compras = this.compras.flatMap((o) => {
+      if (o.id !== compra.id) return [o];
+      return pendCompra > 0 ? [{ ...o, kwh: pendCompra }] : [];
+    });
+    this.persistir();
+  }
+
   private anclarContrato(tx: TransaccionP2P): void {
+    const base: Contrato = {
+      tx,
+      hitos: [{ etiqueta: 'Contrato casado', ts: new Date().toISOString(), icono: '🤝' }],
+    };
     this.bc.anclar({
       transaccionId: tx.id,
       vendedorId: tx.vendedorId,
@@ -154,48 +254,40 @@ export class BlockchainComponent implements OnInit {
     }).subscribe({
       next: (a) => {
         this.casando = false;
-        this.contratos = [{ tx, anclaje: a }, ...this.contratos];
+        base.anclaje = a;
+        base.hitos.push({ etiqueta: `Anclaje ${a.estado}`, ts: a.actualizadoEn || new Date().toISOString(), icono: a.estado === 'CONFIRMADO' ? '⛓️' : '⏳' });
+        this.contratos = [base, ...this.contratos];
+        this.persistir();
         this.toast.success('Contrato anclado', `${a.transaccionId} · ${a.estado}`);
       },
       error: (e) => {
         this.casando = false;
-        // El contrato existe aunque el anclaje falle; se muestra sin anclaje.
-        this.contratos = [{ tx }, ...this.contratos];
+        base.hitos.push({ etiqueta: 'Anclaje fallido (reintentará)', ts: new Date().toISOString(), icono: '⚠️' });
+        this.contratos = [base, ...this.contratos];
+        this.persistir();
         this.toast.error('Contrato creado, anclaje pendiente', this.msg(e));
       },
     });
   }
 
   /** Refresca el estado on-chain de los contratos ya anclados. */
-  listarContratos(): void {
-    this.cargando = true;
+  listarContratos(silencioso = false): void {
+    if (!silencioso) this.cargando = true;
     this.bc.listar().subscribe({
       next: (anclajes) => {
-        // Enlaza anclajes existentes con contratos ya en pantalla (por transaccionId).
         const porTx = new Map(anclajes.map((a) => [a.transaccionId, a]));
-        this.contratos = this.contratos.map((c) => ({ tx: c.tx, anclaje: porTx.get(c.tx.id) ?? c.anclaje }));
+        this.contratos = this.contratos.map((c) => {
+          const nuevo = porTx.get(c.tx.id);
+          if (nuevo && nuevo.estado !== c.anclaje?.estado) {
+            c.hitos.push({ etiqueta: `Anclaje ${nuevo.estado}`, ts: nuevo.actualizadoEn || new Date().toISOString(), icono: nuevo.estado === 'CONFIRMADO' ? '⛓️' : '⏳' });
+          }
+          return { ...c, anclaje: nuevo ?? c.anclaje };
+        });
+        this.persistir();
         this.cargando = false;
       },
       error: () => { this.cargando = false; },
     });
-  }
-
-  /** Datos de ejemplo para que el marketplace no arranque vacío. */
-  private sembrarDemo(): void {
-    const ahora = new Date().toISOString();
-    this.ventas = [
-      { id: 'ORD-DEMO-V1', tipo: 'VENTA', prosumidorId: 'PRO-SOLAR-01', kwh: 12, precioKwh: 420, creadaEn: ahora },
-      { id: 'ORD-DEMO-V2', tipo: 'VENTA', prosumidorId: 'PRO-SOLAR-02', kwh: 8, precioKwh: 460, creadaEn: ahora },
-    ];
-    this.compras = [
-      { id: 'ORD-DEMO-C1', tipo: 'COMPRA', prosumidorId: 'PRO-CASA-07', kwh: 10, precioKwh: 500, creadaEn: ahora },
-    ];
-  }
-
-  badge(estado?: string): string {
-    if (estado === 'CONFIRMADO') return 'ok';
-    if (estado === 'FALLIDO') return 'err';
-    return 'warn';
   }
 
   /** Verifica la integridad on-chain de un contrato: recomputa y compara el hash. */
@@ -211,15 +303,74 @@ export class BlockchainComponent implements OnInit {
     }).subscribe({
       next: (r) => {
         if (!r.existe) {
+          c.verificado = 'err';
           this.toast.error('No anclado', `${c.tx.id} aún no está en la cadena.`);
         } else if (r.integro) {
+          c.verificado = 'ok';
           this.toast.success('Integridad verificada ✓', `El hash on-chain coincide (${c.tx.id}).`);
         } else {
+          c.verificado = 'err';
           this.toast.error('¡Integridad comprometida!', `El hash no coincide con lo anclado (${c.tx.id}).`);
         }
+        this.persistir();
       },
       error: (e) => this.toast.error('Error al verificar', this.msg(e)),
     });
+  }
+
+  filtrar(f: FiltroEstado): void { this.filtro = f; }
+
+  limpiarTodo(): void {
+    this.ventas = []; this.compras = []; this.contratos = [];
+    this.ventaSel = this.compraSel = undefined;
+    this.sembrarDemo();
+    this.persistir();
+    this.toast.success('Marketplace reiniciado', 'Se restauraron las ofertas de demostración.');
+  }
+
+  // ---------------- Persistencia (localStorage) ----------------
+  private persistir(): void {
+    try {
+      localStorage.setItem(LS_ORDENES, JSON.stringify({ ventas: this.ventas, compras: this.compras }));
+      localStorage.setItem(LS_CONTRATOS, JSON.stringify(this.contratos));
+    } catch { /* almacenamiento no disponible: se ignora */ }
+  }
+
+  private restaurar(): void {
+    try {
+      const libro = localStorage.getItem(LS_ORDENES);
+      if (libro) {
+        const { ventas, compras } = JSON.parse(libro);
+        this.ventas = Array.isArray(ventas) ? ventas : [];
+        this.compras = Array.isArray(compras) ? compras : [];
+      }
+      const cs = localStorage.getItem(LS_CONTRATOS);
+      if (cs) {
+        const parsed = JSON.parse(cs);
+        this.contratos = Array.isArray(parsed)
+          ? parsed.map((c: any) => ({ ...c, hitos: Array.isArray(c.hitos) ? c.hitos : [] }))
+          : [];
+      }
+    } catch { /* datos corruptos: se empieza limpio */ }
+  }
+
+  /** Datos de ejemplo para que el marketplace no arranque vacío. */
+  private sembrarDemo(): void {
+    const ahora = new Date().toISOString();
+    this.ventas = [
+      { id: 'ORD-DEMO-V1', tipo: 'VENTA', prosumidorId: 'PRO-SOLAR-01', kwh: 12, precioKwh: 420, creadaEn: ahora },
+      { id: 'ORD-DEMO-V2', tipo: 'VENTA', prosumidorId: 'PRO-SOLAR-02', kwh: 8, precioKwh: 460, creadaEn: ahora },
+    ];
+    this.compras = [
+      { id: 'ORD-DEMO-C1', tipo: 'COMPRA', prosumidorId: 'PRO-CASA-07', kwh: 10, precioKwh: 500, creadaEn: ahora },
+    ];
+  }
+
+  // ---------------- Helpers de plantilla ----------------
+  badge(estado?: string): string {
+    if (estado === 'CONFIRMADO') return 'ok';
+    if (estado === 'FALLIDO') return 'err';
+    return 'warn';
   }
 
   corto(hash?: string | null): string {

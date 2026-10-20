@@ -22,14 +22,22 @@
         {{ redInfo?.disponible ? 'cadena conectada' : (redInfo?.configurada ? 'RPC no responde' : 'modo demo') }}
       </span>
     </div>
+    <div class="net-item auto">
+      <label class="auto-toggle" title="Refresca el estado on-chain cada 10 s">
+        <input type="checkbox" [checked]="autoRefresco" (change)="toggleAutoRefresco()" />
+        <span>Auto-refresco</span>
+      </label>
+    </div>
   </div>
 
   <!-- Métricas -->
   <div class="mp-stats">
     <div class="stat v-card"><span class="n">{{ contratos.length }}</span><span class="l">Contratos</span></div>
     <div class="stat v-card"><span class="n ok">{{ totalConfirmados }}</span><span class="l">On-chain ✓</span></div>
+    <div class="stat v-card"><span class="n warn">{{ totalPendientes }}</span><span class="l">Pendientes</span></div>
     <div class="stat v-card"><span class="n">{{ totalKwh | number:'1.0-1' }}</span><span class="l">kWh casados</span></div>
     <div class="stat v-card"><span class="n">{{ volumenCop | number:'1.0-0' }}</span><span class="l">Volumen (COP)</span></div>
+    <div class="stat v-card"><span class="n">{{ precioPromedio | number:'1.0-0' }}</span><span class="l">Precio medio /kWh</span></div>
   </div>
 
   <div class="mp-grid">
@@ -63,6 +71,7 @@
           <div class="who">{{ o.prosumidorId }}</div>
           <div class="qty">{{ o.kwh }} kWh</div>
           <div class="price">{{ o.precioKwh | number:'1.0-0' }} /kWh</div>
+          <button type="button" class="rm" title="Quitar oferta" (click)="$event.stopPropagation(); quitarOrden(o)">✕</button>
         </div>
       </div>
       <div class="book-col">
@@ -72,6 +81,7 @@
           <div class="who">{{ o.prosumidorId }}</div>
           <div class="qty">{{ o.kwh }} kWh</div>
           <div class="price">{{ o.precioKwh | number:'1.0-0' }} /kWh</div>
+          <button type="button" class="rm" title="Quitar oferta" (click)="$event.stopPropagation(); quitarOrden(o)">✕</button>
         </div>
       </div>
 
@@ -79,7 +89,7 @@
         <div class="match-info" *ngIf="ventaSel && compraSel">
           <span [class.ok-text]="puedeCasar" [class.err-text]="!puedeCasar">
             {{ ventaSel.prosumidorId }} → {{ compraSel.prosumidorId }} ·
-            {{ puedeCasar ? 'compatible ✓' : 'precio/partes incompatibles' }}
+            {{ puedeCasar ? (kwhCasables + ' kWh compatible ✓') : 'precio/partes incompatibles' }}
           </span>
         </div>
         <button class="v-btn primary" [disabled]="!puedeCasar || casando" (click)="casar()">
@@ -93,26 +103,40 @@
   <div class="contracts v-card">
     <div class="result-head">
       <h3>Contratos registrados</h3>
-      <div>
+      <div class="result-actions">
+        <div class="filtros">
+          <button class="chip" [class.on]="filtro==='TODOS'" (click)="filtrar('TODOS')">Todos</button>
+          <button class="chip" [class.on]="filtro==='CONFIRMADO'" (click)="filtrar('CONFIRMADO')">On-chain</button>
+          <button class="chip" [class.on]="filtro==='PENDIENTE'" (click)="filtrar('PENDIENTE')">Pendientes</button>
+          <button class="chip" [class.on]="filtro==='SIN ANCLAR'" (click)="filtrar('SIN ANCLAR')">Sin anclar</button>
+        </div>
         <button class="v-btn" (click)="listarContratos()">🔄 Refrescar on-chain</button>
+        <button class="v-btn ghost" (click)="limpiarTodo()" title="Reinicia el libro y los contratos">🧹 Reiniciar</button>
       </div>
     </div>
 
     <div class="v-empty" *ngIf="cargando">Cargando…</div>
-    <div class="v-empty" *ngIf="!cargando && !contratos.length">
-      <div class="ic">🤝</div><p>Aún no hay contratos. Casa una venta con una compra.</p>
+    <div class="v-empty" *ngIf="!cargando && !contratosFiltrados.length">
+      <div class="ic">🤝</div><p>{{ contratos.length ? 'Ningún contrato en este filtro.' : 'Aún no hay contratos. Casa una venta con una compra.' }}</p>
     </div>
 
-    <div class="v-table-wrap" *ngIf="contratos.length" style="margin-top:12px">
+    <div class="v-table-wrap" *ngIf="contratosFiltrados.length" style="margin-top:12px">
       <table class="v-table">
-        <thead><tr><th>Contrato</th><th>Vendedor → Comprador</th><th>Energía</th><th>Valor</th><th>Casación</th><th>On-chain</th><th>Tx</th></tr></thead>
+        <thead><tr><th>Contrato</th><th>Vendedor → Comprador</th><th>Energía</th><th>Valor</th><th>Casación</th><th>Trazabilidad</th><th>On-chain</th><th>Tx</th></tr></thead>
         <tbody>
-          <tr *ngFor="let c of contratos">
+          <tr *ngFor="let c of contratosFiltrados">
             <td class="v-mono" style="font-size:12px">{{ c.tx.id }}</td>
             <td>{{ c.tx.vendedorId }} → {{ c.tx.compradorId }}</td>
             <td class="v-mono"><strong>{{ c.tx.energiaKwh | number:'1.0-2' }}</strong> kWh</td>
             <td class="v-mono">{{ c.tx.valorTotal | number:'1.0-0' }}</td>
             <td><span class="v-badge" [ngClass]="c.tx.casacionTotal ? 'ok' : 'warn'">{{ c.tx.tipoCasacion }}</span></td>
+            <td>
+              <div class="timeline">
+                <span class="hito" *ngFor="let h of c.hitos" [title]="h.etiqueta + ' · ' + (h.ts | date:'short')">{{ h.icono }}</span>
+                <span class="verif ok" *ngIf="c.verificado==='ok'" title="Integridad verificada">✓</span>
+                <span class="verif err" *ngIf="c.verificado==='err'" title="Integridad comprometida">✗</span>
+              </div>
+            </td>
             <td>
               <span class="v-badge" [ngClass]="badge(c.anclaje?.estado)">{{ c.anclaje?.estado || 'SIN ANCLAR' }}</span>
               <div class="hash v-mono" *ngIf="c.anclaje?.hashCasacion">{{ corto(c.anclaje?.hashCasacion) }}</div>
