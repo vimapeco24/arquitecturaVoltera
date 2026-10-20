@@ -29,4 +29,6 @@ export const SERVICIOS = {
   ingesta: 'ingesta',
   telemetriaCore: 'telemetria-core',
   notificaciones: 'notificaciones',
+  // Servicio de borde Blockchain (anclaje de liquidaciones P2P en Polygon Amoy)
+  blockchain: 'blockchain',
 } as const;

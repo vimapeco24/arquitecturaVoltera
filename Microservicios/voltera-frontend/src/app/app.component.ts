@@ -47,6 +47,7 @@ export class AppComponent {
     { path: '/lab-metricas', label: 'Lab · Métricas', icon: '🔬' },
     { path: '/experimentos', label: 'Experimentos', icon: '🧪' },
     { path: '/observabilidad', label: 'Observabilidad', icon: '🔭' },
+    { path: '/blockchain', label: 'Marketplace P2P · ⛓️', icon: '⛓️' },
   ];
 
   toggle(): void {

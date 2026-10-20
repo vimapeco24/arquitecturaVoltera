@@ -1,0 +1,69 @@
+server:
+  port: ${SERVER_PORT:${PORT:8101}}
+  tomcat:
+    threads:
+      max: 25
+      min-spare: 5
+    max-connections: 500
+    accept-count: 50
+
+spring:
+  application:
+    name: blockchain-gateway-service
+  main:
+    lazy-initialization: true
+  threads:
+    virtual:
+      enabled: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:redpanda.voltera-app:9092}
+
+# ── Conexion a la cadena (Polygon Amoy via RPC gratuito de tercero) ──────────
+# Deja vacio para arrancar en modo demo (anclajes quedan PENDIENTE, sin broker ni RPC).
+voltera:
+  kafka:
+    enabled: ${KAFKA_ENABLED:false}
+  blockchain:
+    rpc-url: ${VOLTERA_BLOCKCHAIN_RPC_URL:}
+    private-key: ${VOLTERA_BLOCKCHAIN_PRIVATE_KEY:}
+    contract-address: ${VOLTERA_BLOCKCHAIN_CONTRACT_ADDRESS:}
+    chain-id: ${VOLTERA_BLOCKCHAIN_CHAIN_ID:80002}
+    network: ${VOLTERA_BLOCKCHAIN_NETWORK:polygon-amoy}
+    explorer-base: ${VOLTERA_BLOCKCHAIN_EXPLORER:https://amoy.polygonscan.com}
+    relay-delay-ms: ${VOLTERA_BLOCKCHAIN_RELAY_DELAY_MS:15000}
+
+eureka:
+  client:
+    enabled: ${EUREKA_ENABLED:false}
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    enable:
+      all: false
+      jvm: true
+      http: true
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING:1.0}
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_ENDPOINT:http://zipkin.istio-system:9411/api/v2/spans}
+
+logging:
+  level:
+    root: INFO
+    com.voltera: INFO

@@ -16,6 +16,15 @@ spring:
     virtual:
       enabled: true
 
+# Conexion opcional al blockchain-gateway (vacio = deshabilitado / no-op).
+# Apunta a la URL publica de la PaaS (Fly/Render/Railway) o a la ruta WSO2.
+#   ej. https://voltera-blockchain-gateway.fly.dev
+#   ej. https://192.168.3.13:8243/blockchain/v1
+voltera:
+  blockchain:
+    gateway-url: ${VOLTERA_BLOCKCHAIN_GATEWAY_URL:}
+    anclar-path: ${VOLTERA_BLOCKCHAIN_ANCLAR_PATH:/api/v1/anclajes}
+
 eureka:
   client:
     enabled: ${EUREKA_ENABLED:false}

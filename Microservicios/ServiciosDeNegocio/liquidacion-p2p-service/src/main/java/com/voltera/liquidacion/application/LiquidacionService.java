@@ -10,6 +10,7 @@ import com.voltera.liquidacion.domain.model.TransaccionId;
 import com.voltera.liquidacion.domain.model.TransaccionP2P;
 import com.voltera.liquidacion.domain.port.in.ConsultarTransaccionUseCase;
 import com.voltera.liquidacion.domain.port.in.EmparejarOrdenesUseCase;
+import com.voltera.liquidacion.domain.port.out.AnclajeBlockchainPort;
 import com.voltera.liquidacion.domain.port.out.TransaccionRepositoryPort;
 
 import java.util.List;
@@ -22,9 +23,12 @@ import java.util.List;
 public class LiquidacionService implements EmparejarOrdenesUseCase, ConsultarTransaccionUseCase {
 
     private final TransaccionRepositoryPort repositorio;
+    private final AnclajeBlockchainPort anclajeBlockchain;
 
-    public LiquidacionService(TransaccionRepositoryPort repositorio) {
+    public LiquidacionService(TransaccionRepositoryPort repositorio,
+                              AnclajeBlockchainPort anclajeBlockchain) {
         this.repositorio = repositorio;
+        this.anclajeBlockchain = anclajeBlockchain;
     }
 
     @Override
@@ -38,7 +42,10 @@ public class LiquidacionService implements EmparejarOrdenesUseCase, ConsultarTra
                 Energia.deKwh(c.kwhCompra()), Precio.porKwh(c.precioCompra()));
 
         TransaccionP2P transaccion = TransaccionP2P.liquidar(TransaccionId.nuevo(), venta, compra);
-        return repositorio.guardar(transaccion);
+        TransaccionP2P guardada = repositorio.guardar(transaccion);
+        // Solicita el anclaje en la cadena (no-op si el gateway no esta configurado).
+        anclajeBlockchain.solicitarAnclaje(guardada);
+        return guardada;
     }
 
     @Override
@@ -56,7 +63,9 @@ public class LiquidacionService implements EmparejarOrdenesUseCase, ConsultarTra
                 Energia.deKwh(c.kwhCompra()), Precio.porKwh(c.precioCompra()));
 
         TransaccionP2P transaccion = TransaccionP2P.liquidar(id, venta, compra);
-        return repositorio.guardar(transaccion);
+        TransaccionP2P guardada = repositorio.guardar(transaccion);
+        anclajeBlockchain.solicitarAnclaje(guardada);
+        return guardada;
     }
 
     @Override

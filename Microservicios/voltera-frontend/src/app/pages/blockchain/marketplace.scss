@@ -1,0 +1,104 @@
+:host { display: block; }
+
+.mp {
+  .net-bar {
+    display: flex; align-items: center; gap: 22px; flex-wrap: wrap;
+    padding: 12px 18px; margin-bottom: 16px;
+    border-left: 3px solid var(--v-ok, #2ecc71);
+    &.off { border-left-color: var(--v-warn, #f1c40f); }
+    .net-item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+    .net-item .k { color: var(--v-text-dim, #8a93a6); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+    .link { color: var(--v-accent, #4aa3ff); text-decoration: none; }
+    .link:hover { text-decoration: underline; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--v-warn, #f1c40f); display: inline-block; }
+    .dot.on { background: var(--v-ok, #2ecc71); box-shadow: 0 0 8px var(--v-ok, #2ecc71); }
+  }
+
+  .mp-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 18px;
+    .stat {
+      padding: 16px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      .n { font-size: 26px; font-weight: 700; line-height: 1; }
+      .n.ok { color: var(--v-ok, #2ecc71); }
+      .l { font-size: 12px; color: var(--v-text-dim, #8a93a6); text-transform: uppercase; letter-spacing: .04em; }
+    }
+  }
+
+  .mp-grid {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 18px;
+    align-items: start;
+    margin-bottom: 18px;
+  }
+
+  .panel { padding: 20px; }
+  .panel h3 { margin: 0 0 4px; }
+  .panel .sub { color: var(--v-text-dim, #8a93a6); font-size: 13px; margin: 0 0 14px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-actions { margin-top: 14px; }
+
+  /* Libro de órdenes */
+  .book {
+    padding: 18px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    position: relative;
+  }
+  .book-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-bottom: 8px; margin-bottom: 8px;
+    border-bottom: 2px solid var(--v-border, #2a3244);
+    h3 { margin: 0; font-size: 15px; }
+    &.sell h3 { color: var(--v-ok, #2ecc71); }
+    &.buy h3 { color: var(--v-accent, #4aa3ff); }
+    .count {
+      font-size: 12px; background: var(--v-surface-2, #1b2130);
+      padding: 2px 8px; border-radius: 10px;
+    }
+  }
+  .order {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 8px; align-items: center;
+    padding: 9px 11px; margin-bottom: 6px;
+    border: 1px solid var(--v-border, #2a3244);
+    border-left: 3px solid transparent;
+    border-radius: 8px; cursor: pointer;
+    transition: background .15s, border-color .15s;
+    &:hover { background: var(--v-surface-2, #1b2130); }
+    &.sell { border-left-color: var(--v-ok, #2ecc71); }
+    &.buy { border-left-color: var(--v-accent, #4aa3ff); }
+    &.sel { background: var(--v-surface-2, #1b2130); border-color: var(--v-accent, #4aa3ff); }
+    .who { font-size: 13px; font-weight: 600; }
+    .qty { font-size: 12px; color: var(--v-text-dim, #8a93a6); }
+    .price { font-size: 13px; font-weight: 700; }
+  }
+
+  .match-bar {
+    grid-column: 1 / -1;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 14px; margin-top: 6px; padding-top: 14px;
+    border-top: 1px dashed var(--v-border, #2a3244);
+    .match-info { font-size: 13px; }
+    .ok-text { color: var(--v-ok, #2ecc71); }
+    .err-text { color: var(--v-err, #e74c3c); }
+  }
+
+  .contracts { padding: 18px; }
+  .result-head { display: flex; align-items: center; justify-content: space-between; }
+  .hash { font-size: 11px; color: var(--v-text-dim, #8a93a6); margin-top: 3px; }
+  .v-empty.small { padding: 14px; font-size: 13px; }
+
+  @media (max-width: 900px) {
+    .mp-stats { grid-template-columns: repeat(2, 1fr); }
+    .mp-grid { grid-template-columns: 1fr; }
+  }
+}

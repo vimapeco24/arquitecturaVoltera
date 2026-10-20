@@ -369,3 +369,43 @@ export interface PagoConfirmadoEvento {
   confirmadoEn?: string;
   emitidoEn?: string;
 }
+
+/* ---------------- Blockchain Gateway (8101) ---------------- */
+export type EstadoAnclaje = 'PENDIENTE' | 'CONFIRMADO' | 'FALLIDO';
+export interface Anclaje {
+  transaccionId: string;
+  hashCasacion: string;
+  energiaWh: number;
+  estado: EstadoAnclaje;
+  intentos: number;
+  txHash: string | null;
+  explorerUrl: string | null;
+  ultimoError: string | null;
+  creadoEn: string;
+  actualizadoEn: string;
+}
+export interface AnclarRequest {
+  transaccionId: string;
+  vendedorId: string;
+  compradorId: string;
+  energiaWh: number;
+  precioPorKwh: string;
+  valorTotal: string;
+  liquidadaEn: string;
+}
+export interface RedInfo {
+  red: string;
+  chainId: number;
+  contrato: string;
+  explorer: string;
+  configurada: boolean;
+  disponible: boolean;
+}
+export interface ResultadoVerificacion {
+  existe: boolean;
+  integro: boolean;
+  hashRecomputado: string;
+  hashAnclado: string | null;
+  txHash: string | null;
+  estado: string;
+}

@@ -1,0 +1,23 @@
+# Render.com — Blueprint para el blockchain-gateway (free tier).
+# Render inyecta $PORT; el application.yml ya lo respeta.
+# Crea los valores sensibles como secrets en el dashboard (sync:false).
+services:
+  - type: web
+    name: voltera-blockchain-gateway
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: KAFKA_ENABLED
+        value: "false"            # modo NUBE: solo-REST (Kafka del server es LAN)
+      - key: VOLTERA_BLOCKCHAIN_CHAIN_ID
+        value: "80002"
+      - key: VOLTERA_BLOCKCHAIN_NETWORK
+        value: "polygon-amoy"
+      - key: VOLTERA_BLOCKCHAIN_RPC_URL
+        sync: false               # se define en el dashboard
+      - key: VOLTERA_BLOCKCHAIN_PRIVATE_KEY
+        sync: false               # SECRET (clave de prueba testnet)
+      - key: VOLTERA_BLOCKCHAIN_CONTRACT_ADDRESS
+        sync: false

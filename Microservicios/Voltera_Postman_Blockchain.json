@@ -1,0 +1,89 @@
+{
+  "info": {
+    "name": "Voltera - Blockchain Gateway (Modulo 4)",
+    "description": "Coleccion del servicio de borde blockchain-gateway (puerto 8101). Ancla en Polygon Amoy el hash de las liquidaciones P2P, consulta estado on-chain y verifica integridad. Usa {{urlGateway}} para apuntar al servicio local, al gateway WSO2, o a la PaaS (Fly/Render/Railway).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "urlGateway", "value": "http://localhost:8101", "type": "string" },
+    { "key": "urlGatewayWSO2", "value": "https://192.168.3.13:8243/blockchain/v1", "type": "string" },
+    { "key": "urlGatewayPaaS", "value": "https://voltera-blockchain-gateway.fly.dev", "type": "string" },
+    { "key": "transaccionId", "value": "TX-DEMO-1", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "0. Health check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{urlGateway}}/actuator/health", "host": ["{{urlGateway}}"], "path": ["actuator", "health"] }
+      }
+    },
+    {
+      "name": "1. Info de red / contrato",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{urlGateway}}/api/v1/anclajes/red", "host": ["{{urlGateway}}"], "path": ["api", "v1", "anclajes", "red"] }
+      }
+    },
+    {
+      "name": "2. Anclar liquidacion P2P",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "var j = pm.response.json();",
+        "if (j && j.transaccionId) pm.collectionVariables.set('transaccionId', j.transaccionId);",
+        "pm.test('202 Accepted', function(){ pm.expect([200,202]).to.include(pm.response.code); });",
+        "pm.test('tiene hash', function(){ pm.expect(j.hashCasacion).to.be.a('string'); });"
+      ]}}],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"transaccionId\": \"TX-DEMO-1\",\n  \"vendedorId\": \"PRO-SOLAR-01\",\n  \"compradorId\": \"PRO-CASA-07\",\n  \"energiaWh\": 12500,\n  \"precioPorKwh\": \"0.45\",\n  \"valorTotal\": \"5.625\",\n  \"liquidadaEn\": \"2026-10-20T10:00:00Z\"\n}" },
+        "url": { "raw": "{{urlGateway}}/api/v1/anclajes", "host": ["{{urlGateway}}"], "path": ["api", "v1", "anclajes"] }
+      }
+    },
+    {
+      "name": "3. Consultar anclaje por transaccion",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{urlGateway}}/api/v1/anclajes/{{transaccionId}}", "host": ["{{urlGateway}}"], "path": ["api", "v1", "anclajes", "{{transaccionId}}"] }
+      }
+    },
+    {
+      "name": "4. Listar todos los anclajes",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{urlGateway}}/api/v1/anclajes", "host": ["{{urlGateway}}"], "path": ["api", "v1", "anclajes"] }
+      }
+    },
+    {
+      "name": "5. Verificar integridad (mismo contenido -> integro)",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "var j = pm.response.json();",
+        "pm.test('200', function(){ pm.response.to.have.status(200); });",
+        "pm.test('existe e integro', function(){ pm.expect(j.existe).to.be.true; pm.expect(j.integro).to.be.true; });"
+      ]}}],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"transaccionId\": \"TX-DEMO-1\",\n  \"vendedorId\": \"PRO-SOLAR-01\",\n  \"compradorId\": \"PRO-CASA-07\",\n  \"energiaWh\": 12500,\n  \"precioPorKwh\": \"0.45\",\n  \"valorTotal\": \"5.625\",\n  \"liquidadaEn\": \"2026-10-20T10:00:00Z\"\n}" },
+        "url": { "raw": "{{urlGateway}}/api/v1/anclajes/verificar", "host": ["{{urlGateway}}"], "path": ["api", "v1", "anclajes", "verificar"] }
+      }
+    },
+    {
+      "name": "6. Verificar integridad (contenido alterado -> NO integro)",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "var j = pm.response.json();",
+        "pm.test('no integro', function(){ pm.expect(j.integro).to.be.false; });"
+      ]}}],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"transaccionId\": \"TX-DEMO-1\",\n  \"vendedorId\": \"PRO-SOLAR-01\",\n  \"compradorId\": \"PRO-CASA-07\",\n  \"energiaWh\": 99999,\n  \"precioPorKwh\": \"0.45\",\n  \"valorTotal\": \"5.625\",\n  \"liquidadaEn\": \"2026-10-20T10:00:00Z\"\n}" },
+        "url": { "raw": "{{urlGateway}}/api/v1/anclajes/verificar", "host": ["{{urlGateway}}"], "path": ["api", "v1", "anclajes", "verificar"] }
+      }
+    }
+  ]
+}

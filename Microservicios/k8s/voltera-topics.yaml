@@ -85,6 +85,8 @@ spec:
               # --- Dominio Seguros (flujo EDA siniestros/reaseguro + cobros) ---
               crear topic.siniestros.aprobado 1
               crear topic.cobros.pago-confirmado 1
+              # --- Dominio Blockchain (anclaje de liquidaciones P2P en Polygon) ---
+              crear topic.blockchain.anclada 1
               echo "=== Topics declarados ==="
               rpk topic list --brokers "$BROKER"
           resources:

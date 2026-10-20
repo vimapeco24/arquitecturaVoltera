@@ -127,5 +127,10 @@ export const routes: Routes = [
     title: 'Observabilidad · Voltera',
     loadComponent: () => import('./pages/observabilidad/observabilidad.component').then((m) => m.ObservabilidadComponent),
   },
+  {
+    path: 'blockchain',
+    title: 'Marketplace P2P · Blockchain · Voltera',
+    loadComponent: () => import('./pages/blockchain/blockchain.component').then((m) => m.BlockchainComponent),
+  },
   { path: '**', redirectTo: 'panel' },
 ];

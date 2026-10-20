@@ -1,0 +1,130 @@
+<div class="v-page v-fade mp">
+  <div class="v-page-head">
+    <span class="v-eyebrow">⛓️ Módulo 4 · Marketplace P2P</span>
+    <h1>Marketplace de Energía P2P</h1>
+    <p>Mercado entre prosumidores: publica ofertas de venta/compra de excedentes, cásalas y cada contrato queda <strong>anclado en Polygon</strong> (testnet gratuita vía RPC de un tercero) con trazabilidad on-chain — solo el hash viaja a la cadena.</p>
+  </div>
+
+  <!-- Estado de la red / contrato -->
+  <div class="net-bar v-card" [class.off]="redInfo && !redInfo.disponible">
+    <div class="net-item">
+      <span class="dot" [class.on]="redInfo?.disponible"></span>
+      <span>{{ redInfo?.red || 'polygon-amoy' }}</span>
+    </div>
+    <div class="net-item"><span class="k">chainId</span><span class="v-mono">{{ redInfo?.chainId || 80002 }}</span></div>
+    <div class="net-item">
+      <span class="k">contrato</span>
+      <a *ngIf="redInfo?.contrato" class="v-mono link" [href]="(redInfo?.explorer || '') + '/address/' + redInfo?.contrato" target="_blank" rel="noopener">{{ corto(redInfo?.contrato) }}</a>
+      <span *ngIf="!redInfo?.contrato" class="v-mono">sin desplegar</span>
+    </div>
+    <div class="net-item">
+      <span class="v-badge" [ngClass]="redInfo?.disponible ? 'ok' : 'warn'">
+        {{ redInfo?.disponible ? 'cadena conectada' : (redInfo?.configurada ? 'RPC no responde' : 'modo demo') }}
+      </span>
+    </div>
+  </div>
+
+  <!-- Métricas -->
+  <div class="mp-stats">
+    <div class="stat v-card"><span class="n">{{ contratos.length }}</span><span class="l">Contratos</span></div>
+    <div class="stat v-card"><span class="n ok">{{ totalConfirmados }}</span><span class="l">On-chain ✓</span></div>
+    <div class="stat v-card"><span class="n">{{ totalKwh | number:'1.0-1' }}</span><span class="l">kWh casados</span></div>
+    <div class="stat v-card"><span class="n">{{ volumenCop | number:'1.0-0' }}</span><span class="l">Volumen (COP)</span></div>
+  </div>
+
+  <div class="mp-grid">
+    <!-- Publicar oferta -->
+    <form class="panel v-card" [formGroup]="form" (ngSubmit)="publicar()">
+      <h3>Publicar oferta</h3>
+      <p class="sub">Registra una orden en el libro del mercado.</p>
+      <div class="v-field">
+        <label>Tipo</label>
+        <select class="v-input" formControlName="tipo">
+          <option value="VENTA">Vender excedente</option>
+          <option value="COMPRA">Comprar energía</option>
+        </select>
+      </div>
+      <div class="v-field"><label>Prosumidor</label><input class="v-input" formControlName="prosumidorId" placeholder="PRO-A" /></div>
+      <div class="row2">
+        <div class="v-field"><label>Energía (kWh)</label><input class="v-input" type="number" formControlName="kwh" /></div>
+        <div class="v-field"><label>Precio por kWh</label><input class="v-input" type="number" formControlName="precioKwh" /></div>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="v-btn primary">➕ Publicar oferta</button>
+      </div>
+    </form>
+
+    <!-- Libro de órdenes -->
+    <div class="book v-card">
+      <div class="book-col">
+        <div class="book-head sell"><h3>Ventas</h3><span class="count">{{ ventas.length }}</span></div>
+        <div class="v-empty small" *ngIf="!ventas.length"><p>Sin ofertas de venta.</p></div>
+        <div class="order sell" *ngFor="let o of ventas" [class.sel]="ventaSel?.id === o.id" (click)="seleccionarVenta(o)">
+          <div class="who">{{ o.prosumidorId }}</div>
+          <div class="qty">{{ o.kwh }} kWh</div>
+          <div class="price">{{ o.precioKwh | number:'1.0-0' }} /kWh</div>
+        </div>
+      </div>
+      <div class="book-col">
+        <div class="book-head buy"><h3>Compras</h3><span class="count">{{ compras.length }}</span></div>
+        <div class="v-empty small" *ngIf="!compras.length"><p>Sin ofertas de compra.</p></div>
+        <div class="order buy" *ngFor="let o of compras" [class.sel]="compraSel?.id === o.id" (click)="seleccionarCompra(o)">
+          <div class="who">{{ o.prosumidorId }}</div>
+          <div class="qty">{{ o.kwh }} kWh</div>
+          <div class="price">{{ o.precioKwh | number:'1.0-0' }} /kWh</div>
+        </div>
+      </div>
+
+      <div class="match-bar">
+        <div class="match-info" *ngIf="ventaSel && compraSel">
+          <span [class.ok-text]="puedeCasar" [class.err-text]="!puedeCasar">
+            {{ ventaSel.prosumidorId }} → {{ compraSel.prosumidorId }} ·
+            {{ puedeCasar ? 'compatible ✓' : 'precio/partes incompatibles' }}
+          </span>
+        </div>
+        <button class="v-btn primary" [disabled]="!puedeCasar || casando" (click)="casar()">
+          <span class="v-spinner" *ngIf="casando"></span>{{ casando ? 'Casando y anclando…' : '🤝 Casar y anclar contrato' }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Registro de contratos -->
+  <div class="contracts v-card">
+    <div class="result-head">
+      <h3>Contratos registrados</h3>
+      <div>
+        <button class="v-btn" (click)="listarContratos()">🔄 Refrescar on-chain</button>
+      </div>
+    </div>
+
+    <div class="v-empty" *ngIf="cargando">Cargando…</div>
+    <div class="v-empty" *ngIf="!cargando && !contratos.length">
+      <div class="ic">🤝</div><p>Aún no hay contratos. Casa una venta con una compra.</p>
+    </div>
+
+    <div class="v-table-wrap" *ngIf="contratos.length" style="margin-top:12px">
+      <table class="v-table">
+        <thead><tr><th>Contrato</th><th>Vendedor → Comprador</th><th>Energía</th><th>Valor</th><th>Casación</th><th>On-chain</th><th>Tx</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let c of contratos">
+            <td class="v-mono" style="font-size:12px">{{ c.tx.id }}</td>
+            <td>{{ c.tx.vendedorId }} → {{ c.tx.compradorId }}</td>
+            <td class="v-mono"><strong>{{ c.tx.energiaKwh | number:'1.0-2' }}</strong> kWh</td>
+            <td class="v-mono">{{ c.tx.valorTotal | number:'1.0-0' }}</td>
+            <td><span class="v-badge" [ngClass]="c.tx.casacionTotal ? 'ok' : 'warn'">{{ c.tx.tipoCasacion }}</span></td>
+            <td>
+              <span class="v-badge" [ngClass]="badge(c.anclaje?.estado)">{{ c.anclaje?.estado || 'SIN ANCLAR' }}</span>
+              <div class="hash v-mono" *ngIf="c.anclaje?.hashCasacion">{{ corto(c.anclaje?.hashCasacion) }}</div>
+            </td>
+            <td style="white-space:nowrap">
+              <a class="v-btn ghost" *ngIf="c.anclaje?.explorerUrl" [href]="c.anclaje?.explorerUrl" target="_blank" rel="noopener">🔗 tx</a>
+              <button class="v-btn ghost" *ngIf="c.anclaje" (click)="verificar(c)" title="Recomputa el hash y lo compara on-chain">🔎 verificar</button>
+              <span *ngIf="!c.anclaje?.explorerUrl && !c.anclaje" style="color:var(--v-text-dim);font-size:12px">—</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

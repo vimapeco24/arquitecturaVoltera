@@ -4,7 +4,9 @@ import com.voltera.liquidacion.domain.exception.TransaccionNoEncontradaException
 import com.voltera.liquidacion.domain.model.TransaccionId;
 import com.voltera.liquidacion.domain.model.TransaccionP2P;
 import com.voltera.liquidacion.domain.port.in.EmparejarOrdenesUseCase.ComandoEmparejar;
+import com.voltera.liquidacion.domain.port.out.AnclajeBlockchainPort;
 import com.voltera.liquidacion.domain.port.out.TransaccionRepositoryPort;
+import com.voltera.liquidacion.infrastructure.blockchain.NoopAnclajeBlockchainAdapter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,7 +32,7 @@ class LiquidacionServiceTest {
     @BeforeEach
     void setUp() {
         repositorio = mock(TransaccionRepositoryPort.class);
-        service = new LiquidacionService(repositorio);
+        service = new LiquidacionService(repositorio, new NoopAnclajeBlockchainAdapter());
     }
 
     @Test

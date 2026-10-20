@@ -38,6 +38,9 @@ BUILDS=(
   "ingesta-service:${BASE}/ServiciosDeNegocio/ingesta-service"
   "telemetria-core-service:${BASE}/ServiciosDeNegocio/telemetria-core-service"
   "notificaciones-service:${BASE}/ServiciosDeNegocio/notificaciones-service"
+  # Modulo 4 (Blockchain): servicio de borde. Solo si se despliega DENTRO del cluster.
+  # Si se usa la PaaS (Fly/Render/Railway), este build no es necesario.
+  "blockchain-gateway-service:${BASE}/ServiciosDeNegocio/blockchain-gateway-service"
 )
 
 FAILED=()
@@ -64,7 +67,7 @@ done
 echo ""
 echo "=========================================================="
 if [ ${#FAILED[@]} -eq 0 ]; then
-  echo "TODAS las 16 imagenes amd64 subidas a Harbor ($REGISTRY)."
+  echo "TODAS las imagenes amd64 subidas a Harbor ($REGISTRY)."
 else
   echo "FALLARON: ${FAILED[*]}"
   exit 1

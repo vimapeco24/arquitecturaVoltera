@@ -18,6 +18,8 @@ npm-debug.log*
 
 # ==== Documentación pesada / binarios (no es código) ====
 *.pdf
+*.pdf1
+*.pdf3
 *.pptx
 *.docx
 *.png
@@ -25,6 +27,11 @@ npm-debug.log*
 *.jpeg
 *.drawio
 *.archimate
+
+# ==== Carpetas de material del curso (PDFs, no código) ====
+# Anclado a la raíz y case-sensitive para NO afectar al paquete java
+# com/voltera/blockchain/ en un filesystem case-insensitive (macOS).
+/Blockchain/
 
 # ==== Backups de sesiones / conversaciones (posible info sensible) ====
 conversaciones/
@@ -44,3 +51,10 @@ Voltera_*.drawio
 
 # Cuadernos/notas con credenciales
 Microservicios/eventos/
+
+# ==== Material de extracción de PDFs (no es código) ====
+_blockchain_txt/
+extract_all.py
+blockchain/deployments/
+blockchain/cache/
+blockchain/artifacts/

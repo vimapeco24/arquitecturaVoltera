@@ -1,0 +1,39 @@
+# Fly.io — despliegue del blockchain-gateway (free-tier friendly).
+# El puerto interno es 8101; Fly expone 443/80 con TLS gratuito hacia ese puerto.
+#
+#   fly launch --no-deploy        # crea la app (una vez)
+#   fly secrets set VOLTERA_BLOCKCHAIN_RPC_URL=... VOLTERA_BLOCKCHAIN_PRIVATE_KEY=... VOLTERA_BLOCKCHAIN_CONTRACT_ADDRESS=...
+#   fly deploy
+app = "voltera-blockchain-gateway"
+primary_region = "mia"   # cambia a tu region preferida
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  # Modo NUBE: solo-REST. El server llama al gateway por HTTPS a traves de WSO2.
+  # Kafka del server es LAN privada y NO es alcanzable desde la nube.
+  KAFKA_ENABLED = "false"
+  VOLTERA_BLOCKCHAIN_CHAIN_ID = "80002"
+  VOLTERA_BLOCKCHAIN_NETWORK = "polygon-amoy"
+  # Pista a Spring para que escuche en el puerto que Fly enruta.
+  SERVER_PORT = "8101"
+
+[http_service]
+  internal_port = 8101
+  force_https = true
+  auto_stop_machines = true     # se apaga sin trafico (ahorra en free tier)
+  auto_start_machines = true    # se enciende al primer request
+  min_machines_running = 0
+
+  [http_service.checks]
+    [http_service.checks.health]
+      path = "/actuator/health"
+      interval = "30s"
+      timeout = "5s"
+      grace_period = "40s"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512

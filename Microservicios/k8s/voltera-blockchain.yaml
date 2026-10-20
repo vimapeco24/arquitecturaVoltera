@@ -1,0 +1,101 @@
+# ============================================================================
+# VOLTERA — BLOCKCHAIN (servicio de borde: blockchain-gateway-service)
+# ----------------------------------------------------------------------------
+# Zona de BORDE de la arquitectura DApp (ver BLOCKCHAIN_VOLTERA.md §5/6/7).
+# Ancla en Polygon Amoy (testnet GRATUITA, via RPC de un TERCERO) el hash de
+# cada liquidacion P2P, e indexa la confirmacion hacia Kafka/Redpanda.
+#
+#   blockchain-gateway-service (8101)
+#     - Oraculo  : llama a LiquidacionP2PAnchor.anclar(...) via RPC del tercero
+#     - OUTBOX   : relay @Scheduled reintenta hasta confirmar on-chain (gate 6)
+#     - Indexador: publica LiquidacionAnclada en topic.blockchain.anclada
+#     - Listener : consume topic.facturacion.liquidacion -> dispara anclaje
+#
+# CONFIG DE CADENA (Secret voltera-blockchain-secret):
+#   - La CLAVE PRIVADA es de PRUEBA (testnet). NUNCA una con fondos reales.
+#   - Crea el secret ANTES de aplicar este manifiesto (ver abajo).
+#
+#   kubectl -n voltera-app create secret generic voltera-blockchain-secret \
+#     --from-literal=rpc-url='https://rpc-amoy.polygon.technology' \
+#     --from-literal=private-key='0x<clave_de_prueba>' \
+#     --from-literal=contract-address='0x<direccion_desplegada>'
+#
+# Aplicar:  kubectl apply -f voltera-blockchain.yaml
+# Requiere: redpanda (voltera-eda.yaml) y topics (voltera-topics.yaml, incluye
+#           ya topic.blockchain.anclada tras este cambio).
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: blockchain-gateway-service
+  namespace: voltera-app
+  labels: { app: blockchain-gateway-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: blockchain-gateway-service } }
+  # maxSurge=0: pods con poca RAM; se termina el viejo antes de crear el nuevo.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 0, maxUnavailable: 1 }
+  template:
+    metadata: { labels: { app: blockchain-gateway-service, version: v1 } }   # version -> Kiali
+    spec:
+      imagePullSecrets: [{ name: harbor-cred }]
+      containers:
+        - name: blockchain-gateway-service
+          image: 192.168.3.13/app-voltaire/blockchain-gateway-service:1.0.0
+          ports: [{ containerPort: 8101 }]
+          env:
+            - { name: EUREKA_ENABLED, value: "true" }
+            - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
+            - { name: KAFKA_ENABLED, value: "true" }
+            - { name: KAFKA_BOOTSTRAP, value: "redpanda.voltera-app:9092" }
+            # --- Conexion a Polygon Amoy via el Secret (RPC del tercero) ---
+            - name: VOLTERA_BLOCKCHAIN_RPC_URL
+              valueFrom:
+                secretKeyRef: { name: voltera-blockchain-secret, key: rpc-url, optional: true }
+            - name: VOLTERA_BLOCKCHAIN_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef: { name: voltera-blockchain-secret, key: private-key, optional: true }
+            - name: VOLTERA_BLOCKCHAIN_CONTRACT_ADDRESS
+              valueFrom:
+                secretKeyRef: { name: voltera-blockchain-secret, key: contract-address, optional: true }
+            - { name: VOLTERA_BLOCKCHAIN_CHAIN_ID, value: "80002" }
+            - { name: VOLTERA_BLOCKCHAIN_NETWORK, value: "polygon-amoy" }
+          resources:
+            limits: { cpu: "500m", memory: "512Mi" }
+            requests: { cpu: "50m", memory: "200Mi" }   # web3j pesa un poco mas
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8101 }
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: blockchain-gateway-service
+  namespace: voltera-app
+spec:
+  selector: { app: blockchain-gateway-service }
+  ports: [{ port: 8101, targetPort: 8101 }]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: blockchain-gateway-service
+  namespace: voltera-app
+spec:
+  parentRefs:
+    - name: istio-ingress
+      namespace: istio-ingress
+  rules:
+    - matches:
+        - path: { type: PathPrefix, value: /blockchain }
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path: { type: ReplacePrefixMatch, replacePrefixMatch: "" }
+      backendRefs:
+        - name: blockchain-gateway-service
+          port: 8101
