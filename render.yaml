@@ -1,0 +1,30 @@
+# Render.com — Blueprint (raíz del repo) para el blockchain-gateway de Voltera.
+# Render lee este archivo desde la RAÍZ del repositorio. El servicio vive en un
+# subdirectorio, por eso se usa `rootDir`. El Dockerfile y el application.yml ya
+# respetan el $PORT que inyecta Render.
+#
+# Al importar el Blueprint, define en el dashboard los 3 valores marcados sync:false:
+#   VOLTERA_BLOCKCHAIN_RPC_URL        = https://polygon-amoy.drpc.org
+#   VOLTERA_BLOCKCHAIN_PRIVATE_KEY    = 0x... (clave de la wallet de prueba)
+#   VOLTERA_BLOCKCHAIN_CONTRACT_ADDRESS = 0xd0Ef1686fcAF3f026134DE4188bd977c4EBcf530
+services:
+  - type: web
+    name: voltera-blockchain-gateway
+    runtime: docker
+    plan: free
+    rootDir: Microservicios/ServiciosDeNegocio/blockchain-gateway-service
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: KAFKA_ENABLED
+        value: "false"            # modo NUBE: solo-REST (Kafka del server es LAN privada)
+      - key: VOLTERA_BLOCKCHAIN_CHAIN_ID
+        value: "80002"
+      - key: VOLTERA_BLOCKCHAIN_NETWORK
+        value: "polygon-amoy"
+      - key: VOLTERA_BLOCKCHAIN_RPC_URL
+        sync: false               # se define en el dashboard
+      - key: VOLTERA_BLOCKCHAIN_PRIVATE_KEY
+        sync: false               # SECRET (clave de prueba testnet)
+      - key: VOLTERA_BLOCKCHAIN_CONTRACT_ADDRESS
+        sync: false
