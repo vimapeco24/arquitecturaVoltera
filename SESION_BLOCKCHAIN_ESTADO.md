@@ -45,6 +45,32 @@ nuevo queda pendiente (necesita tu wallet/gas).
 - ⏳ Para que estos cambios lleguen a producción: `git push` (Render auto-deploya el gateway) y
   re-deploy del front a Vercel (ver sección Deploy Vercel).
 
+### ✅ VALIDADO EN PRODUCCIÓN (2026-10-21, commit 58acd2f pusheado)
+- Render auto-desplegó el gateway. `/actuator/health` 200; nuevo `/api/v1/anclajes/comunidades` 200.
+- Anclaje real CON comunidad → CONFIRMADO, y la respuesta ahora incluye:
+  `comunidadId:"COMUNIDAD-SOLAR-01"`, **`bloque:50778774`**, **`gasUsado:119976`**,
+  txHash `0xf2a39159…b1b49fd`.
+- `/comunidades` → agrega COMUNIDAD-SOLAR-01: 1 contrato, 1 confirmado, 11000 Wh.
+- Tests: contrato Hardhat **17/17** (8 anchor + 9 comunidad), gateway **8/8**, liquidacion-p2p **12/12**.
+
+### ⚠️ HALLAZGO IMPORTANTE sobre git (pendiente de decisión del usuario)
+- El `.gitignore` tiene `/Blockchain/` (para los PDFs del curso). En macOS (FS case-insensitive)
+  ESA regla también ignora la carpeta **`blockchain/`** del proyecto Hardhat → el contrato
+  Solidity, sus tests y `deploy.js` **NO están en git** (nunca lo estuvieron). Igual `Modificados/`
+  (el diagrama .drawio) está ignorado a propósito.
+- Por eso el nuevo `ComunidadEnergeticaRegistry.sol` + tests y la edición del `.drawio` quedan SOLO
+  en local (no se pudieron commitear). El gateway en Render NO usa el código Hardhat (habla con la
+  dirección ya desplegada), así que nada se rompe.
+- DECISIÓN pendiente: si se quiere versionar el contrato, hay que afinar el `.gitignore` para
+  ignorar solo los PDFs (p. ej. `/Blockchain/*.pdf`) sin tapar `blockchain/`. No se tocó para no
+  arrastrar los PDFs del curso al repo sin tu visto bueno.
+
+### ⏳ Pendientes que requieren TUS credenciales
+1. **Front a Vercel**: re-deploy con tu `VERCEL_TOKEN` (rotar el anterior). CLI local ya instalado:
+   `cd Microservicios/voltera-frontend && VERCEL_TOKEN=<token> node_modules/.bin/vercel deploy --prod --yes`.
+2. **Deploy del registro de comunidades a Amoy**: `cd blockchain && npm run deploy:amoy` (con tu
+   wallet de prueba con POL) → poner `VOLTERA_BLOCKCHAIN_REGISTRO_COMUNIDADES=<dir>` en el gateway.
+
 ## 🔒 HARDENING CORS DEL GATEWAY (2026-10-21) — commit 0cc9da9 (local, sin push)
 - `WebCorsConfiguration` ya NO usa el comodín `allowedOriginPatterns("*")`.
   Ahora lee `voltera.cors.allowed-origins` (env `VOLTERA_CORS_ORIGINS`), default:
