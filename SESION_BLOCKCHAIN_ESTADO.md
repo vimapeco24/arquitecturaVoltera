@@ -1,7 +1,23 @@
 # Estado de la sesión — Blockchain Voltera
 
-> Punto de retome para la próxima sesión. Última actualización: 2026-10-20 (cierre 3 — TODO LIVE).
+> Punto de retome para la próxima sesión. Última actualización: 2026-10-21 (hardening CORS gateway).
 > Lee este archivo primero al reconectar.
+
+## 🔒 HARDENING CORS DEL GATEWAY (2026-10-21) — commit 0cc9da9 (local, sin push)
+- `WebCorsConfiguration` ya NO usa el comodín `allowedOriginPatterns("*")`.
+  Ahora lee `voltera.cors.allowed-origins` (env `VOLTERA_CORS_ORIGINS`), default:
+  `https://voltera-frontend.vercel.app, https://*.vercel.app, http://localhost:4200`.
+  Métodos reducidos a GET/POST/OPTIONS; headers a Content-Type/Accept/Authorization;
+  `allowCredentials=false`; `maxAge=3600`.
+- `application.yml`: añadido bloque `voltera.cors.allowed-origins`.
+- Verificado: `./mvnw test` → **6/6 OK** con el cambio.
+- Verificado que el origen real de producción (`voltera-frontend.vercel.app`) matchea los
+  patrones permitidos → el front NO se romperá al redeplegar.
+- ⚠️ El gateway en Render AÚN corre el CORS viejo (preflight live devuelve GET,POST,PUT,DELETE,OPTIONS
+  y max-age 1800). El cambio se aplicará cuando se **pushee `main`** y Render redespliegue
+  (blueprint auto-deploy). El push NO se hizo todavía (requiere confirmación del usuario).
+- Diagrama `.drawio`: SIN cambios estructurales (CORS es política del mismo gateway ya dibujado,
+  no un nuevo componente/puerto/topic).
 
 ## TL;DR — dónde vamos
 **TODO FUNCIONANDO END-TO-END Y EN LA NUBE.**
