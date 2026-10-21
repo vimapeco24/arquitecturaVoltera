@@ -82,10 +82,15 @@ public class Web3jCadenaAdapter implements CadenaBlockchainPort {
 
             var receiptProcessor = new PollingTransactionReceiptProcessor(web3j, 3000, 20);
             var txManager = new RawTransactionManager(web3j, credentials, chainId, receiptProcessor);
-            var gas = new DefaultGasProvider();
+
+            // Gas price dinámico: Amoy rechaza transacciones por debajo de ~25 gwei
+            // ("gas price below minimum"). Consultamos el precio real de la red,
+            // le aplicamos un margen x2 y garantizamos un piso de 30 gwei.
+            BigInteger gasPrice = resolverGasPrice();
+            BigInteger gasLimit = new DefaultGasProvider().getGasLimit();
 
             EthSendTransaction sent = txManager.sendTransaction(
-                    gas.getGasPrice(), gas.getGasLimit(), contractAddress, data, BigInteger.ZERO);
+                    gasPrice, gasLimit, contractAddress, data, BigInteger.ZERO);
 
             if (sent.hasError()) {
                 String msg = sent.getError().getMessage();
@@ -111,6 +116,26 @@ public class Web3jCadenaAdapter implements CadenaBlockchainPort {
             return esDefinitivo(msg)
                     ? ResultadoAnclaje.definitivo(msg)
                     : ResultadoAnclaje.transitorio(msg);
+        }
+    }
+
+    /** Piso de gas price para Polygon Amoy (30 gwei; la red exige >= ~25 gwei). */
+    private static final BigInteger GAS_PRICE_MIN = BigInteger.valueOf(30_000_000_000L);
+
+    /**
+     * Resuelve el gas price a usar: consulta el precio real de la red
+     * (eth_gasPrice), lo multiplica por 2 como margen y garantiza el piso de
+     * 30 gwei. Amoy rechaza transacciones por debajo del mínimo con
+     * "transaction gas price below minimum".
+     */
+    private BigInteger resolverGasPrice() {
+        try {
+            BigInteger red = web3j.ethGasPrice().send().getGasPrice();
+            BigInteger conMargen = red.multiply(BigInteger.TWO);
+            return conMargen.max(GAS_PRICE_MIN);
+        } catch (Exception e) {
+            log.warn("No se pudo leer eth_gasPrice ({}); usando piso {} wei", e.getMessage(), GAS_PRICE_MIN);
+            return GAS_PRICE_MIN;
         }
     }
 
