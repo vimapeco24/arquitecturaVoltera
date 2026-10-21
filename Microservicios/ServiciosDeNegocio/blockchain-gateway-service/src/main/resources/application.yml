@@ -21,6 +21,10 @@ spring:
 # ── Conexion a la cadena (Polygon Amoy via RPC gratuito de tercero) ──────────
 # Deja vacio para arrancar en modo demo (anclajes quedan PENDIENTE, sin broker ni RPC).
 voltera:
+  # Origenes permitidos para CORS (coma-separados). En produccion apunta solo
+  # al dominio de la SPA; nunca "*". Se puede sobrescribir con VOLTERA_CORS_ORIGINS.
+  cors:
+    allowed-origins: ${VOLTERA_CORS_ORIGINS:https://voltera-frontend.vercel.app,https://*.vercel.app,http://localhost:4200}
   kafka:
     enabled: ${KAFKA_ENABLED:false}
   blockchain:
