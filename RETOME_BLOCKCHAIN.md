@@ -13,7 +13,7 @@
 | **Gateway (Render)** | ✅ LIVE y al día | `/actuator/health` 200; `/api/v1/anclajes/comunidades` 200; red `configurada:true, disponible:true` |
 | **Contrato LiquidacionP2PAnchor (Amoy)** | ✅ desplegado | `0xd0Ef1686fcAF3f026134DE4188bd977c4EBcf530`, chainId 80002 |
 | **Código en GitHub** | ✅ completo | proyecto Hardhat + diagrama ya versionados (antes estaban ignorados) |
-| **Front (Vercel)** | ⚠️ VERSIÓN VIEJA | sirve `main-7URIMLIU.js`; NO tiene la feature de comunidades. El build local nuevo es `main-JNXGBHCI.js` |
+| **Front (Vercel)** | ✅ LIVE y al día | sirve `main-JNXGBHCI.js` (== build local nuevo); `/` y `/blockchain` 200; feature de comunidades desplegada el 2026-10-21 |
 
 URLs:
 - Front: https://voltera-frontend.vercel.app  (y `/blockchain`)
@@ -24,22 +24,12 @@ URLs:
 
 ## ❌ LO QUE FALTA POR AJUSTAR (requiere credenciales del usuario — el agente no puede)
 
-### 1. Re-deploy del FRONT a Vercel  ← ESTO ES LO PRINCIPAL QUE FALTA
-El código del marketplace nuevo (comunidades, detalle de contrato, exportar CSV/JSON,
-re-sincronizar, bloque/gas) está **commiteado y compilado**, pero Vercel aún sirve la versión
-anterior. Para publicarlo:
-
-```bash
-cd Microservicios/voltera-frontend
-VERCEL_TOKEN=<tu-token-nuevo> node_modules/.bin/vercel deploy --prod --yes
-```
-
-- ⚠️ Generar un token NUEVO en Vercel → Settings → Tokens (el anterior quedó expuesto en chat).
-- Alternativa: si el proyecto de Vercel está conectado al repo de GitHub con auto-deploy,
-  puede que ya se haya redeplegado solo tras el último push → recargar y revisar.
-- Cómo comprobar que quedó: abrir `/blockchain` y ver el campo "Comunidad energética" y el
-  panel de comunidades. O desde terminal, que el `main-*.js` servido coincida con el build local
-  y contenga el texto "Comunidad energética".
+### 1. Re-deploy del FRONT a Vercel  ✅ HECHO (2026-10-21)
+Desplegado a producción con el CLI local. Vercel ahora sirve `main-JNXGBHCI.js` (== build local),
+con el marketplace nuevo (comunidades, detalle, exportar, re-sincronizar, bloque/gas). Sitio público
+OK (`/` y `/blockchain` 200; título "Voltera · Comunidades Energéticas").
+Producción: https://voltera-frontend-d3mfd9k7o-vimapeco.vercel.app  ·  alias https://voltera-frontend.vercel.app
+> Para futuros deploys: `cd Microservicios/voltera-frontend && VERCEL_TOKEN=<token> node_modules/.bin/vercel deploy --prod --yes`
 
 ### 2. (OPCIONAL) Desplegar ComunidadEnergeticaRegistry a Polygon Amoy
 El contrato nuevo del padrón de comunidades está **escrito y probado (17/17 tests)** pero NO
@@ -53,9 +43,10 @@ npm run deploy:amoy          # despliega AMBOS contratos y guarda direcciones en
 #   VOLTERA_BLOCKCHAIN_REGISTRO_COMUNIDADES=<direccion_registro>
 ```
 
-### 3. (SEGURIDAD) Rotar el token de Vercel
-El `VERCEL_TOKEN` de una sesión previa quedó pegado en el chat → revocarlo/rotarlo en
-Vercel → Settings → Tokens. La wallet de prueba de Amoy es desechable (no urge, pero conviene).
+### 3. (SEGURIDAD) Rotar el token de Vercel  ← PENDIENTE, HAZLO YA
+El `VERCEL_TOKEN` se pegó en el chat (el `vcp_0xcF...` del 2026-10-21 usado para este deploy, y el
+de la sesión previa). Ambos quedaron expuestos → **revócalos en Vercel → Settings → Tokens** y
+genera uno nuevo para la próxima vez. La wallet de prueba de Amoy es desechable.
 
 ---
 
