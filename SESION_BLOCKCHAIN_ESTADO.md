@@ -53,17 +53,18 @@ nuevo queda pendiente (necesita tu wallet/gas).
 - `/comunidades` → agrega COMUNIDAD-SOLAR-01: 1 contrato, 1 confirmado, 11000 Wh.
 - Tests: contrato Hardhat **17/17** (8 anchor + 9 comunidad), gateway **8/8**, liquidacion-p2p **12/12**.
 
-### ⚠️ HALLAZGO IMPORTANTE sobre git (pendiente de decisión del usuario)
-- El `.gitignore` tiene `/Blockchain/` (para los PDFs del curso). En macOS (FS case-insensitive)
-  ESA regla también ignora la carpeta **`blockchain/`** del proyecto Hardhat → el contrato
-  Solidity, sus tests y `deploy.js` **NO están en git** (nunca lo estuvieron). Igual `Modificados/`
-  (el diagrama .drawio) está ignorado a propósito.
-- Por eso el nuevo `ComunidadEnergeticaRegistry.sol` + tests y la edición del `.drawio` quedan SOLO
-  en local (no se pudieron commitear). El gateway en Render NO usa el código Hardhat (habla con la
-  dirección ya desplegada), así que nada se rompe.
-- DECISIÓN pendiente: si se quiere versionar el contrato, hay que afinar el `.gitignore` para
-  ignorar solo los PDFs (p. ej. `/Blockchain/*.pdf`) sin tapar `blockchain/`. No se tocó para no
-  arrastrar los PDFs del curso al repo sin tu visto bueno.
+### ⚠️ HALLAZGO IMPORTANTE sobre git (RESUELTO 2026-10-21)
+- El `.gitignore` tenía `/Blockchain/` (para los PDFs del curso). En macOS (FS case-insensitive)
+  ESA regla también ignoraba la carpeta **`blockchain/`** del proyecto Hardhat → el contrato
+  Solidity, sus tests y `deploy.js` **NO estaban en git**.
+- **RESUELTO**: se ajustó `.gitignore` para ignorar SOLO los PDFs (`*.pdf`) y los artefactos de
+  build (`blockchain/node_modules|artifacts|cache|deployments`), y se versionó el código. También
+  se añadieron negaciones para versionar el diagrama `Modificados/Voltera_Arquitectura_Completa.
+  drawio` (+ `.png`) y las plantillas `**/.env.example` (el `.env` real sigue ignorado).
+- Commits `eab68ab` (proyecto Hardhat + diagrama) y `c624af0` (.env.example). Ahora en GitHub:
+  `blockchain/contracts/{LiquidacionP2PAnchor,ComunidadEnergeticaRegistry}.sol`, `test/` (17),
+  `scripts/deploy.js`, `hardhat.config.js`, `package.json`, `README.md`, `.env.example`.
+- Verificado post-commit: `npx hardhat test` → **17 passing**. Sin PDFs, node_modules ni .env reales.
 
 ### ⏳ Pendientes que requieren TUS credenciales
 1. **Front a Vercel**: re-deploy con tu `VERCEL_TOKEN` (rotar el anterior). CLI local ya instalado:
