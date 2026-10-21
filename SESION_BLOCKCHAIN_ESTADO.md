@@ -13,9 +13,15 @@
 - Verificado: `./mvnw test` → **6/6 OK** con el cambio.
 - Verificado que el origen real de producción (`voltera-frontend.vercel.app`) matchea los
   patrones permitidos → el front NO se romperá al redeplegar.
-- ⚠️ El gateway en Render AÚN corre el CORS viejo (preflight live devuelve GET,POST,PUT,DELETE,OPTIONS
-  y max-age 1800). El cambio se aplicará cuando se **pushee `main`** y Render redespliegue
-  (blueprint auto-deploy). El push NO se hizo todavía (requiere confirmación del usuario).
+- ✅ **PUSHEADO y DESPLEGADO** (2026-10-21): `git push origin main` OK (7b8d8fb..24615a1).
+  Render auto-desplegó el commit `24615a1` (trigger Auto-Deploy, 2m29s) y quedó **Live**.
+- ✅ **CORS endurecido VERIFICADO en producción** (preflight live sobre Render):
+  - Origen permitido (`voltera-frontend.vercel.app`) → `allow-methods: GET,POST,OPTIONS`,
+    `max-age: 3600`, `allow-origin` correcto.
+  - Origen NO permitido (`malicioso.example.com`) → NO devuelve ninguna cabecera `access-control-*`.
+  - (Las verificaciones previas que mostraban el CORS viejo fueron falsos negativos por el
+    cold-start del free tier: la instancia dormida tarda ~50-80s en despertar; health dio HTTP 000
+    durante ese arranque. Tras despertar, el CORS nuevo responde correctamente.)
 - Diagrama `.drawio`: SIN cambios estructurales (CORS es política del mismo gateway ya dibujado,
   no un nuevo componente/puerto/topic).
 
