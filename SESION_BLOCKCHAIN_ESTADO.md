@@ -40,6 +40,27 @@ Lo único que **falta** son los pasos manuales que requieren tus credenciales de
   `GUIA_DESPLIEGUE_BLOCKCHAIN.md` (paso a paso completo), `DESPLIEGUE.md`, `DESPLIEGUE_PAAS.md`,
   colección `Voltera_Postman_Blockchain.json`.
 
+## 🗺️ DIAGRAMA DE ARQUITECTURA VIVO (2026-10-20)
+- Creado **`Modificados/Voltera_Arquitectura_Completa.drawio`** — arquitectura completa actual
+  de Voltera en 5 capas (cliente/borde · 17 microservicios · event mesh Redpanda/Kafka ·
+  blockchain Polygon Amoy · observabilidad/infra). XML válido, importable en Lucidchart/draw.io.
+- **REGLA PERMANENTE** en `.kiro/steering/arquitectura-voltera.md`: cada vez que se agregue/
+  modifique/elimine algo de arquitectura, hay que actualizar TAMBIÉN este .drawio en el mismo
+  trabajo, y dejar constancia aquí. La regla se incluye siempre (todas las sesiones).
+
+## 🟢 GATEWAY BLOCKCHAIN EN RENDER — LIVE (2026-10-20)
+- **URL pública:** https://voltera-blockchain-gateway.onrender.com (free tier, "duerme" tras ~15 min).
+- Desplegado por **Blueprint** (`render.yaml` en raíz con `rootDir`). Variables de cadena como env vars.
+- `/actuator/health` = 200; `/api/v1/anclajes/red` = `disponible:true, configurada:true, contrato 0xd0Ef…EBcf530`.
+- **Front conectado:** `environment.prod.blockchainBase = https://voltera-blockchain-gateway.onrender.com`;
+  `blockchain.service.ts` llama DIRECTO a esa URL (no vía WSO2 LAN). CORS abierto en el gateway.
+- **3 fixes aplicados al depurar el deploy en PaaS (todos en git):**
+  1. `BeanConfiguration.normalizar()` — quita espacios/saltos de la private key.
+  2. `BlockchainProperties` setters — limpian rpc/key/contrato (el CONTRACT_ADDRESS llegó con `\n`).
+  3. `Web3jCadenaAdapter.resolverGasPrice()` — gas dinámico `eth_gasPrice x2`, piso 30 gwei
+     (Amoy rechazaba 4.1 gwei con "gas price below minimum"). Commit `df9169a`.
+- PENDIENTE verificar tras el deploy de `df9169a`: que un anclaje real pase a CONFIRMADO con txHash.
+
 ## ✨ MARKETPLACE P2P — mejoras Nivel 2 + re-deploy (2026-10-20)
 Front `pages/blockchain/` ampliado para quedar "muy completo" y re-desplegado a Vercel:
 - **Persistencia** del libro de órdenes y de los contratos en `localStorage`
