@@ -15,7 +15,6 @@ import org.web3j.protocol.core.DefaultBlockParameterName;
 import org.web3j.protocol.core.methods.response.EthSendTransaction;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
 import org.web3j.tx.RawTransactionManager;
-import org.web3j.tx.gas.DefaultGasProvider;
 import org.web3j.tx.response.PollingTransactionReceiptProcessor;
 import org.web3j.utils.Numeric;
 
@@ -84,10 +83,13 @@ public class Web3jCadenaAdapter implements CadenaBlockchainPort {
             var txManager = new RawTransactionManager(web3j, credentials, chainId, receiptProcessor);
 
             // Gas price dinámico: Amoy rechaza transacciones por debajo de ~25 gwei
-            // ("gas price below minimum"). Consultamos el precio real de la red,
-            // le aplicamos un margen x2 y garantizamos un piso de 30 gwei.
+            // ("gas price below minimum"). Consultamos el precio real de la red y
+            // garantizamos un piso de 30 gwei (sin multiplicar, para no inflar el coste).
             BigInteger gasPrice = resolverGasPrice();
-            BigInteger gasLimit = new DefaultGasProvider().getGasLimit();
+            // gasLimit acotado: anclar un hash gasta ~70-90k gas; 200k da margen de
+            // sobra. El default de web3j (9M) haría que coste = gasPrice*9M y agotara
+            // el saldo del faucet ("insufficient funds for gas").
+            BigInteger gasLimit = BigInteger.valueOf(200_000L);
 
             EthSendTransaction sent = txManager.sendTransaction(
                     gasPrice, gasLimit, contractAddress, data, BigInteger.ZERO);
@@ -123,15 +125,14 @@ public class Web3jCadenaAdapter implements CadenaBlockchainPort {
     private static final BigInteger GAS_PRICE_MIN = BigInteger.valueOf(30_000_000_000L);
 
     /**
-     * Resuelve el gas price a usar: consulta el precio real de la red
-     * (eth_gasPrice), lo multiplica por 2 como margen y garantiza el piso de
-     * 30 gwei. Amoy rechaza transacciones por debajo del mínimo con
-     * "transaction gas price below minimum".
+     * Resuelve el gas price: consulta el precio real de la red (eth_gasPrice),
+     * le aplica un margen del 20% y garantiza el piso de 30 gwei. Amoy rechaza
+     * transacciones por debajo del mínimo ("gas price below minimum").
      */
     private BigInteger resolverGasPrice() {
         try {
             BigInteger red = web3j.ethGasPrice().send().getGasPrice();
-            BigInteger conMargen = red.multiply(BigInteger.TWO);
+            BigInteger conMargen = red.multiply(BigInteger.valueOf(120)).divide(BigInteger.valueOf(100));
             return conMargen.max(GAS_PRICE_MIN);
         } catch (Exception e) {
             log.warn("No se pudo leer eth_gasPrice ({}); usando piso {} wei", e.getMessage(), GAS_PRICE_MIN);
