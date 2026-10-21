@@ -21,7 +21,6 @@ import org.web3j.utils.Numeric;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 
 /**
  * Adaptador de SALIDA hacia Polygon Amoy via el RPC gratuito del tercero (web3j).
@@ -102,13 +101,12 @@ public class Web3jCadenaAdapter implements CadenaBlockchainPort {
             }
 
             String txHash = sent.getTransactionHash();
-            Optional<TransactionReceipt> receipt =
-                    receiptProcessor.waitForTransactionReceipt(txHash) == null
-                            ? Optional.empty()
-                            : Optional.of(receiptProcessor.waitForTransactionReceipt(txHash));
+            TransactionReceipt receipt = receiptProcessor.waitForTransactionReceipt(txHash);
 
-            if (receipt.isPresent() && receipt.get().isStatusOK()) {
-                return ResultadoAnclaje.ok(txHash);
+            if (receipt != null && receipt.isStatusOK()) {
+                Long bloque = receipt.getBlockNumber() != null ? receipt.getBlockNumber().longValue() : null;
+                Long gas = receipt.getGasUsed() != null ? receipt.getGasUsed().longValue() : null;
+                return ResultadoAnclaje.ok(txHash, bloque, gas);
             }
             return ResultadoAnclaje.transitorio("recibo sin confirmacion OK (txHash=" + txHash + ")");
 

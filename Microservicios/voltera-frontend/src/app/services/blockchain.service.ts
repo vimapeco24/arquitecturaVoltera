@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { gw, SERVICIOS } from '../core/gateway';
-import { Anclaje, AnclarRequest, RedInfo, ResultadoVerificacion } from '../core/models';
+import { Anclaje, AnclarRequest, ComunidadResumen, RedInfo, ResultadoVerificacion } from '../core/models';
 
 /**
  * Cliente del servicio de borde blockchain-gateway (8101). Ancla en Polygon Amoy
@@ -48,5 +48,10 @@ export class BlockchainService {
 
   verificar(body: AnclarRequest): Observable<ResultadoVerificacion> {
     return this.http.post<ResultadoVerificacion>(this.url('api/v1/anclajes/verificar'), body);
+  }
+
+  /** Resumen agregado por comunidad energética (lo calcula el gateway). */
+  comunidades(): Observable<ComunidadResumen[]> {
+    return this.http.get<ComunidadResumen[]>(this.url('api/v1/anclajes/comunidades'));
   }
 }

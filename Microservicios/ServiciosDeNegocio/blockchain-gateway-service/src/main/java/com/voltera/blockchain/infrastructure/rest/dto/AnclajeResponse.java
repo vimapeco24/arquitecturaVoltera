@@ -9,9 +9,12 @@ public record AnclajeResponse(
         String transaccionId,
         String hashCasacion,
         long energiaWh,
+        String comunidadId,
         String estado,
         int intentos,
         String txHash,
+        Long bloque,
+        Long gasUsado,
         String explorerUrl,
         String ultimoError,
         Instant creadoEn,
@@ -22,8 +25,8 @@ public record AnclajeResponse(
                 ? null
                 : explorerBase + "/tx/" + a.txHash();
         return new AnclajeResponse(
-                a.transaccionId(), a.hashCasacion(), a.energiaWh(),
-                a.estado().name(), a.intentos(), a.txHash(), url,
+                a.transaccionId(), a.hashCasacion(), a.energiaWh(), a.comunidadId(),
+                a.estado().name(), a.intentos(), a.txHash(), a.bloque(), a.gasUsado(), url,
                 a.ultimoError(), a.creadoEn(), a.actualizadoEn());
     }
 }

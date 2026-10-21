@@ -1,7 +1,49 @@
 # Estado de la sesión — Blockchain Voltera
 
-> Punto de retome para la próxima sesión. Última actualización: 2026-10-21 (hardening CORS gateway).
+> Punto de retome para la próxima sesión. Última actualización: 2026-10-21 (comunidades energéticas + mejoras front/contrato).
 > Lee este archivo primero al reconectar.
+
+## 🏘️ COMUNIDADES ENERGÉTICAS + MEJORAS FRONT/CONTRATO (2026-10-21)
+Trabajo nuevo pedido: "implementa todo lo que puedas de blockchain para las comunidades
+energéticas y lo del contrato". Todo compila y pasa tests; el deploy a Amoy del contrato
+nuevo queda pendiente (necesita tu wallet/gas).
+
+### Contrato (carpeta `blockchain/`)
+- **NUEVO `contracts/ComunidadEnergeticaRegistry.sol`**: padrón on-chain de comunidades
+  energéticas y su membresía. `AccessControl` (rol `OPERADOR_ROLE`, Embedded Permission) +
+  `Pausable`. Funciones: `registrarComunidad`, `agregarMiembro`, `removerMiembro`,
+  `esMiembro`, `puedenCasar(comunidad, vendedor, comprador)` (regla de dominio: solo casan
+  miembros activos de la MISMA comunidad), eventos para EDA, errores de no repudio.
+- **Tests**: `test/ComunidadEnergeticaRegistry.test.js` (9) + anchor (8) = **17 passing**.
+- `scripts/deploy.js` ahora despliega AMBOS contratos y guarda las 2 direcciones en
+  `deployments/<red>.json` (`registroComunidades.address`). Verificado en red hardhat in-process.
+- ⏳ PENDIENTE (requiere tu wallet con POL): `npm run deploy:amoy` para publicar el registro
+  en Amoy y poner `VOLTERA_BLOCKCHAIN_REGISTRO_COMUNIDADES=<dir>` en el gateway.
+
+### Gateway (`blockchain-gateway-service`) — retrocompatible, SIN romper lo Live
+- `comunidadId` como **metadato OFF-CHAIN** en el anclaje (NO entra en el hash → no rompe
+  idempotencia/verificación del contrato ya desplegado). DTO `AnclarRequest` y `AnclajeResponse`
+  lo exponen; `LiquidacionP2P`/`Anclaje` lo portan; el listener Kafka lo extrae del evento.
+- El `AnclajeResponse` ahora devuelve también **`bloque`** y **`gasUsado`** del recibo on-chain
+  (capturados en `Web3jCadenaAdapter`; de paso se arregló un bug que llamaba
+  `waitForTransactionReceipt` dos veces).
+- **NUEVO endpoint** `GET /api/v1/anclajes/comunidades` → resumen agregado por comunidad
+  (total, confirmados, pendientes, energíaWh total).
+- Tests gateway: **8 passing** (antes 6; +2 de comunidad y de "comunidad no altera el hash").
+
+### Frontend (`voltera-frontend`, página `/blockchain`)
+- Campo **Comunidad energética** en el formulario de ofertas (con datalist de comunidades
+  conocidas) y la comunidad mostrada en cada orden del libro.
+- **Regla de casación**: solo casan órdenes de la MISMA comunidad; mensaje de motivo si no.
+- **Panel de comunidades** (tarjetas con métricas, clic = filtrar contratos por comunidad).
+- **Detalle de contrato** (modal): hash completo + copiar, txHash + copiar, bloque, gasUsado,
+  intentos, último error, timeline de hitos, enlaces a PolygonScan y verificar.
+- **Re-sincronizar** (re-hidrata desde el gateway tras un reinicio del store en memoria).
+- **Exportar evidencia** a CSV y JSON (hash, txHash, bloque, gas, comunidad).
+- Verificado: `tsc --noEmit` OK, `ng build --configuration production` OK
+  (blockchain-component 44.79 kB).
+- ⏳ Para que estos cambios lleguen a producción: `git push` (Render auto-deploya el gateway) y
+  re-deploy del front a Vercel (ver sección Deploy Vercel).
 
 ## 🔒 HARDENING CORS DEL GATEWAY (2026-10-21) — commit 0cc9da9 (local, sin push)
 - `WebCorsConfiguration` ya NO usa el comodín `allowedOriginPatterns("*")`.

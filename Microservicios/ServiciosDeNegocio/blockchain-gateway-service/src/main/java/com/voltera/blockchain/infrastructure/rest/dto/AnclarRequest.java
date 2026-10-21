@@ -19,5 +19,7 @@ public record AnclarRequest(
         @Positive long energiaWh,
         @NotNull BigDecimal precioPorKwh,
         @NotNull BigDecimal valorTotal,
-        @NotNull Instant liquidadaEn
+        @NotNull Instant liquidadaEn,
+        // Comunidad energetica a la que pertenece la casacion (metadato off-chain, opcional).
+        String comunidadId
 ) {}

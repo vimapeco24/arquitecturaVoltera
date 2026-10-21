@@ -383,6 +383,11 @@ export interface Anclaje {
   ultimoError: string | null;
   creadoEn: string;
   actualizadoEn: string;
+  // Comunidad energética (metadato de agrupación; opcional por compatibilidad).
+  comunidadId?: string | null;
+  // Datos del recibo on-chain (los expone el gateway cuando la tx está minada).
+  bloque?: number | null;
+  gasUsado?: number | null;
 }
 export interface AnclarRequest {
   transaccionId: string;
@@ -392,6 +397,16 @@ export interface AnclarRequest {
   precioPorKwh: string;
   valorTotal: string;
   liquidadaEn: string;
+  // Comunidad energética a la que pertenece la casación (opcional).
+  comunidadId?: string;
+}
+/** Resumen agregado de una comunidad energética (lo calcula el gateway). */
+export interface ComunidadResumen {
+  comunidadId: string;
+  totalContratos: number;
+  confirmados: number;
+  pendientes: number;
+  energiaWhTotal: number;
 }
 export interface RedInfo {
   red: string;

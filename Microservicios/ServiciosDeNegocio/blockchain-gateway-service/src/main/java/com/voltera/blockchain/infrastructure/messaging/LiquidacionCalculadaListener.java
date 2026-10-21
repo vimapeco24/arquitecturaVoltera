@@ -55,7 +55,8 @@ public class LiquidacionCalculadaListener {
                     largo(n, "energiaWh", "energiaKwh", 1L),
                     decimal(n, "precioPorKwh", "precio"),
                     decimal(n, "valorTotal", "total"),
-                    instante(n, "liquidadaEn", "calculadaEn"));
+                    instante(n, "liquidadaEn", "calculadaEn"),
+                    texto(n, "comunidadId", "comunidad"));
 
             anclar.anclar(liq);
             log.info("Liquidacion recibida por evento y encolada para anclaje transaccion={}", txId);

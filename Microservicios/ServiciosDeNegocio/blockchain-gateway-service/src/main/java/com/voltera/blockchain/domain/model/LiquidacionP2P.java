@@ -21,10 +21,18 @@ public final class LiquidacionP2P {
     private final BigDecimal precioPorKwh;
     private final BigDecimal valorTotal;
     private final Instant liquidadaEn;
+    private final String comunidadId;    // metadato off-chain (NO entra en el hash)
 
     public LiquidacionP2P(String transaccionId, String vendedorId, String compradorId,
                           long energiaWh, BigDecimal precioPorKwh, BigDecimal valorTotal,
                           Instant liquidadaEn) {
+        this(transaccionId, vendedorId, compradorId, energiaWh, precioPorKwh, valorTotal,
+                liquidadaEn, null);
+    }
+
+    public LiquidacionP2P(String transaccionId, String vendedorId, String compradorId,
+                          long energiaWh, BigDecimal precioPorKwh, BigDecimal valorTotal,
+                          Instant liquidadaEn, String comunidadId) {
         this.transaccionId = exigir(transaccionId, "transaccionId");
         this.vendedorId = exigir(vendedorId, "vendedorId");
         this.compradorId = exigir(compradorId, "compradorId");
@@ -33,6 +41,7 @@ public final class LiquidacionP2P {
         this.precioPorKwh = Objects.requireNonNull(precioPorKwh, "precioPorKwh requerido");
         this.valorTotal = Objects.requireNonNull(valorTotal, "valorTotal requerido");
         this.liquidadaEn = Objects.requireNonNull(liquidadaEn, "liquidadaEn requerido");
+        this.comunidadId = (comunidadId == null || comunidadId.isBlank()) ? null : comunidadId.trim();
     }
 
     private static String exigir(String v, String campo) {
@@ -63,4 +72,5 @@ public final class LiquidacionP2P {
     public BigDecimal precioPorKwh() { return precioPorKwh; }
     public BigDecimal valorTotal() { return valorTotal; }
     public Instant liquidadaEn() { return liquidadaEn; }
+    public String comunidadId() { return comunidadId; }
 }

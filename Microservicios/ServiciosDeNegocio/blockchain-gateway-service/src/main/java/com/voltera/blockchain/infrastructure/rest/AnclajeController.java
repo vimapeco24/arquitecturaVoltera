@@ -45,7 +45,8 @@ public class AnclajeController {
     public ResponseEntity<AnclajeResponse> anclar(@Valid @RequestBody AnclarRequest req) {
         LiquidacionP2P liq = new LiquidacionP2P(
                 req.transaccionId(), req.vendedorId(), req.compradorId(),
-                req.energiaWh(), req.precioPorKwh(), req.valorTotal(), req.liquidadaEn());
+                req.energiaWh(), req.precioPorKwh(), req.valorTotal(), req.liquidadaEn(),
+                req.comunidadId());
         Anclaje a = anclar.anclar(liq);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(AnclajeResponse.de(a, explorerBase));
     }
@@ -58,7 +59,8 @@ public class AnclajeController {
     public ConsultarAnclajeUseCase.ResultadoVerificacion verificar(@Valid @RequestBody AnclarRequest req) {
         LiquidacionP2P liq = new LiquidacionP2P(
                 req.transaccionId(), req.vendedorId(), req.compradorId(),
-                req.energiaWh(), req.precioPorKwh(), req.valorTotal(), req.liquidadaEn());
+                req.energiaWh(), req.precioPorKwh(), req.valorTotal(), req.liquidadaEn(),
+                req.comunidadId());
         return consultar.verificar(liq);
     }
 
@@ -72,6 +74,12 @@ public class AnclajeController {
         return consultar.todos().stream()
                 .map(a -> AnclajeResponse.de(a, explorerBase))
                 .toList();
+    }
+
+    /** Resumen agregado por comunidad energetica (para el panel de comunidades). */
+    @GetMapping("/comunidades")
+    public List<ConsultarAnclajeUseCase.ResumenComunidad> comunidades() {
+        return consultar.resumenComunidades();
     }
 
     /** Info de la red/contrato para la UI (tarjeta de estado del marketplace). */

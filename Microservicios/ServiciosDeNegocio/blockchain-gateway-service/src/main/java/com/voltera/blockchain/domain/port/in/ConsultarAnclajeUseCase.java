@@ -25,4 +25,15 @@ public interface ConsultarAnclajeUseCase {
      * sin confiar en el operador.
      */
     ResultadoVerificacion verificar(LiquidacionP2P liquidacion);
+
+    /** Resumen agregado de una comunidad energetica. */
+    record ResumenComunidad(
+            String comunidadId,
+            long totalContratos,
+            long confirmados,
+            long pendientes,
+            long energiaWhTotal) {}
+
+    /** Agrega los anclajes por comunidad energetica (metadato off-chain). */
+    List<ResumenComunidad> resumenComunidades();
 }

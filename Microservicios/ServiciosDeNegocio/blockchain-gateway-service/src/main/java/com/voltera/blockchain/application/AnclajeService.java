@@ -13,7 +13,10 @@ import com.voltera.blockchain.domain.port.out.HashServicePort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Servicio de aplicacion del gateway. Orquesta el patron OUTBOX:
@@ -56,7 +59,8 @@ public class AnclajeService implements AnclarLiquidacionUseCase, ConsultarAnclaj
         String hash = hashService.keccak256Hex(liquidacion);
         Anclaje anclaje = Anclaje.pendiente(
                 liquidacion.transaccionId(), hash,
-                liquidacion.energiaWh(), liquidacion.liquidadaEn().getEpochSecond());
+                liquidacion.energiaWh(), liquidacion.liquidadaEn().getEpochSecond(),
+                liquidacion.comunidadId());
         Anclaje guardado = repositorio.guardar(anclaje);
         log.info("Liquidacion registrada en OUTBOX transaccion={} hash={} (PENDIENTE)",
                 guardado.transaccionId(), guardado.hashCasacion());
@@ -85,9 +89,10 @@ public class AnclajeService implements AnclarLiquidacionUseCase, ConsultarAnclaj
 
         CadenaBlockchainPort.ResultadoAnclaje r = cadena.anclar(anclaje);
         if (r.confirmado()) {
-            anclaje.marcarConfirmado(r.txHash());
+            anclaje.marcarConfirmado(r.txHash(), r.bloque(), r.gasUsado());
             repositorio.guardar(anclaje);
-            log.info("Anclaje CONFIRMADO transaccion={} txHash={}", anclaje.transaccionId(), r.txHash());
+            log.info("Anclaje CONFIRMADO transaccion={} txHash={} bloque={} gas={}",
+                    anclaje.transaccionId(), r.txHash(), r.bloque(), r.gasUsado());
             publicarConfirmacion(anclaje);
         } else {
             boolean definitivo = r.definitivo() || anclaje.intentos() + 1 >= MAX_INTENTOS;
@@ -116,6 +121,24 @@ public class AnclajeService implements AnclarLiquidacionUseCase, ConsultarAnclaj
     @Override
     public List<Anclaje> todos() {
         return repositorio.buscarTodos();
+    }
+
+    @Override
+    public List<ResumenComunidad> resumenComunidades() {
+        Map<String, List<Anclaje>> porComunidad = new LinkedHashMap<>();
+        for (Anclaje a : repositorio.buscarTodos()) {
+            String clave = a.comunidadId() == null ? "(sin comunidad)" : a.comunidadId();
+            porComunidad.computeIfAbsent(clave, k -> new ArrayList<>()).add(a);
+        }
+        List<ResumenComunidad> resumen = new ArrayList<>();
+        for (var e : porComunidad.entrySet()) {
+            List<Anclaje> lista = e.getValue();
+            long confirmados = lista.stream().filter(Anclaje::estaConfirmado).count();
+            long pendientes = lista.stream().filter(Anclaje::estaPendiente).count();
+            long energia = lista.stream().mapToLong(Anclaje::energiaWh).sum();
+            resumen.add(new ResumenComunidad(e.getKey(), lista.size(), confirmados, pendientes, energia));
+        }
+        return resumen;
     }
 
     @Override

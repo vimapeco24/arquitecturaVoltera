@@ -53,6 +53,13 @@
         </select>
       </div>
       <div class="v-field"><label>Prosumidor</label><input class="v-input" formControlName="prosumidorId" placeholder="PRO-A" /></div>
+      <div class="v-field">
+        <label>Comunidad energética</label>
+        <input class="v-input" formControlName="comunidadId" list="comunidades-list" placeholder="COMUNIDAD-SOLAR-01" />
+        <datalist id="comunidades-list">
+          <option *ngFor="let c of comunidadesConocidas" [value]="c"></option>
+        </datalist>
+      </div>
       <div class="row2">
         <div class="v-field"><label>Energía (kWh)</label><input class="v-input" type="number" formControlName="kwh" /></div>
         <div class="v-field"><label>Precio por kWh</label><input class="v-input" type="number" formControlName="precioKwh" /></div>
@@ -68,7 +75,7 @@
         <div class="book-head sell"><h3>Ventas</h3><span class="count">{{ ventas.length }}</span></div>
         <div class="v-empty small" *ngIf="!ventas.length"><p>Sin ofertas de venta.</p></div>
         <div class="order sell" *ngFor="let o of ventas" [class.sel]="ventaSel?.id === o.id" (click)="seleccionarVenta(o)">
-          <div class="who">{{ o.prosumidorId }}</div>
+          <div class="who">{{ o.prosumidorId }}<span class="com">🏘️ {{ o.comunidadId }}</span></div>
           <div class="qty">{{ o.kwh }} kWh</div>
           <div class="price">{{ o.precioKwh | number:'1.0-0' }} /kWh</div>
           <button type="button" class="rm" title="Quitar oferta" (click)="$event.stopPropagation(); quitarOrden(o)">✕</button>
@@ -78,7 +85,7 @@
         <div class="book-head buy"><h3>Compras</h3><span class="count">{{ compras.length }}</span></div>
         <div class="v-empty small" *ngIf="!compras.length"><p>Sin ofertas de compra.</p></div>
         <div class="order buy" *ngFor="let o of compras" [class.sel]="compraSel?.id === o.id" (click)="seleccionarCompra(o)">
-          <div class="who">{{ o.prosumidorId }}</div>
+          <div class="who">{{ o.prosumidorId }}<span class="com">🏘️ {{ o.comunidadId }}</span></div>
           <div class="qty">{{ o.kwh }} kWh</div>
           <div class="price">{{ o.precioKwh | number:'1.0-0' }} /kWh</div>
           <button type="button" class="rm" title="Quitar oferta" (click)="$event.stopPropagation(); quitarOrden(o)">✕</button>
@@ -89,7 +96,7 @@
         <div class="match-info" *ngIf="ventaSel && compraSel">
           <span [class.ok-text]="puedeCasar" [class.err-text]="!puedeCasar">
             {{ ventaSel.prosumidorId }} → {{ compraSel.prosumidorId }} ·
-            {{ puedeCasar ? (kwhCasables + ' kWh compatible ✓') : 'precio/partes incompatibles' }}
+            {{ puedeCasar ? (kwhCasables + ' kWh compatible ✓') : motivoNoCasar }}
           </span>
         </div>
         <button class="v-btn primary" [disabled]="!puedeCasar || casando" (click)="casar()">
@@ -99,10 +106,29 @@
     </div>
   </div>
 
+  <!-- Comunidades energéticas -->
+  <div class="communities v-card" *ngIf="comunidades.length">
+    <div class="result-head">
+      <h3>🏘️ Comunidades energéticas</h3>
+      <span class="sub">Agregado on-chain por comunidad. Clic para filtrar los contratos.</span>
+    </div>
+    <div class="com-grid">
+      <button class="com-card" *ngFor="let c of comunidades" [class.on]="comunidadFiltro === c.comunidadId" (click)="filtrarComunidad(c.comunidadId)">
+        <div class="com-name">{{ c.comunidadId }}</div>
+        <div class="com-metrics">
+          <span><strong>{{ c.totalContratos }}</strong> contratos</span>
+          <span class="ok-text">{{ c.confirmados }} on-chain</span>
+          <span class="warn-text" *ngIf="c.pendientes">{{ c.pendientes }} pend.</span>
+        </div>
+        <div class="com-energy">{{ (c.energiaWhTotal / 1000) | number:'1.0-1' }} kWh</div>
+      </button>
+    </div>
+  </div>
+
   <!-- Registro de contratos -->
   <div class="contracts v-card">
     <div class="result-head">
-      <h3>Contratos registrados</h3>
+      <h3>Contratos registrados <span class="sub" *ngIf="comunidadFiltro">· {{ comunidadFiltro }}</span></h3>
       <div class="result-actions">
         <div class="filtros">
           <button class="chip" [class.on]="filtro==='TODOS'" (click)="filtrar('TODOS')">Todos</button>
@@ -111,6 +137,9 @@
           <button class="chip" [class.on]="filtro==='SIN ANCLAR'" (click)="filtrar('SIN ANCLAR')">Sin anclar</button>
         </div>
         <button class="v-btn" (click)="listarContratos()">🔄 Refrescar on-chain</button>
+        <button class="v-btn" (click)="rehidratar()" title="Re-consulta el gateway y sincroniza el estado (útil tras un reinicio)">🔁 Re-sincronizar</button>
+        <button class="v-btn ghost" (click)="exportarCsv()" title="Exportar la evidencia visible a CSV">⬇️ CSV</button>
+        <button class="v-btn ghost" (click)="exportarJson()" title="Exportar la evidencia visible a JSON">⬇️ JSON</button>
         <button class="v-btn ghost" (click)="limpiarTodo()" title="Reinicia el libro y los contratos">🧹 Reiniciar</button>
       </div>
     </div>
@@ -122,10 +151,11 @@
 
     <div class="v-table-wrap" *ngIf="contratosFiltrados.length" style="margin-top:12px">
       <table class="v-table">
-        <thead><tr><th>Contrato</th><th>Vendedor → Comprador</th><th>Energía</th><th>Valor</th><th>Casación</th><th>Trazabilidad</th><th>On-chain</th><th>Tx</th></tr></thead>
+        <thead><tr><th>Contrato</th><th>Comunidad</th><th>Vendedor → Comprador</th><th>Energía</th><th>Valor</th><th>Casación</th><th>Trazabilidad</th><th>On-chain</th><th>Tx</th></tr></thead>
         <tbody>
           <tr *ngFor="let c of contratosFiltrados">
             <td class="v-mono" style="font-size:12px">{{ c.tx.id }}</td>
+            <td><span class="com-tag">{{ c.comunidadId || c.anclaje?.comunidadId || '—' }}</span></td>
             <td>{{ c.tx.vendedorId }} → {{ c.tx.compradorId }}</td>
             <td class="v-mono"><strong>{{ c.tx.energiaKwh | number:'1.0-2' }}</strong> kWh</td>
             <td class="v-mono">{{ c.tx.valorTotal | number:'1.0-0' }}</td>
@@ -142,13 +172,64 @@
               <div class="hash v-mono" *ngIf="c.anclaje?.hashCasacion">{{ corto(c.anclaje?.hashCasacion) }}</div>
             </td>
             <td style="white-space:nowrap">
+              <button class="v-btn ghost" (click)="abrirDetalle(c)" title="Ver detalle del contrato">🔍 detalle</button>
               <a class="v-btn ghost" *ngIf="c.anclaje?.explorerUrl" [href]="c.anclaje?.explorerUrl" target="_blank" rel="noopener">🔗 tx</a>
               <button class="v-btn ghost" *ngIf="c.anclaje" (click)="verificar(c)" title="Recomputa el hash y lo compara on-chain">🔎 verificar</button>
-              <span *ngIf="!c.anclaje?.explorerUrl && !c.anclaje" style="color:var(--v-text-dim);font-size:12px">—</span>
             </td>
           </tr>
         </tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- Panel de detalle de un contrato -->
+  <div class="detalle-overlay" *ngIf="detalle" (click)="cerrarDetalle()">
+    <div class="detalle-panel v-card" (click)="$event.stopPropagation()">
+      <div class="detalle-head">
+        <h3>Detalle del contrato</h3>
+        <button class="v-btn ghost" (click)="cerrarDetalle()" aria-label="Cerrar">✕</button>
+      </div>
+
+      <div class="detalle-grid">
+        <div class="d-row"><span class="k">Transacción</span><span class="v-mono v">{{ detalle.tx.id }}</span></div>
+        <div class="d-row"><span class="k">Comunidad</span><span class="v">{{ detalle.comunidadId || detalle.anclaje?.comunidadId || '—' }}</span></div>
+        <div class="d-row"><span class="k">Partes</span><span class="v">{{ detalle.tx.vendedorId }} → {{ detalle.tx.compradorId }}</span></div>
+        <div class="d-row"><span class="k">Energía</span><span class="v">{{ detalle.tx.energiaKwh | number:'1.0-2' }} kWh</span></div>
+        <div class="d-row"><span class="k">Precio casación</span><span class="v">{{ detalle.tx.precioCasacionKwh | number:'1.0-2' }} /kWh</span></div>
+        <div class="d-row"><span class="k">Valor total</span><span class="v">{{ detalle.tx.valorTotal | number:'1.0-0' }} COP</span></div>
+        <div class="d-row"><span class="k">Casación</span><span class="v">{{ detalle.tx.tipoCasacion }}</span></div>
+        <div class="d-row"><span class="k">Estado on-chain</span><span class="v"><span class="v-badge" [ngClass]="badge(detalle.anclaje?.estado)">{{ detalle.anclaje?.estado || 'SIN ANCLAR' }}</span></span></div>
+        <div class="d-row" *ngIf="detalle.anclaje?.intentos !== undefined"><span class="k">Intentos</span><span class="v">{{ detalle.anclaje?.intentos }}</span></div>
+
+        <div class="d-row full" *ngIf="detalle.anclaje?.hashCasacion">
+          <span class="k">Hash de casación (keccak256)</span>
+          <span class="v-mono v hashfull">{{ detalle.anclaje?.hashCasacion }}
+            <button class="copy" (click)="copiar(detalle.anclaje?.hashCasacion, 'Hash')" title="Copiar hash">📋</button>
+          </span>
+        </div>
+        <div class="d-row full" *ngIf="detalle.anclaje?.txHash">
+          <span class="k">Transacción on-chain (txHash)</span>
+          <span class="v-mono v hashfull">{{ detalle.anclaje?.txHash }}
+            <button class="copy" (click)="copiar(detalle.anclaje?.txHash, 'txHash')" title="Copiar txHash">📋</button>
+          </span>
+        </div>
+        <div class="d-row" *ngIf="detalle.anclaje?.bloque"><span class="k">Bloque</span><span class="v-mono v">{{ detalle.anclaje?.bloque }}</span></div>
+        <div class="d-row" *ngIf="detalle.anclaje?.gasUsado"><span class="k">Gas usado</span><span class="v-mono v">{{ detalle.anclaje?.gasUsado | number }}</span></div>
+        <div class="d-row full" *ngIf="detalle.anclaje?.ultimoError"><span class="k">Último error</span><span class="v err-text">{{ detalle.anclaje?.ultimoError }}</span></div>
+      </div>
+
+      <!-- Timeline de hitos -->
+      <div class="d-timeline" *ngIf="detalle.hitos.length">
+        <h4>Historial</h4>
+        <ul>
+          <li *ngFor="let h of detalle.hitos"><span class="ic">{{ h.icono }}</span> {{ h.etiqueta }} <span class="ts">{{ h.ts | date:'short' }}</span></li>
+        </ul>
+      </div>
+
+      <div class="detalle-actions">
+        <a class="v-btn" *ngIf="detalle.anclaje?.explorerUrl" [href]="detalle.anclaje?.explorerUrl" target="_blank" rel="noopener">🔗 Ver en PolygonScan</a>
+        <button class="v-btn" *ngIf="detalle.anclaje" (click)="verificar(detalle)">🔎 Verificar integridad</button>
+      </div>
     </div>
   </div>
 </div>

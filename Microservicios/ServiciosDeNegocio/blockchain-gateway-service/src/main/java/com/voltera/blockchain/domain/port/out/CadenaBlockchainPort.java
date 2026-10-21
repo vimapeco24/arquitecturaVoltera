@@ -10,17 +10,21 @@ import com.voltera.blockchain.domain.model.Anclaje;
 public interface CadenaBlockchainPort {
 
     /** Resultado de un intento de anclaje on-chain. */
-    record ResultadoAnclaje(boolean confirmado, String txHash, String error, boolean definitivo) {
+    record ResultadoAnclaje(boolean confirmado, String txHash, Long bloque, Long gasUsado,
+                            String error, boolean definitivo) {
         public static ResultadoAnclaje ok(String txHash) {
-            return new ResultadoAnclaje(true, txHash, null, false);
+            return new ResultadoAnclaje(true, txHash, null, null, null, false);
+        }
+        public static ResultadoAnclaje ok(String txHash, Long bloque, Long gasUsado) {
+            return new ResultadoAnclaje(true, txHash, bloque, gasUsado, null, false);
         }
         /** Error transitorio (red, RPC): se reintentara. */
         public static ResultadoAnclaje transitorio(String error) {
-            return new ResultadoAnclaje(false, null, error, false);
+            return new ResultadoAnclaje(false, null, null, null, error, false);
         }
         /** Error definitivo (conflicto de hash on-chain, revert no recuperable). */
         public static ResultadoAnclaje definitivo(String error) {
-            return new ResultadoAnclaje(false, null, error, true);
+            return new ResultadoAnclaje(false, null, null, null, error, true);
         }
     }
 

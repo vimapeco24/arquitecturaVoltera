@@ -116,6 +116,39 @@ class AnclajeServiceTest {
     }
 
     @Test
+    void la_comunidad_no_altera_el_hash_anclado() {
+        var hs = new Web3jHashService();
+        var sinComunidad = liq("TX-COM");
+        var conComunidad = new LiquidacionP2P("TX-COM", "prosumidor-A", "prosumidor-B",
+                12_500L, new BigDecimal("0.45"), new BigDecimal("5.625"),
+                Instant.parse("2026-10-20T10:00:00Z"), "COMUNIDAD-SOLAR-01");
+        // La comunidad es metadato off-chain: no debe cambiar el hash que va a la cadena.
+        assertEquals(hs.keccak256Hex(sinComunidad), hs.keccak256Hex(conComunidad));
+    }
+
+    @Test
+    void resumen_agrupa_anclajes_por_comunidad() {
+        var repo = new InMemoryAnclajeRepository();
+        var svc = new AnclajeService(repo, new CadenaOk(), new PublicadorSpy(),
+                new Web3jHashService(), "polygon-amoy");
+        // 2 casaciones en la comunidad A, 1 en la B.
+        svc.anclar(new LiquidacionP2P("TX-A1", "p1", "p2", 10_000L,
+                new BigDecimal("0.4"), new BigDecimal("4"), Instant.parse("2026-10-20T10:00:00Z"), "COM-A"));
+        svc.anclar(new LiquidacionP2P("TX-A2", "p3", "p4", 20_000L,
+                new BigDecimal("0.4"), new BigDecimal("8"), Instant.parse("2026-10-20T10:00:00Z"), "COM-A"));
+        svc.anclar(new LiquidacionP2P("TX-B1", "p5", "p6", 5_000L,
+                new BigDecimal("0.4"), new BigDecimal("2"), Instant.parse("2026-10-20T10:00:00Z"), "COM-B"));
+
+        var resumen = svc.resumenComunidades();
+        assertEquals(2, resumen.size());
+        var comA = resumen.stream().filter(r -> r.comunidadId().equals("COM-A")).findFirst().orElseThrow();
+        assertEquals(2, comA.totalContratos());
+        assertEquals(2, comA.confirmados());
+        assertEquals(0, comA.pendientes());
+        assertEquals(30_000L, comA.energiaWhTotal());
+    }
+
+    @Test
     void verificar_confirma_integridad_y_detecta_alteracion() {
         var repo = new InMemoryAnclajeRepository();
         var svc = new AnclajeService(repo, new CadenaOk(), new PublicadorSpy(),
