@@ -1,15 +1,20 @@
 # Estado de la sesión — Blockchain Voltera
 
-> Punto de retome para la próxima sesión. Última actualización: 2026-10-20 (cierre 2).
+> Punto de retome para la próxima sesión. Última actualización: 2026-10-20 (cierre 3 — TODO LIVE).
 > Lee este archivo primero al reconectar.
 
 ## TL;DR — dónde vamos
-Todo el **código de blockchain está terminado, probado y SUBIDO a GitHub**
-(commit `2086dd7` en `main`, repo https://github.com/vimapeco24/arquitecturaVoltera.git).
-El **deploy del frontend a Vercel YA ESTÁ HECHO** (ver sección "Deploy Vercel — COMPLETADO").
-Lo único que **falta** son los pasos manuales que requieren tus credenciales de cadena
-(desplegar contrato en Amoy + gateway en PaaS), todos documentados en
-`GUIA_DESPLIEGUE_BLOCKCHAIN.md`.
+**TODO FUNCIONANDO END-TO-END Y EN LA NUBE.**
+- Código blockchain terminado, probado y en GitHub (`main`, https://github.com/vimapeco24/arquitecturaVoltera.git).
+- **Frontend LIVE en Vercel:** https://voltera-frontend.vercel.app (marketplace P2P completo).
+- **Gateway blockchain LIVE en Render:** https://voltera-blockchain-gateway.onrender.com
+  (free tier: duerme tras ~15 min, 1er request ~50 s).
+- **Contrato real en Polygon Amoy:** `0xd0Ef1686fcAF3f026134DE4188bd977c4EBcf530`.
+- **Anclaje real CONFIRMADO on-chain** (txHash `0x4963bf…0182f5d`, status 0x1). Circuito verificado.
+- Diagrama de arquitectura: `Modificados/Voltera_Arquitectura_Completa.drawio` (+ PNG).
+- PENDIENTE opcional: conectar `liquidacion-p2p-service` del cluster con
+  `VOLTERA_BLOCKCHAIN_GATEWAY_URL=https://voltera-blockchain-gateway.onrender.com` (si el server está activo).
+- ⚠️ SEGURIDAD: rotar el token de Vercel (`vcp_...`) pegado en el chat; la wallet de prueba es desechable.
 
 ## Deploy Vercel — COMPLETADO (2026-10-20)
 - Vercel CLI instalado **local** en `Microservicios/voltera-frontend` (`npm install --no-save vercel@latest`)
@@ -40,10 +45,28 @@ Lo único que **falta** son los pasos manuales que requieren tus credenciales de
   `GUIA_DESPLIEGUE_BLOCKCHAIN.md` (paso a paso completo), `DESPLIEGUE.md`, `DESPLIEGUE_PAAS.md`,
   colección `Voltera_Postman_Blockchain.json`.
 
+## ✅✅ CIRCUITO BLOCKCHAIN VERIFICADO END-TO-END (2026-10-20) — CERRADO
+Tras 3 fixes de depuración en PaaS, un anclaje REAL quedó confirmado en la cadena:
+- Fixes finales de gas en `Web3jCadenaAdapter`:
+  - `resolverGasPrice()`: eth_gasPrice +20%, piso 30 gwei (Amoy exige >=25 gwei).
+  - gasLimit acotado a **200k** (el default web3j 9M causaba "insufficient funds" con el saldo del faucet).
+  - Commit `0dc09e7`.
+- **Anclaje real LIQ-FINAL-001 → CONFIRMADO**:
+  - txHash `0x4963bf3b9662327bb5d32a42d86802a6123ceecb4ae4ad1df93ce5cef0182f5d`
+  - PolygonScan: https://amoy.polygonscan.com/tx/0x4963bf3b9662327bb5d32a42d86802a6123ceecb4ae4ad1df93ce5cef0182f5d
+  - Receipt on-chain: status 0x1 (OK), bloque 0x305ef53, gasUsed 137928.
+  - Verificación de integridad: `integro:true` (hash recomputado == hash anclado).
+- Flujo probado: Front (Vercel) / REST → gateway (Render) → web3j → contrato (Polygon Amoy) → txHash real.
+- Saldo wallet tras anclaje: ~0.077 POL menos ~0.004 → alcanza para ~15 anclajes más.
+
 ## 🗺️ DIAGRAMA DE ARQUITECTURA VIVO (2026-10-20)
-- Creado **`Modificados/Voltera_Arquitectura_Completa.drawio`** — arquitectura completa actual
-  de Voltera en 5 capas (cliente/borde · 17 microservicios · event mesh Redpanda/Kafka ·
-  blockchain Polygon Amoy · observabilidad/infra). XML válido, importable en Lucidchart/draw.io.
+- Creado/actualizado **`Modificados/Voltera_Arquitectura_Completa.drawio`** + PNG exportado
+  (`Voltera_Arquitectura_Completa.png`, 4705×2464, vía `drawio` CLI de Homebrew).
+- El diagrama rotula en NEGRITA la TECNOLOGÍA de cada componente y marca los NUEVOS (blockchain):
+  Angular 18 · Vercel · WSO2 API Manager · Istio/mTLS · Spring Boot 3.3/Java 21 · Docker · K8s ·
+  Redpanda/Kafka · KEDA · TSDB/Redis · Spring Boot+web3j (Render) · Solidity+Hardhat · Polygon Amoy ·
+  Prometheus/Grafana/Kiali/Jaeger. Barra superior con el stack completo.
+- Exportar PNG: `drawio --export --format png --scale 2 --border 20 --output <png> <drawio>`.
 - **REGLA PERMANENTE** en `.kiro/steering/arquitectura-voltera.md`: cada vez que se agregue/
   modifique/elimine algo de arquitectura, hay que actualizar TAMBIÉN este .drawio en el mismo
   trabajo, y dejar constancia aquí. La regla se incluye siempre (todas las sesiones).
