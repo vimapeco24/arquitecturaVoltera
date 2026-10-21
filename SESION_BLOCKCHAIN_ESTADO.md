@@ -49,6 +49,24 @@
   `blockchain-gateway-service` **6/6**, `liquidacion-p2p-service` **12/12**.
 - ⚠️ El token de Vercel usado se pegó en el chat → **rotarlo/revocarlo** en Vercel → Settings → Tokens.
 
+## ✅✅ VALIDACIÓN COMPLETA END-TO-END (2026-10-21, tras hardening CORS) — TODO OK
+Re-validado el circuito entero después del redeploy con el CORS endurecido:
+- **Git**: `main` en `1e1e39f`, árbol limpio, todo pusheado (origin == local).
+- **Gateway Render**: `/actuator/health` 200; `/api/v1/anclajes/red` → `configurada:true,
+  disponible:true, contrato 0xd0Ef…EBcf530, polygon-amoy, chainId 80002`.
+- **Front Vercel**: `/` 200 y `/blockchain` 200.
+- **Anclaje REAL nuevo** `VALIDA-1792597781` → estado **CONFIRMADO**, txHash
+  `0x377cf87bc9287c4ad560eef7cb13e0e6f6633ded67d0b0476a40cb03f5470782`.
+  - Receipt on-chain (RPC Amoy): **status 0x1**, bloque 0x306c4b8, gasUsed 0xb0ac,
+    to = contrato 0xd0ef…cf530. CONFIRMADO de verdad en la cadena.
+- **Integridad**: `/api/v1/anclajes/verificar` con los mismos datos → `integro:true`
+  (hashRecomputado == hashAnclado); con datos alterados (energiaWh) → `integro:false`. ✔
+  (Ruta correcta del endpoint: `/api/v1/anclajes/verificar`, no `/api/v1/verificar`.)
+- **Tests locales**: contrato Hardhat **8/8**, blockchain-gateway **6/6**,
+  liquidacion-p2p **12/12**. BUILD SUCCESS en todos.
+> Nota: la lista del gateway arrancó en `[]` tras el redeploy porque el store es en memoria;
+> los anclajes on-chain previos siguen en la cadena, solo se pierde el estado local al reiniciar.
+
 ## ✅ Hecho y verificado (commit 2086dd7, ya en GitHub)
 - **Contrato** `blockchain/contracts/LiquidacionP2PAnchor.sol` + Hardhat — **8 tests pasan**.
 - **Microservicio** `blockchain-gateway-service` (puerto **8101**, Spring Boot hexagonal + web3j)
