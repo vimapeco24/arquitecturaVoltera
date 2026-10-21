@@ -10,6 +10,8 @@
 **/.vercel/
 **/.env
 **/.env.*
+# EXCEPCIÓN: las plantillas .env.example (sin secretos reales) sí se versionan.
+!**/.env.example
 
 # ==== SO / editor ====
 **/.DS_Store
@@ -27,11 +29,19 @@ npm-debug.log*
 *.jpeg
 *.drawio
 *.archimate
+# EXCEPCIÓN: el diagrama de arquitectura vivo SÍ se versiona (fuente de verdad visual).
+!Modificados/Voltera_Arquitectura_Completa.drawio
+!Modificados/Voltera_Arquitectura_Completa.png
 
-# ==== Carpetas de material del curso (PDFs, no código) ====
-# Anclado a la raíz y case-sensitive para NO afectar al paquete java
-# com/voltera/blockchain/ en un filesystem case-insensitive (macOS).
-/Blockchain/
+# ==== Material del curso dentro de blockchain/ (PDFs, no código) ====
+# OJO: en macOS (filesystem case-insensitive) blockchain/ y Blockchain/ son la
+# MISMA carpeta y contiene el proyecto Hardhat (contracts/test/scripts) ADEMÁS de
+# los PDFs del curso. Por eso NO se ignora la carpeta entera: los PDFs ya los tapa
+# la regla *.pdf de arriba; aquí solo se excluyen los artefactos de build de Hardhat.
+blockchain/node_modules/
+blockchain/artifacts/
+blockchain/cache/
+blockchain/deployments/
 
 # ==== Backups de sesiones / conversaciones (posible info sensible) ====
 conversaciones/
@@ -39,6 +49,10 @@ DDD/
 Voltera_Archi_Model/
 Modificados/
 ExamenArquitectura/
+# EXCEPCIÓN: permitir el diagrama de arquitectura completo dentro de Modificados/.
+!Modificados/
+!Modificados/Voltera_Arquitectura_Completa.drawio
+!Modificados/Voltera_Arquitectura_Completa.png
 
 # ==== Colecciones Postman con secretos ====
 Microservicios/Voltera_Postman_Collection*.json
@@ -47,6 +61,8 @@ Microservicios/Voltera_Postman_APIGateway.json
 # ==== Diagramas / imágenes sueltas en la raíz ====
 Vista*.drawio
 Voltera_*.drawio
+# EXCEPCIÓN: el diagrama de arquitectura completo sí se versiona.
+!Modificados/Voltera_Arquitectura_Completa.drawio
 *.md.bak
 
 # Cuadernos/notas con credenciales
