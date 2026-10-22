@@ -53,6 +53,14 @@ ExamenArquitectura/
 !Modificados/
 !Modificados/Voltera_Arquitectura_Completa.drawio
 !Modificados/Voltera_Arquitectura_Completa.png
+# EXCEPCIÓN: diagrama de secuencia del experimento P2P (entrega).
+!Modificados/Voltera_Flujo_Experimento_P2P.drawio
+!Modificados/Voltera_Flujo_Experimento_P2P.png
+
+# ==== Evidencia del experimento: corridas locales (no versionar todas) ====
+Microservicios/evidencia-experimento/*
+# EXCEPCIÓN: se versiona una corrida de muestra para la entrega.
+!Microservicios/evidencia-experimento/experimento-20261022-110014.json
 
 # ==== Colecciones Postman con secretos ====
 Microservicios/Voltera_Postman_Collection*.json
@@ -63,6 +71,7 @@ Vista*.drawio
 Voltera_*.drawio
 # EXCEPCIÓN: el diagrama de arquitectura completo sí se versiona.
 !Modificados/Voltera_Arquitectura_Completa.drawio
+!Modificados/Voltera_Flujo_Experimento_P2P.drawio
 *.md.bak
 
 # Cuadernos/notas con credenciales

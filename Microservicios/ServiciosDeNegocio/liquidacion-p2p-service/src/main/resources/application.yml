@@ -24,6 +24,16 @@ voltera:
   blockchain:
     gateway-url: ${VOLTERA_BLOCKCHAIN_GATEWAY_URL:}
     anclar-path: ${VOLTERA_BLOCKCHAIN_ANCLAR_PATH:/api/v1/anclajes}
+  # EDA: publicar LiquidacionCalculada al casar (cierra la orquestación por
+  # eventos con el blockchain-gateway). false por defecto; true en el clúster
+  # (donde existe el broker Redpanda). En Render se deja en false (broker LAN).
+  kafka:
+    enabled: ${KAFKA_ENABLED:false}
+  eventos:
+    topic-liquidacion: ${VOLTERA_TOPIC_LIQUIDACION:topic.facturacion.liquidacion}
+
+spring.kafka:
+  bootstrap-servers: ${KAFKA_BOOTSTRAP:redpanda.voltera-app:9092}
 
 eureka:
   client:

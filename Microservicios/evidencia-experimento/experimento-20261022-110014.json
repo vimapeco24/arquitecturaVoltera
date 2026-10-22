@@ -1,0 +1,18 @@
+{
+  "experimento": "marketplace-p2p-anclaje-onchain",
+  "ejecutadoEn": "2026-10-22T16:00:24Z",
+  "red": { "red": "polygon-amoy", "chainId": "80002", "contrato": "0xd0Ef1686fcAF3f026134DE4188bd977c4EBcf530", "explorer": "https://amoy.polygonscan.com" },
+  "orden": {
+    "vendedor": "PRO-SOLAR-01", "comprador": "PRO-CASA-07", "comunidad": "COMUNIDAD-SOLAR-01",
+    "kwhVenta": 12, "precioVenta": 420, "kwhCompra": 10, "precioCompra": 500
+  },
+  "contrato": {
+    "transaccionId": "e1671590-42a8-411d-b184-c29dbe131d04", "energiaKwh": "10.0", "precioCasacionKwh": "460.0",
+    "valorTotal": "4600.0", "tipoCasacion": "PARCIAL"
+  },
+  "anclaje": {
+    "estado": "CONFIRMADO", "hashCasacion": "0x2143c504713acfddd1d80a3e3460aa447b0a9927778291779ace89de4f6c3eb5", "txHash": "0xd6330049410ef4bd4189310f898a37b01f4d8ab85031ebf317c0613881d0efc1",
+    "bloque": "50862256", "gasUsado": "119988", "explorerUrl": "https://amoy.polygonscan.com/tx/0xd6330049410ef4bd4189310f898a37b01f4d8ab85031ebf317c0613881d0efc1"
+  },
+  "integridad": { "integro": "True", "existe": "True" }
+}

@@ -44,7 +44,8 @@ public class LiquidacionController {
                 req.precioVenta(),
                 req.compradorId(),
                 req.kwhCompra(),
-                req.precioCompra()
+                req.precioCompra(),
+                req.comunidadId()
         );
         var transaccion = emparejarOrdenesUseCase.emparejar(comando);
         return ResponseEntity.status(HttpStatus.CREATED).body(TransaccionResponse.desde(transaccion));
@@ -65,7 +66,8 @@ public class LiquidacionController {
                 req.precioVenta(),
                 req.compradorId(),
                 req.kwhCompra(),
-                req.precioCompra()
+                req.precioCompra(),
+                req.comunidadId()
         );
         var transaccion = emparejarOrdenesUseCase.actualizar(id, comando);
         return ResponseEntity.ok(TransaccionResponse.desde(transaccion));

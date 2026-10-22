@@ -1,7 +1,73 @@
 # Estado de la sesión — Blockchain Voltera
 
-> Punto de retome para la próxima sesión. Última actualización: 2026-10-21 (comunidades energéticas + mejoras front/contrato).
+> Punto de retome para la próxima sesión. Última actualización: 2026-10-22 (experimento reproducible + orquestación EDA cerrada en liquidacion-p2p).
 > Lee este archivo primero al reconectar.
+
+## 🧪 EXPERIMENTO REPRODUCIBLE + ORQUESTACIÓN EDA CERRADA (2026-10-22)
+
+Objetivo: dejar la página /blockchain como un experimento profesional y reproducible
+para la entrega, orquestando bien los servicios existentes.
+
+**Qué se implementó (todo compilado y probado, BUILD SUCCESS, 13 tests verdes):**
+
+1. **Script `Microservicios/experimento-p2p.sh`** — ejecuta el flujo completo end-to-end
+   (token OAuth2 → casar → anclar → confirmar → verificar) contra Vercel+Render, imprime
+   evidencia por paso y guarda un JSON en `evidencia-experimento/`. Verificado en vivo:
+   contrato `e1671590…`, txHash `0xd6330049…`, bloque 50862256, gas 119988, integridad ✓.
+   (Usa el python3 de CommandLineTools automáticamente si el del sistema está bloqueado por Xcode.)
+
+2. **Orquestación por eventos (EDA) en `liquidacion-p2p`** — se cerró el eslabón que faltaba:
+   - Nuevo evento de dominio `LiquidacionCalculada` (domain/model).
+   - Puerto de salida `LiquidacionEventPublisherPort` (domain/port/out).
+   - Adaptador `KafkaLiquidacionEventPublisher` + `NoopLiquidacionEventPublisher` (infra/messaging).
+   - `MessagingConfiguration`: crea KafkaTemplate+publisher solo si `voltera.kafka.enabled=true`;
+     no-op por defecto (Render sigue solo-REST; el broker es LAN).
+   - `LiquidacionService` publica el evento al casar (emparejar y actualizar).
+   - `EmparejarRequest`/`ComandoEmparejar` ganan `comunidadId` opcional (retrocompatible).
+   - Al casar, `liquidacion-p2p` publica `topic.facturacion.liquidacion`; el gateway ya lo
+     consumía (LiquidacionCalculadaListener) → anclaje automático. Idempotente por transaccionId.
+   - pom: + `spring-kafka`. application.yml: `voltera.kafka.enabled`, topic y bootstrap.
+   - Test nuevo `OrquestacionEdaTest` (verifica publicación, comunidad y Wh).
+
+3. **Manifiesto k8s** `voltera-services.yaml`: `KAFKA_ENABLED=true` + `KAFKA_BOOTSTRAP` para
+   el `liquidacion-p2p` del clúster (activa EDA donde sí hay broker Redpanda).
+
+4. **Guía de entrega** `GUIA_EXPERIMENTO_P2P.md` (raíz): qué demuestra, cómo ejecutarlo
+   (script y web), arquitectura, evidencia real, limitaciones honestas (estado in-memory).
+
+5. **Diagramas** (regla permanente): `Voltera_Flujo_Experimento_P2P.{drawio,png}` (secuencia del
+   experimento) y actualizado `Voltera_Arquitectura_Completa.{drawio,png}` (liquidacion-p2p ahora
+   "casación + publica EDA"; arista anclaje = REST o evento topic.facturacion.liquidacion).
+
+**PENDIENTE DE DESPLIEGUE (requiere Docker, apagado en esta sesión):** reconstruir la imagen
+`liquidacion-p2p-service` y aplicar el manifiesto para activar el EDA en el clúster:
+`cd Microservicios/k8s && ./build-push-all.sh && kubectl -n voltera-app apply -f voltera-services.yaml && kubectl -n voltera-app rollout restart deploy/liquidacion-p2p-service`.
+Mientras tanto el experimento funciona end-to-end por REST (Vercel+Render), que es lo que se demuestra.
+
+## 🗺️ DIAGRAMA ACTUALIZADO + VALIDACIÓN EN VIVO (2026-10-22)
+
+Se validó todo el stack contra el estado real (no bitácoras) y se actualizó el diagrama vivo
+`Modificados/Voltera_Arquitectura_Completa.drawio` (+ PNG regenerado con `drawio --export`, XML
+verificado bien formado).
+
+Qué se cambió en el `.drawio` y por qué:
+- **Nuevo panel "ESTADO VERIFICADO EN VIVO · 2026-10-22"** (banda verde al pie) con el health de los
+  5 frentes, para que el diagrama muestre de un vistazo qué está arriba.
+- **SPA (Vercel)** y **gateway (Render)**: etiqueta `✅ LIVE`.
+- **Contrato LiquidacionP2PAnchor**: marcado `✅ DESPLEGADO` (0xd0Ef…EBcf530, Amoy chainId 80002).
+- **Contrato ComunidadEnergeticaRegistry**: borde punteado + `⚠ escrito+probado (9 tests), NO
+  desplegado` (hoy comunidad = metadato off-chain). Refleja el único pendiente real.
+- Pie con fecha 2026-10-22.
+
+Evidencia de la validación en vivo (22-oct-2026):
+- Git: `main == origin/main`, árbol limpio (HEAD `3655a1b`); nada pendiente de subir.
+- Front (Vercel): sirve `main-JNXGBHCI.js` (idéntico al build local); `/` y `/blockchain` → 200.
+- Gateway (Render): `/actuator/health` UP; `/api/v1/anclajes/comunidades` → 200 (endpoint del commit 58acd2f).
+- WSO2 `atiesia.synology.me:3000` → 200.
+- Clúster k8s `voltera-app` (SSH 192.168.3.11): 20/20 pods Running; 8 ScaledObjects READY; HPA sin
+  targets unknown. Imágenes en vivo ≥ tags del repo → nada que empujar al clúster.
+- Conclusión: lo "nuevo" (comunidades/marketplace) vive en Render + Vercel, NO en el clúster, y ya
+  estaba desplegado. No había cambios pendientes de subir.
 
 ## 🏘️ COMUNIDADES ENERGÉTICAS + MEJORAS FRONT/CONTRATO (2026-10-21)
 Trabajo nuevo pedido: "implementa todo lo que puedas de blockchain para las comunidades

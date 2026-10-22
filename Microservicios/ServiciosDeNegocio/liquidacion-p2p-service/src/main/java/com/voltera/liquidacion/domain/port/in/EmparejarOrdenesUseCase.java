@@ -17,7 +17,8 @@ public interface EmparejarOrdenesUseCase {
     void eliminar(String transaccionId);
 
     /**
-     * Comando inmutable con las dos ordenes a casar.
+     * Comando inmutable con las dos ordenes a casar. {@code comunidadId} es
+     * opcional (metadato off-chain) y puede ser null.
      */
     record ComandoEmparejar(
             String vendedorId,
@@ -25,6 +26,13 @@ public interface EmparejarOrdenesUseCase {
             BigDecimal precioVenta,
             String compradorId,
             BigDecimal kwhCompra,
-            BigDecimal precioCompra
-    ) {}
+            BigDecimal precioCompra,
+            String comunidadId
+    ) {
+        /** Sobrecarga retrocompatible sin comunidad (comunidadId = null). */
+        public ComandoEmparejar(String vendedorId, BigDecimal kwhVenta, BigDecimal precioVenta,
+                                String compradorId, BigDecimal kwhCompra, BigDecimal precioCompra) {
+            this(vendedorId, kwhVenta, precioVenta, compradorId, kwhCompra, precioCompra, null);
+        }
+    }
 }

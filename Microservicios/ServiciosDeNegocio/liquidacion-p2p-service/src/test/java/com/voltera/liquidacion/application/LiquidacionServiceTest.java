@@ -7,6 +7,7 @@ import com.voltera.liquidacion.domain.port.in.EmparejarOrdenesUseCase.ComandoEmp
 import com.voltera.liquidacion.domain.port.out.AnclajeBlockchainPort;
 import com.voltera.liquidacion.domain.port.out.TransaccionRepositoryPort;
 import com.voltera.liquidacion.infrastructure.blockchain.NoopAnclajeBlockchainAdapter;
+import com.voltera.liquidacion.infrastructure.messaging.NoopLiquidacionEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,7 +33,8 @@ class LiquidacionServiceTest {
     @BeforeEach
     void setUp() {
         repositorio = mock(TransaccionRepositoryPort.class);
-        service = new LiquidacionService(repositorio, new NoopAnclajeBlockchainAdapter());
+        service = new LiquidacionService(repositorio, new NoopAnclajeBlockchainAdapter(),
+                new NoopLiquidacionEventPublisher());
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.voltera.liquidacion.infrastructure.config;
 
 import com.voltera.liquidacion.application.LiquidacionService;
 import com.voltera.liquidacion.domain.port.out.AnclajeBlockchainPort;
+import com.voltera.liquidacion.domain.port.out.LiquidacionEventPublisherPort;
 import com.voltera.liquidacion.domain.port.out.TransaccionRepositoryPort;
 import com.voltera.liquidacion.infrastructure.blockchain.NoopAnclajeBlockchainAdapter;
 import com.voltera.liquidacion.infrastructure.blockchain.RestAnclajeBlockchainAdapter;
@@ -43,7 +44,8 @@ public class BeanConfiguration {
 
     @Bean
     public LiquidacionService liquidacionService(TransaccionRepositoryPort repositorio,
-                                                 AnclajeBlockchainPort anclajeBlockchainPort) {
-        return new LiquidacionService(repositorio, anclajeBlockchainPort);
+                                                 AnclajeBlockchainPort anclajeBlockchainPort,
+                                                 LiquidacionEventPublisherPort eventPublisher) {
+        return new LiquidacionService(repositorio, anclajeBlockchainPort, eventPublisher);
     }
 }

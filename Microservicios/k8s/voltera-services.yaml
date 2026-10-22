@@ -135,6 +135,10 @@ spec:
           env:
             - { name: EUREKA_ENABLED, value: "true" }
             - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
+            # EDA: al casar, publica LiquidacionCalculada en topic.facturacion.liquidacion;
+            # el blockchain-gateway lo consume y ancla solo (orquestacion por eventos).
+            - { name: KAFKA_ENABLED, value: "true" }
+            - { name: KAFKA_BOOTSTRAP, value: "redpanda.voltera-app:9092" }
           resources:
             limits: { cpu: "500m", memory: "512Mi" }        # cpu limit para acotar el pod
             requests: { cpu: "50m", memory: "160Mi" }       # cpu request -> BASE del calculo del HPA

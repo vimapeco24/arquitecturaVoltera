@@ -27,5 +27,8 @@ public record EmparejarRequest(
         BigDecimal kwhCompra,
 
         @NotNull @PositiveOrZero(message = "precioCompra debe ser >= 0")
-        BigDecimal precioCompra
+        BigDecimal precioCompra,
+
+        /** Comunidad energética (opcional; metadato off-chain para el evento EDA). */
+        String comunidadId
 ) {}
