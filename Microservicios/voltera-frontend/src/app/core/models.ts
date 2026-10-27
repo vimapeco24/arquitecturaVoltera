@@ -424,3 +424,93 @@ export interface ResultadoVerificacion {
   txHash: string | null;
   estado: string;
 }
+
+/* ---------------- Certificados de Origen NFT (ERC-721) — lámina 05/06 ---------------- */
+/**
+ * Refleja el contrato `CertificadoOrigenNFT.sol` (ERC-721 NO fungible de OpenZeppelin).
+ * Cada certificado = 1 token único con sus atributos (ID medidor, propietario,
+ * emisor, consumo neto mensual, periodo) + metadata off-chain (tokenURI + hash).
+ */
+export type EventoNftTipo = 'EMISION' | 'TRANSFERENCIA' | 'QUEMA';
+
+/** Un movimiento del libro mayor de billeteras: de qué billetera a qué billetera. */
+export interface MovimientoNft {
+  id: string;
+  tokenId: number;
+  tipo: EventoNftTipo;
+  desde: string;          // billetera origen (0x000… en una emisión)
+  hacia: string;          // billetera destino (0x000… en una quema)
+  ejecutadoPor: string;   // billetera que firmó la operación
+  ts: string;             // ISO-8601
+  txHash?: string | null; // hash de la transacción on-chain (si aplica)
+  nota?: string;
+}
+
+/** Un certificado de origen tokenizado (NFT ERC-721). */
+export interface CertificadoNft {
+  tokenId: number;
+  // Atributos del certificado (lámina 05/06)
+  idMedidor: string;
+  propietario: string;          // billetera dueña ACTUAL del token
+  emisor: string;               // billetera que lo acuñó
+  consumoNetoMensualWh: number;
+  periodo: number;              // AAAAMM
+  // Off-chain storage
+  tokenUri: string;
+  hashDetalle: string;
+  // Ciclo de vida
+  emitidoEn: string;            // ISO-8601
+  quemado: boolean;
+  historial: MovimientoNft[];   // trazabilidad billetera→billetera
+}
+
+/* ---------------- Certificación de Generación (8102) — lámina 04, NO toca la cadena ---------------- */
+export interface BalanceGeneracion {
+  medidorId: string;
+  bloqueWh: number;
+  generacionAcumuladaWh: number;
+  bloquesReservados: number;
+  medicionesContabilizadas: number;
+  puedeReservarBloque: boolean;
+}
+export type EstadoSolicitudCert = 'PENDIENTE' | 'APROBADA' | 'RECHAZADA';
+export interface SolicitudCertificacion {
+  id: string;
+  medidorId: string;
+  propietario: string;
+  energiaWh: number;
+  periodo: number;
+  estado: EstadoSolicitudCert;
+  avalVoltera: boolean;
+  avalCertificadora: boolean;
+  motivoRechazo: string | null;
+  creadaEn: string;
+  resueltaEn: string | null;
+}
+
+/* ---------------- Certificados Renovables (8103) — lámina 04, usa el gateway ---------------- */
+export type EstadoDominioCert = 'EMITIDO' | 'RETIRADO';
+export type EstadoCadenaCert = 'SOLICITADO' | 'CONFIRMADO' | 'FALLIDO';
+export interface MovimientoCertRenovable {
+  tipo: string;        // EMISION | TRANSFERENCIA | RETIRO
+  desde: string;
+  hacia: string;
+  ts: string;
+  txHash: string | null;
+}
+export interface CertificadoRenovable {
+  id: string;
+  idMedidor: string;
+  emisor: string;
+  titular: string;
+  consumoNetoMensualWh: number;
+  periodo: number;
+  solicitudCertificacionId: string | null;
+  estadoDominio: EstadoDominioCert;
+  estadoCadena: EstadoCadenaCert;
+  tokenId: number | null;
+  txHash: string | null;
+  ultimoError: string | null;
+  creadoEn: string;
+  historial: MovimientoCertRenovable[];
+}

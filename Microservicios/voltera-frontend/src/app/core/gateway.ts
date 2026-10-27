@@ -31,4 +31,7 @@ export const SERVICIOS = {
   notificaciones: 'notificaciones',
   // Servicio de borde Blockchain (anclaje de liquidaciones P2P en Polygon Amoy)
   blockchain: 'blockchain',
+  // Nuevos microservicios DDD alrededor de la cadena (lámina 04). NO tocan la cadena.
+  certificacionGeneracion: 'certificacion-generacion',
+  certificadosRenovables: 'certificados-renovables',
 } as const;

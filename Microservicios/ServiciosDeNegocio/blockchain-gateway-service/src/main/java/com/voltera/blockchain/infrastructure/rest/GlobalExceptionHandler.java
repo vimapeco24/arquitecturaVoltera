@@ -23,6 +23,11 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(cuerpo(HttpStatus.BAD_REQUEST, e.getMessage()));
     }
 
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<Map<String, Object>> cadenaFallo(IllegalStateException e) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(cuerpo(HttpStatus.BAD_GATEWAY, e.getMessage()));
+    }
+
     private Map<String, Object> cuerpo(HttpStatus status, String msg) {
         return Map.of(
                 "timestamp", Instant.now().toString(),

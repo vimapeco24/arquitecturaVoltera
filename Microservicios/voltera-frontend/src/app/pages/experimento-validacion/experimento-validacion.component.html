@@ -1,0 +1,64 @@
+<div class="v-page v-fade mp">
+  <div class="v-page-head">
+    <span class="v-eyebrow">🧪 Módulo 4 · Lámina 06 · Experimento de validación (30%)</span>
+    <h1>Experimento de validación</h1>
+    <p>
+      Los dos experimentos de la lámina 06 ejecutables desde aquí, con cada criterio
+      <strong>✓/✗</strong> y su evidencia. Incluye la <strong>prueba de integridad</strong>:
+      la cadena debe detectar la manipulación de los datos.
+    </p>
+    <nav class="mod4-hub">
+      <span class="mod4-hub-lbl">Módulo 4:</span>
+      <a class="mod4-link" href="/blockchain">⛓️ Marketplace P2P</a>
+      <a class="mod4-link" href="/certificados">🪙 Certificados NFT</a>
+      <a class="mod4-link" href="/microservicios-cadena">🧩 Microservicios cadena</a>
+      <a class="mod4-link activo" href="/experimento-validacion">🧪 Experimento</a>
+    </nav>
+  </div>
+
+  <!-- EXPERIMENTO 1 -->
+  <section class="v-card">
+    <div class="mp-toolbar">
+      <h2>1 · Supervisión de telemetría vía oráculo <span class="pill pill-info">prueba de integridad</span></h2>
+      <div class="mp-actions">
+        <span class="pill" [class.pill-ok]="resumen1==='4/4'">{{ resumen1 }}</span>
+        <button class="v-btn" (click)="correrExp1()" [disabled]="corriendo1">{{ corriendo1 ? 'Ejecutando…' : '▶ Ejecutar experimento 1' }}</button>
+      </div>
+    </div>
+    <p class="muted">Hipótesis: integrar el oráculo con la telemetría permite verificar integridad, detectar alteraciones y dar trazabilidad. Criterio clave: <strong>100% de alteraciones detectadas</strong>.</p>
+    <ul class="criterios">
+      <li *ngFor="let c of exp1" [ngClass]="c.estado">
+        <span class="ic">{{ c.estado === 'ok' ? '✓' : c.estado === 'fail' ? '✗' : '•' }}</span>
+        <span class="tx">{{ c.texto }}</span>
+        <span class="ev" *ngIf="c.evidencia">{{ c.evidencia }}</span>
+      </li>
+    </ul>
+  </section>
+
+  <!-- EXPERIMENTO 2 -->
+  <section class="v-card">
+    <div class="mp-toolbar">
+      <h2>2 · Generación de NFT ERC-721 <span class="pill pill-info">unicidad</span></h2>
+      <div class="mp-actions">
+        <span class="pill" [class.pill-ok]="resumen2==='4/4'">{{ resumen2 }}</span>
+        <button class="v-btn" (click)="correrExp2()" [disabled]="corriendo2">{{ corriendo2 ? 'Ejecutando…' : '▶ Ejecutar experimento 2' }}</button>
+      </div>
+    </div>
+    <p class="muted">Hipótesis: con ERC-721 generamos tokens únicos, indivisibles y trazables, evitando duplicaciones. Criterio clave: <strong>0 duplicados · 100% intentos duplicados rechazados</strong>.</p>
+    <ul class="criterios">
+      <li *ngFor="let c of exp2" [ngClass]="c.estado">
+        <span class="ic">{{ c.estado === 'ok' ? '✓' : c.estado === 'fail' ? '✗' : '•' }}</span>
+        <span class="tx">{{ c.texto }}</span>
+        <span class="ev" *ngIf="c.evidencia">{{ c.evidencia }}</span>
+      </li>
+    </ul>
+  </section>
+
+  <section class="v-card">
+    <p class="muted">
+      Equivalente reproducible por consola: <code>Microservicios/experimento-validacion.sh</code>
+      (guarda evidencia JSON). Si el gateway está en modo demo o dormido (cold start de Render,
+      ~50 s), vuelve a ejecutar tras el primer intento.
+    </p>
+  </section>
+</div>

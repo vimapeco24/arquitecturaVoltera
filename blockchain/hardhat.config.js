@@ -25,7 +25,7 @@ module.exports = {
     version: "0.8.24",
     settings: {
       optimizer: { enabled: true, runs: 200 },
-      evmVersion: "paris", // compatible con Polygon PoS (Bor)
+      evmVersion: "cancun", // Amoy soporta Cancun (PIP-31, mcopy/EIP-5656). OZ 5.6 lo requiere.
     },
   },
   networks: {

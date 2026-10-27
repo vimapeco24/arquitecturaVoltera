@@ -1,0 +1,62 @@
+server:
+  port: 8103
+  tomcat:
+    threads:
+      max: 25
+      min-spare: 5
+    max-connections: 500
+    accept-count: 50
+
+spring:
+  application:
+    name: certificados-renovables-service
+  main:
+    lazy-initialization: true
+  threads:
+    virtual:
+      enabled: true
+
+# Este servicio NO toca la cadena DIRECTAMENTE (lámina 04): usa el gateway.
+# Si 'gateway-url' está vacío, trabaja en modo demo (no-op): registra el estado
+# local y simula la confirmación; si está definido, SOLICITA al gateway la
+# emisión/transferencia/quema del NFT por REST (anticorruption layer).
+voltera:
+  blockchain:
+    gateway-url: ${VOLTERA_BLOCKCHAIN_GATEWAY_URL:}
+    certificados-path: ${VOLTERA_BLOCKCHAIN_CERTIFICADOS_PATH:/api/v1/certificados}
+
+eureka:
+  client:
+    enabled: ${EUREKA_ENABLED:false}
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    enable:
+      all: false
+      jvm: true
+      http: true
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING:1.0}
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_ENDPOINT:http://zipkin.istio-system:9411/api/v2/spans}
+
+logging:
+  level:
+    root: INFO
+    com.voltera: INFO

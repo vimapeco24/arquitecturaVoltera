@@ -51,6 +51,30 @@ async function main() {
     console.log(`  Explorer: https://amoy.polygonscan.com/address/${addressRegistro}`);
   }
 
+  // Cesion de certificados de origen con MULTIPLE AUTHORIZATION (2 firmas).
+  const FactoryCesion = await hre.ethers.getContractFactory("CesionCertificadoMultisig");
+  const cesion = await FactoryCesion.deploy(deployer.address);
+  await cesion.waitForDeployment();
+  const addressCesion = await cesion.getAddress();
+  console.log(`✓ CesionCertificadoMultisig desplegado en: ${addressCesion}`);
+  if (net === "amoy") {
+    console.log(`  Explorer: https://amoy.polygonscan.com/address/${addressCesion}`);
+  }
+  console.log(
+    `  ⚠ Recuerda: el multisig necesita >= 2 firmantes. Autoriza un 2o firmante con\n` +
+    `    autorizarFirmante(<otra_cuenta>) o nada se podra registrar.`
+  );
+
+  // Certificado de origen como TOKEN NO FUNGIBLE (ERC-721 de OpenZeppelin).
+  const FactoryNft = await hre.ethers.getContractFactory("CertificadoOrigenNFT");
+  const nft = await FactoryNft.deploy(deployer.address);
+  await nft.waitForDeployment();
+  const addressNft = await nft.getAddress();
+  console.log(`✓ CertificadoOrigenNFT (ERC-721 no fungible) desplegado en: ${addressNft}`);
+  if (net === "amoy") {
+    console.log(`  Explorer: https://amoy.polygonscan.com/address/${addressNft}`);
+  }
+
   // Persistir las direcciones para el gateway.
   const outDir = path.join(__dirname, "..", "deployments");
   fs.mkdirSync(outDir, { recursive: true });
@@ -67,6 +91,15 @@ async function main() {
           contract: "ComunidadEnergeticaRegistry",
           address: addressRegistro,
         },
+        cesionCertificados: {
+          contract: "CesionCertificadoMultisig",
+          address: addressCesion,
+        },
+        certificadoOrigenNFT: {
+          contract: "CertificadoOrigenNFT",
+          address: addressNft,
+          tipo: "ERC-721 no fungible",
+        },
         deployer: deployer.address,
         deployedAt: new Date().toISOString(),
       },
@@ -78,7 +111,9 @@ async function main() {
   console.log(
     `\n→ Configura el gateway con:\n` +
     `    VOLTERA_BLOCKCHAIN_CONTRACT_ADDRESS=${address}\n` +
-    `    VOLTERA_BLOCKCHAIN_REGISTRO_COMUNIDADES=${addressRegistro}`
+    `    VOLTERA_BLOCKCHAIN_REGISTRO_COMUNIDADES=${addressRegistro}\n` +
+    `    VOLTERA_BLOCKCHAIN_CESION_CERTIFICADOS=${addressCesion}\n` +
+    `    VOLTERA_BLOCKCHAIN_CERTIFICADO_NFT=${addressNft}`
   );
 }
 

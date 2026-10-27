@@ -1,0 +1,245 @@
+<div class="v-page v-fade mp">
+  <div class="v-page-head">
+    <span class="v-eyebrow">🪙 Módulo 4 · Tokenización · ERC-721</span>
+    <h1>Certificados de Origen Renovable (NFT)</h1>
+    <p>
+      Cada certificado es un <strong>token NO fungible (ERC-721 de OpenZeppelin)</strong> único por
+      medidor y periodo. Esta consola emite certificados y registra su
+      <strong>transferencia de billetera a billetera</strong> con trazabilidad completa
+      (de quién, a quién, cuándo y con qué txHash). Patrón 4 de la lámina 05 / experimento 2 de la lámina 06.
+    </p>
+  </div>
+
+  <!-- Barra de red / contrato -->
+  <div class="mp-net" [class.ok]="redInfo?.disponible">
+    <span class="dot"></span>
+    <ng-container *ngIf="redInfo; else sinRed">
+      <strong>{{ redInfo.red }}</strong> · chainId {{ redInfo.chainId }} ·
+      contrato NFT <code>{{ cortoAddr(redInfo.contrato) }}</code>
+      <span class="pill" [class.pill-ok]="redInfo.disponible" [class.pill-warn]="!redInfo.disponible">
+        {{ redInfo.disponible ? 'cadena disponible' : 'modo demo (contrato NFT no desplegado)' }}
+      </span>
+    </ng-container>
+    <ng-template #sinRed><span class="muted">Modo demo · el contrato ERC-721 aún no está desplegado en Amoy (gas del faucet).</span></ng-template>
+  </div>
+
+  <!-- ===================== OFF-CHAIN vs ON-CHAIN ===================== -->
+  <section class="v-card onoff">
+    <h2>¿Qué queda off-chain y qué on-chain?</h2>
+    <p class="muted">
+      Validación de la separación de responsabilidades de la lámina 05: lo voluminoso o privado vive
+      <strong>off-chain</strong>; en la cadena va <strong>solo lo que necesita ser verificable, único e inmutable</strong>.
+    </p>
+    <div class="onoff-grid">
+      <div class="onoff-col offchain">
+        <h3>🗄️ OFF-CHAIN (fuera de la cadena)</h3>
+        <ul>
+          <li><strong>Servicio de Ingesta de Telemetría</strong> — mediciones IoT de alto volumen.</li>
+          <li><strong>Servicios de Oráculo / Gemelo Digital</strong> — AWS Lambda: procesa y firma antes de publicar.</li>
+          <li><strong>Base de datos</strong> — Amazon RDS (lecturas/escrituras CQRS).</li>
+          <li><strong>Amazon API Gateway</strong> — expone el oráculo a la cadena.</li>
+          <li><strong>Colas</strong> — AWS SQS / Amazon MQ (desacople con proveedores).</li>
+          <li><strong>Metadata del certificado</strong> — documento off-chain (IPFS/URL) referenciado por el <code>tokenURI</code>.</li>
+          <li><strong>Servicios de negocio/transversales</strong> — facturación, tarifas, usuarios, consultas, notificaciones.</li>
+        </ul>
+        <p class="onoff-why"><em>Por qué:</em> privacidad de datos personales, costo de gas acotado y alto throughput.</p>
+      </div>
+      <div class="onoff-col onchain">
+        <h3>⛓️ ON-CHAIN (en Polygon Amoy)</h3>
+        <ul>
+          <li><strong>Nodo Polygon</strong> — red L2 donde viven los contratos.</li>
+          <li><strong>Contrato ERC-721 <code>CertificadoOrigenNFT</code></strong> — token NO fungible.</li>
+          <li><strong>Atributos del token</strong> — ID medidor, propietario, emisor, consumo neto, periodo.</li>
+          <li><strong>Propiedad y transferencias</strong> — el registro billetera→billetera es on-chain.</li>
+          <li><strong>Hash de integridad</strong> — <code>keccak256</code> del documento off-chain (prueba de no manipulación).</li>
+          <li><strong>Unicidad</strong> — regla (medidor, periodo) que rechaza duplicados on-chain.</li>
+          <li><strong>Anclaje de liquidaciones P2P</strong> — contrato <code>LiquidacionP2PAnchor</code> (otra consola).</li>
+        </ul>
+        <p class="onoff-why"><em>Por qué:</em> necesita ser verificable, único, trazable e inmutable por terceros.</p>
+      </div>
+    </div>
+    <p class="onoff-oracle">
+      🔗 <strong>Puente (patrón Oráculo):</strong> el oráculo tipo <strong>Chainlink</strong> lleva las mediciones
+      firmadas del mundo off-chain a la cadena; es el único punto que cruza la frontera, de forma controlada.
+    </p>
+  </section>
+
+  <!-- Métricas -->
+  <div class="mp-metrics">
+    <div class="metric"><span class="n">{{ totalEmitidos }}</span><span class="l">Certificados</span></div>
+    <div class="metric"><span class="n">{{ totalActivos }}</span><span class="l">Activos</span></div>
+    <div class="metric"><span class="n">{{ totalTransferencias }}</span><span class="l">Transferencias</span></div>
+    <div class="metric"><span class="n">{{ (consumoTotalWh / 1000) | number:'1.0-1' }}</span><span class="l">kWh certificados</span></div>
+    <div class="metric"><span class="n">{{ billeteras.length }}</span><span class="l">Billeteras</span></div>
+  </div>
+
+  <div class="mp-cols">
+    <!-- ===================== EMITIR ===================== -->
+    <section class="v-card">
+      <h2>Emitir certificado (acuñar NFT)</h2>
+      <form [formGroup]="formEmitir" (ngSubmit)="emitir()" class="v-form">
+        <label>Billetera emisora (quién acuña)
+          <select formControlName="emisor">
+            <option *ngFor="let b of billeteras" [value]="b.address">{{ b.etiqueta }} · {{ cortoAddr(b.address) }}</option>
+          </select>
+        </label>
+        <label>Billetera propietaria (quién recibe)
+          <select formControlName="propietario">
+            <option *ngFor="let b of billeteras" [value]="b.address">{{ b.etiqueta }} · {{ cortoAddr(b.address) }}</option>
+          </select>
+        </label>
+        <label>ID del medidor
+          <input formControlName="idMedidor" placeholder="MEDIDOR-IOT-0001" />
+        </label>
+        <div class="v-form-row">
+          <label>Consumo neto mensual (Wh)
+            <input type="number" formControlName="consumoNetoMensualWh" min="1" />
+          </label>
+          <label>Periodo (AAAAMM)
+            <input type="number" formControlName="periodo" min="200001" />
+          </label>
+        </div>
+        <button type="submit" class="v-btn" [disabled]="formEmitir.invalid">🪙 Emitir certificado</button>
+        <p class="hint">La red cero <code>0x000…0000</code> → billetera propietaria. Rechaza duplicados para el mismo medidor+periodo.</p>
+      </form>
+    </section>
+
+    <!-- ===================== TRANSFERIR ===================== -->
+    <section class="v-card">
+      <h2>Transferir (de una billetera a otra)</h2>
+      <form [formGroup]="formTransferir" (ngSubmit)="transferir()" class="v-form">
+        <label>Token (certificado)
+          <select formControlName="tokenId">
+            <option [ngValue]="null" disabled>Elige un certificado…</option>
+            <option *ngFor="let c of certificados" [ngValue]="c.tokenId" [disabled]="c.quemado">
+              NFT #{{ c.tokenId }} · {{ c.idMedidor }} · dueño {{ cortoAddr(c.propietario) }}{{ c.quemado ? ' (quemado)' : '' }}
+            </option>
+          </select>
+        </label>
+        <label>Billetera destino
+          <select formControlName="hacia">
+            <option *ngFor="let b of billeteras" [value]="b.address">{{ b.etiqueta }} · {{ cortoAddr(b.address) }}</option>
+          </select>
+        </label>
+        <button type="submit" class="v-btn" [disabled]="formTransferir.invalid">🔁 Transferir propiedad</button>
+        <button type="button" class="v-btn ghost" (click)="nuevaBilletera()">＋ Nueva billetera</button>
+        <p class="hint">La transferencia queda en el libro mayor como <strong>origen → destino</strong> con su txHash.</p>
+      </form>
+    </section>
+  </div>
+
+  <!-- ===================== TABLA DE CERTIFICADOS ===================== -->
+  <section class="v-card">
+    <div class="mp-toolbar">
+      <h2>Certificados tokenizados</h2>
+      <div class="mp-actions">
+        <input class="buscar" [(ngModel)]="filtroTexto" placeholder="Buscar medidor / token / periodo…" />
+        <button class="v-btn ghost" (click)="exportarCsv()">⬇ CSV libro mayor</button>
+        <button class="v-btn ghost" (click)="exportarJson()">⬇ JSON</button>
+        <button class="v-btn ghost" (click)="reiniciar()">↻ Reiniciar</button>
+      </div>
+    </div>
+
+    <div *ngIf="filtroPropietario" class="filtro-activo">
+      Filtrando por propietario <strong>{{ etiquetaDe(filtroPropietario) }}</strong>
+      <button class="v-btn ghost xs" (click)="filtrarPropietario(filtroPropietario)">✕ quitar</button>
+    </div>
+
+    <table class="v-table" *ngIf="certificadosFiltrados.length; else vacio">
+      <thead>
+        <tr>
+          <th>#</th><th>Medidor</th><th>Periodo</th><th>Consumo (Wh)</th>
+          <th>Emisor</th><th>Propietario actual</th><th>Transf.</th><th>Estado</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let c of certificadosFiltrados" [class.quemado]="c.quemado">
+          <td>{{ c.tokenId }}</td>
+          <td>{{ c.idMedidor }}</td>
+          <td>{{ c.periodo }}</td>
+          <td>{{ c.consumoNetoMensualWh | number }}</td>
+          <td><code title="{{ c.emisor }}">{{ etiquetaDe(c.emisor) }}</code></td>
+          <td>
+            <button class="link" (click)="filtrarPropietario(c.propietario)" title="Filtrar por este propietario">
+              {{ etiquetaDe(c.propietario) }}
+            </button>
+          </td>
+          <td>{{ c.historial.length - 1 }}</td>
+          <td>
+            <span class="pill" [class.pill-ok]="!c.quemado" [class.pill-warn]="c.quemado">
+              {{ c.quemado ? 'retirado' : 'activo' }}
+            </span>
+          </td>
+          <td class="acciones">
+            <button class="v-btn ghost xs" (click)="abrirDetalle(c)">Detalle</button>
+            <button class="v-btn ghost xs" (click)="quemar(c)" [disabled]="c.quemado">Quemar</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <ng-template #vacio><p class="muted">No hay certificados que coincidan con el filtro.</p></ng-template>
+  </section>
+
+  <!-- ===================== LIBRO MAYOR BILLETERA → BILLETERA ===================== -->
+  <section class="v-card">
+    <h2>Libro mayor · transferencias billetera → billetera</h2>
+    <p class="muted">Todo movimiento de propiedad de cualquier certificado, del más reciente al más antiguo.</p>
+    <table class="v-table" *ngIf="libroMayor.length; else sinMov">
+      <thead>
+        <tr><th>Cuándo</th><th>Token</th><th>Tipo</th><th>Desde</th><th>→</th><th>Hacia</th><th>txHash</th></tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let m of libroMayor">
+          <td>{{ m.ts | date:'short' }}</td>
+          <td>#{{ m.tokenId }}</td>
+          <td>
+            <span class="pill"
+              [class.pill-ok]="m.tipo === 'TRANSFERENCIA'"
+              [class.pill-info]="m.tipo === 'EMISION'"
+              [class.pill-warn]="m.tipo === 'QUEMA'">{{ m.tipo }}</span>
+          </td>
+          <td><code title="{{ m.desde }}">{{ etiquetaDe(m.desde) }}</code></td>
+          <td>→</td>
+          <td><code title="{{ m.hacia }}">{{ etiquetaDe(m.hacia) }}</code></td>
+          <td>
+            <button class="link" (click)="copiar(m.txHash, 'txHash')" title="{{ m.txHash }}">{{ cortoAddr(m.txHash) }}</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <ng-template #sinMov><p class="muted">Aún no hay movimientos.</p></ng-template>
+  </section>
+
+  <!-- ===================== DETALLE (modal) ===================== -->
+  <div class="mp-modal" *ngIf="detalle" (click)="cerrarDetalle()">
+    <div class="mp-modal-card" (click)="$event.stopPropagation()">
+      <div class="mp-modal-head">
+        <h3>Certificado NFT #{{ detalle.tokenId }}</h3>
+        <button class="v-btn ghost xs" (click)="cerrarDetalle()">✕</button>
+      </div>
+      <dl class="detalle">
+        <dt>ID medidor</dt><dd>{{ detalle.idMedidor }}</dd>
+        <dt>Periodo</dt><dd>{{ detalle.periodo }}</dd>
+        <dt>Consumo neto mensual</dt><dd>{{ detalle.consumoNetoMensualWh | number }} Wh</dd>
+        <dt>Emisor</dt><dd><code>{{ detalle.emisor }}</code> <button class="link" (click)="copiar(detalle.emisor,'Emisor')">copiar</button></dd>
+        <dt>Propietario actual</dt><dd><code>{{ detalle.propietario }}</code> <button class="link" (click)="copiar(detalle.propietario,'Propietario')">copiar</button></dd>
+        <dt>tokenURI (off-chain)</dt><dd><code>{{ detalle.tokenUri }}</code></dd>
+        <dt>hash detalle (on-chain)</dt><dd><code>{{ cortoAddr(detalle.hashDetalle) }}</code> <button class="link" (click)="copiar(detalle.hashDetalle,'Hash')">copiar</button></dd>
+        <dt>Emitido</dt><dd>{{ detalle.emitidoEn | date:'medium' }}</dd>
+        <dt>Estado</dt><dd>{{ detalle.quemado ? 'Retirado (quemado)' : 'Activo' }}</dd>
+      </dl>
+      <h4>Cadena de custodia (billetera → billetera)</h4>
+      <ol class="timeline">
+        <li *ngFor="let m of detalle.historial">
+          <span class="pill"
+            [class.pill-ok]="m.tipo === 'TRANSFERENCIA'"
+            [class.pill-info]="m.tipo === 'EMISION'"
+            [class.pill-warn]="m.tipo === 'QUEMA'">{{ m.tipo }}</span>
+          <strong>{{ etiquetaDe(m.desde) }}</strong> → <strong>{{ etiquetaDe(m.hacia) }}</strong>
+          <small>{{ m.ts | date:'short' }} · tx {{ cortoAddr(m.txHash) }}</small>
+          <em *ngIf="m.nota">{{ m.nota }}</em>
+        </li>
+      </ol>
+    </div>
+  </div>
+</div>

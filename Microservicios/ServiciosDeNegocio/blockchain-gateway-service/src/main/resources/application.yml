@@ -31,6 +31,7 @@ voltera:
     rpc-url: ${VOLTERA_BLOCKCHAIN_RPC_URL:}
     private-key: ${VOLTERA_BLOCKCHAIN_PRIVATE_KEY:}
     contract-address: ${VOLTERA_BLOCKCHAIN_CONTRACT_ADDRESS:}
+    certificado-nft-address: ${VOLTERA_BLOCKCHAIN_CERTIFICADO_NFT:}
     chain-id: ${VOLTERA_BLOCKCHAIN_CHAIN_ID:80002}
     network: ${VOLTERA_BLOCKCHAIN_NETWORK:polygon-amoy}
     explorer-base: ${VOLTERA_BLOCKCHAIN_EXPLORER:https://amoy.polygonscan.com}

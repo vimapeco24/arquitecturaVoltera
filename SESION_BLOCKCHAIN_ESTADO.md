@@ -1,7 +1,299 @@
 # Estado de la sesión — Blockchain Voltera
 
-> Punto de retome para la próxima sesión. Última actualización: 2026-10-22 (experimento reproducible + orquestación EDA cerrada en liquidacion-p2p).
+> Punto de retome para la próxima sesión. Última actualización: 2026-10-26 (lámina 06 experimento de validación: front + script + doc · integridad OK live · Vercel LIVE).
 > Lee este archivo primero al reconectar.
+
+## 🧪 LÁMINA 06 · EXPERIMENTO DE VALIDACIÓN (opción C: doc + script + front + tests) (2026-10-26, noche 3)
+
+Pedido: materializar el experimento de la lámina 06 (30% nota, con prueba de integridad) — opción C
+(doc + script reproducible + panel en el front + tests) y subir a GitHub.
+
+**Qué se hizo:**
+1. **NUEVA página front `/experimento-validacion`** (enlazada desde `/blockchain`): ejecuta los 2
+   experimentos desde la UI y muestra cada criterio ✓/✗ con evidencia. Build OK (31.6 kB).
+2. **Script reproducible `Microservicios/experimento-validacion.sh`** — corre ambos experimentos
+   contra el gateway, mide los criterios y guarda evidencia JSON.
+3. **Doc `EXPERIMENTO_VALIDACION_VOLTERA.md`** (raíz) — los 2 experimentos (hipótesis/métrica/
+   resultado/procedimiento) con la prueba de integridad y de unicidad.
+4. **Tests** que respaldan la integridad ya existen: anchor Hardhat ("verificar() rechaza hash
+   distinto") + NFT ("rechaza DUPLICADOS por (idMedidor, periodo)") + gateway.
+5. **Diagrama vivo** actualizado (panel de estado con la prueba de integridad) · XML validado · PNG.
+6. **Vercel LIVE**: `/experimento-validacion` = 200 (y el hub de `/blockchain` enlaza a las 4 vistas).
+
+### ✅ EVIDENCIA REAL capturada contra el gateway LIVE (Render)
+`evidencia-experimento/validacion-20261026-203201.json`:
+- **Experimento 1 (oráculo): 4/4 criterios OK** — anclaje con hash, ≤60 s, `integro:true` con datos
+  originales y **`integro:false` con datos alterados (PRUEBA DE INTEGRIDAD superada, la cadena detecta
+  la manipulación)**.
+- **Experimento 2 (NFT): el gateway en Render devuelve 404 en `/api/v1/certificados`** porque el
+  código del slice NFT (y los 2 microservicios lámina 04) **aún no están desplegados en Render**
+  (Render redeploya al hacer `git push`, que está bloqueado). El rechazo de duplicados sí se prueba
+  con los tests del contrato/gateway locales (9+7). Al pushear y redeployar Render, el exp. 2 pasará
+  también en vivo.
+
+### ⛔ GIT: NO se pudo subir a GitHub (bloqueo de máquina, acción tuya)
+`git` y hasta `brew install git` fallan con *"You have not agreed to the Xcode license"*. No puedo
+aceptar la licencia (requiere `sudo xcodebuild -license accept` interactivo con tu contraseña).
+**Para subir TODO a https://github.com/vimapeco24/arquitecturaVoltera.git:**
+```bash
+sudo xcodebuild -license accept     # una vez, tu contraseña
+cd /Users/vimapeco/Downloads/ArquitectutaNuevaGenegeracion
+git add -A
+git commit -m "Lámina 04 (2 microservicios DDD) + lámina 05/06 (NFT 4 atributos + experimento de validación) + front"
+git push origin main
+```
+Al pushear, Render redeploya el gateway con `/api/v1/certificados` y el experimento 2 pasará en vivo.
+
+---
+
+
+## 🧩 LÁMINA 04 · DOS MICROSERVICIOS DDD NUEVOS (NO tocan la cadena) + FRONT + VERCEL (2026-10-26, noche 2)
+
+Pedido: a partir de la lámina 04 "Nuevos microservicios", crear los 2 microservicios identificados
+con DDD, dejar claro **quién toca la cadena y quién no**, front muy completo accesible desde
+`/blockchain`, desplegar a Vercel y subir a git.
+
+**Qué se hizo (ambos servicios compilan, 5+5 tests verdes; front build OK; Vercel LIVE):**
+
+1. **NUEVO `certificacion-generacion-service` (:8102) — NO toca la cadena.** Hexagonal Spring Boot.
+   BC *Certificación de generación*. Agregados `BalanceGeneracionCertificable` (reserva bloques de
+   1 MWh **sin reutilizar mediciones**) y `SolicitudCertificacion` (**doble aval**: Voltera +
+   certificadora → APROBADA). REST `/api/v1/{generacion,balances,solicitudes,...}`. 5 tests.
+
+2. **NUEVO `certificados-renovables-service` (:8103) — NO toca la cadena directamente: usa el gateway.**
+   BC *Certificados renovables*, agregado `CertificadoRenovable` (emisión/titularidad/**transferencia
+   billetera→billetera**/retiro + estado tras confirmación). Puerto de salida `GatewayCadenaPort`
+   con dos adaptadores: `RestGatewayCadenaAdapter` (**anticorruption layer** → `/api/v1/certificados`
+   del gateway) y `NoopGatewayCadenaAdapter` (demo, txHash simulado). Selección por `@Value` URL
+   vacía = no-op. REST `/api/v1/certificados-renovables`. 5 tests.
+
+3. **FRONT muy completo — NUEVA página `/microservicios-cadena`** (+ 2 servicios Angular + modelos
+   + ruta + nav 🧩). Muestra el flujo DDD completo con panel **“¿quién toca la cadena y quién no?”**,
+   registro de generación, reserva de bloque 1 MWh, doble aval, emisión del NFT (vía gateway) desde
+   una solicitud APROBADA, transferencia billetera→billetera, retiro, detalle con cadena de custodia
+   y métricas. **Hub del Módulo 4 añadido en `/blockchain`** (enlaces a Marketplace, Certificados NFT
+   y Microservicios de la cadena) → todo accesible desde https://voltera-frontend.vercel.app/blockchain.
+
+4. **k8s** `voltera-certificados.yaml` (Deployment+Service+HTTPRoute de ambos; el de renovables trae
+   `VOLTERA_BLOCKCHAIN_GATEWAY_URL=http://blockchain-gateway-service:8101`) + añadidos a
+   `build-push-all.sh`. **Doc** `PATRONES_BLOCKCHAIN_VOLTERA.md`: sección lámina 04 con la tabla de
+   microservicios y "dónde queda el on-chain/off-chain". **Diagrama vivo** actualizado (2 cajas
+   dashed "NO toca la cadena" + arista ACL al gateway); XML validado + PNG regenerado.
+
+5. **DEPLOY VERCEL — LIVE** (con tu token, **RÓTALO**):
+   https://voltera-frontend.vercel.app → `/blockchain`, `/certificados`, `/microservicios-cadena` = **200**.
+
+### Dónde queda registrado on-chain vs off-chain (respuesta a la pregunta)
+- **OFF-CHAIN:** estado de dominio en cada microservicio (repos in-memory). `certificacion-generacion`
+  guarda balances+solicitudes; `certificados-renovables` guarda el agregado `CertificadoRenovable`
+  (titular, historial, estado). **Ninguno escribe en la cadena.**
+- **ON-CHAIN:** solo `blockchain-gateway-service` escribe en Polygon (contrato ERC-721). El servicio
+  de certificados-renovables guarda el reflejo (`tokenId`, `txHash`, `estadoCadena`) tras la
+  confirmación del gateway (patrón store-and-forward).
+
+### ⛔ GIT: ver abajo — sigue bloqueado por licencia de Xcode (acción tuya)
+
+Para subir TODO (incluye los 2 microservicios nuevos + front + diagrama/docs):
+```bash
+sudo xcodebuild -license            # acéptala una vez (tu input, interactivo)
+cd /Users/vimapeco/Downloads/ArquitectutaNuevaGenegeracion
+git add Microservicios/ServiciosDeNegocio/certificacion-generacion-service \
+        Microservicios/ServiciosDeNegocio/certificados-renovables-service \
+        Microservicios/ServiciosDeNegocio/blockchain-gateway-service \
+        Microservicios/voltera-frontend/src Microservicios/k8s/voltera-certificados.yaml \
+        Microservicios/k8s/build-push-all.sh \
+        Blockchain/contracts/CertificadoOrigenNFT.sol Blockchain/test/CertificadoOrigenNFT.test.js \
+        PATRONES_BLOCKCHAIN_VOLTERA.md SESION_BLOCKCHAIN_ESTADO.md \
+        Modificados/Voltera_Arquitectura_Completa.drawio Modificados/Voltera_Arquitectura_Completa.png
+git commit -m "Lámina 04: 2 microservicios DDD (certificación-generación + certificados-renovables) + front + láminas 05/06 NFT"
+git push origin main
+```
+
+---
+
+
+## 🎯 ALINEACIÓN A LÁMINAS 05/06 + SLICE NFT COMPLETO (backend+front) + DEPLOY VERCEL (2026-10-26, noche)
+
+Pedido: a partir de las 4 láminas del profesor (05 patrones con 2 diagramas ArchiMate + tabla de 4
+patrones; 06 experimento de validación), "hazlo todo": alinear NFT a los atributos de la lámina,
+oráculo Chainlink, validar off-chain vs on-chain, front **y** backend completos, registrar
+transferencias **billetera→billetera**, subir a git y desplegar a Vercel.
+
+**Qué se hizo (todo compila y pasa tests; front LIVE en Vercel):**
+
+1. **Contrato `CertificadoOrigenNFT.sol` RE-ALINEADO a la lámina** — ahora los atributos son los 4
+   del enunciado: **idMedidor · propietario · emisor · consumoNetoMensual** (+ `periodo` AAAAMM y
+   `hashDetalle`). Nueva firma `emitirCertificado(propietario, uri, idMedidor, consumoNetoMensual,
+   periodo, hashDetalle)`. **Unicidad (medidor, periodo)** que rechaza duplicados on-chain
+   (`CertificadoDuplicado`) — cumple lámina 06 ("0 duplicados / 100% intentos duplicados
+   rechazados"). Tests actualizados: **9** (antes 8) → suite total **37 passing**.
+
+2. **BACKEND NFT COMPLETO en el gateway (hexagonal + web3j)** — NUEVO slice vertical:
+   - Dominio: `CertificadoNft` (con historial billetera→billetera: EMISION/TRANSFERENCIA/QUEMA).
+   - Puertos: `GestionarCertificadoUseCase` (in) + `CertificadoNftPort` (out).
+   - Aplicación: `CertificadoService` (unicidad, validación, solo-emisor, keccak256 del hash).
+   - Adaptadores: `Web3jCertificadoNftAdapter` (emitirCertificado/transferFrom/burn on-chain) +
+     `CertificadoNftDemoAdapter` (txHash simulado si no hay contrato desplegado).
+   - REST: `CertificadoController` → `POST /api/v1/certificados`, `/{id}/transferir`,
+     `/{id}/quemar`, `GET /{id}`, `GET ?propietario=`, `GET /red`.
+   - `BlockchainProperties.certificadoNftAddress` (env `VOLTERA_BLOCKCHAIN_CERTIFICADO_NFT`) +
+     wiring en `BeanConfiguration` + `GlobalExceptionHandler` (502 si falla on-chain).
+   - Tests nuevos `CertificadoServiceTest` (7) → suite gateway **15 passing** (antes 8).
+
+3. **FRONT NFT COMPLETO — NUEVA página `/certificados`** (`certificados.component` + servicio
+   `certificado.service.ts` + modelos + ruta + nav 🪙):
+   - Emitir (billetera emisora → propietaria), **transferir de billetera a billetera**, quemar.
+   - **Libro mayor billetera→billetera** (desde/hacia/ejecutadoPor/txHash) + detalle con cadena de
+     custodia. Rechazo de duplicados en el cliente. Exportar CSV/JSON. Gestión de billeteras.
+   - **Panel OFF-CHAIN vs ON-CHAIN** explícito (valida la separación de la lámina): off-chain =
+     ingesta/gemelo(AWS Lambda)/RDS/API Gateway/SQS/MQ/tokenURI; on-chain = nodo Polygon/ERC-721/
+     propiedad+transferencias/hash/unicidad; puente = oráculo Chainlink.
+   - Usa el backend si responde (`/api/v1/certificados`); si no, cae a **modo demo** local
+     (persistencia localStorage) → el circuito es completo end-to-end siempre.
+   - `ng build --configuration production` OK (certificados-component 49.24 kB).
+
+4. **Doc `PATRONES_BLOCKCHAIN_VOLTERA.md`** — tabla oficial de la lámina 05 (4 patrones: off-chain
+   telemetría · off-chain oráculo/gemelo · oráculo Chainlink · token NFT ERC-721) + tabla de
+   validación **OFF-CHAIN vs ON-CHAIN** + mapa de dónde está cada patrón. Fichas de seguridad
+   (multiple authorization, embedded permission) conservadas como extra.
+
+5. **Diagrama vivo** `Modificados/Voltera_Arquitectura_Completa.{drawio,png}` (regla permanente) —
+   `bc-nft` con los 4 atributos + off-chain/on-chain + backend/front; band y status alineados a la
+   lámina (Chainlink, off/on-chain, 37+15 tests). XML validado · PNG regenerado.
+
+6. **DEPLOY VERCEL — LIVE** — `vercel deploy --prod` OK (con tu token, que **DEBES ROTAR**):
+   - Producción: https://voltera-frontend-hhov0skmu-vimapeco.vercel.app
+   - Alias: **https://voltera-frontend.vercel.app** → `/`, `/certificados`, `/blockchain` = **200**.
+
+### ⛔ GIT BLOQUEADO EN ESTA MÁQUINA (acción tuya) — NO se pudo hacer commit/push
+`git` falla con *"You have not agreed to the Xcode license agreements"* (exit 69). No puedo
+aceptar la licencia (requiere `sudo xcodebuild -license` interactivo). **Los cambios de backend y
+front están en disco pero NO commiteados.** Para subirlos:
+```bash
+sudo xcodebuild -license            # acéptala una vez (tu input)
+cd /Users/vimapeco/Downloads/ArquitectutaNuevaGenegeracion
+git add Blockchain/contracts/CertificadoOrigenNFT.sol Blockchain/test/CertificadoOrigenNFT.test.js \
+        Microservicios/ServiciosDeNegocio/blockchain-gateway-service \
+        Microservicios/voltera-frontend/src PATRONES_BLOCKCHAIN_VOLTERA.md \
+        Modificados/Voltera_Arquitectura_Completa.drawio Modificados/Voltera_Arquitectura_Completa.png \
+        SESION_BLOCKCHAIN_ESTADO.md
+git commit -m "Alinear blockchain a láminas 05/06: NFT 4 atributos + backend/front certificados + off/on-chain"
+git push origin main
+```
+(Render auto-desplegará el gateway con el nuevo `/api/v1/certificados` al hacer push.)
+
+### ⚠️ SEGURIDAD
+Pegaste el token de Vercel en el chat (`vcp_…`). Está comprometido → **rótalo/revócalo** en
+Vercel → Settings → Tokens. No se escribió en ningún archivo del repo (solo como env var del comando).
+
+---
+
+## 🪙 TOKEN ERC-721 (NO FUNGIBLE) + DESPLIEGUE INTENTADO + FRONT VALIDADO (2026-10-26, tarde)
+
+Pedido: "haz el despliegue de todo lo que haga falta, valida que el front esté completo" +
+steering "especificar si son tokens fungibles o no fungibles, de OpenZeppelin, implementación de
+especificaciones".
+
+**Qué se hizo (todo compila con evm cancun, 36 tests verdes, front build OK):**
+
+1. **NUEVO contrato `blockchain/contracts/CertificadoOrigenNFT.sol`** — patrón **TOKENIZACIÓN**
+   (familia datos). Certificado de origen renovable como **TOKEN NO FUNGIBLE · ERC-721** usando
+   las implementaciones de **OpenZeppelin**: `ERC721` + `ERC721URIStorage` (metadata off-chain) +
+   `ERC721Burnable` + `AccessControl` (EMISOR_ROLE). Se eligió ERC-721 (no fungible) y NO ERC-20
+   (fungible) ni ERC-1155 (semi-fungible) porque cada certificado es único. **8 tests nuevos**
+   (incluye `supportsInterface(0x80ac58cd)` que confirma que es ERC-721).
+   - Total suite: **36 passing** (8 anchor + 9 comunidad + 11 multisig + 8 NFT).
+
+2. **evmVersion subido a `cancun`** en `hardhat.config.js` — OZ 5.6 usa `mcopy` (EIP-5656), que
+   requiere Cancun. Amoy lo soporta (PIP-31). OJO: el anchor ya desplegado se compiló con `paris`;
+   el cambio solo afecta compilaciones futuras, NO el bytecode on-chain existente.
+
+3. **Doc de patrones ampliado** `PATRONES_BLOCKCHAIN_VOLTERA.md` — ahora **5 patrones**, con la
+   ficha nueva de tokenización que incluye la TABLA ERC-20 (fungible) / ERC-721 (no fungible, el
+   elegido) / ERC-1155 (semi-fungible), y la justificación del tipo de token.
+
+4. **Diagrama vivo** `Modificados/Voltera_Arquitectura_Completa.{drawio,png}` — caja `bc-nft`
+   (CertificadoOrigenNFT, ERC-721 no fungible) + arista; etiqueta capa 4 con los 5 patrones;
+   stack y panel de estado actualizados. XML validado, PNG regenerado.
+
+5. **FRONT VALIDADO** — `ng build --configuration production` OK en `Microservicios/voltera-frontend`
+   (blockchain-component 44.79 kB, bundle inicial 394.71 kB). Compila completo sin errores. El
+   `blockchain.service.ts` cubre anclar/obtener/listar/red/verificar/comunidades.
+
+6. **Scripts de deploy** — `deploy.js` ahora despliega los 4 contratos; NUEVO
+   `scripts/deploy-faltantes.js` despliega SOLO los que faltan (comunidad+multisig+NFT) SIN tocar
+   el anchor LIVE, con reintentos y gas price fijo a 30 gwei.
+
+### ⛔ DESPLIEGUE BLOQUEADO POR GAS (no por código) — acción tuya requerida
+Intenté desplegar los 3 contratos faltantes a Amoy. Diagnóstico con datos reales:
+- La wallet de prueba `0xa0A1…AFDf2` tiene **0.0134 POL**.
+- El contrato más pequeño (multisig) estima **925.379 gas = 0.0278 POL** a 30 gwei.
+- Los 3 juntos ≈ **0.16 POL**. **Falta gas.** (Un deploy huérfano de prueba quedó en
+  `0x36b725b608eF3524E93BD7e5D0ac4b27dE182B73`, ignorable, es testnet.)
+- Además el RPC `drpc.org` rechazaba el ENVÍO de transacciones ("Temporary internal error");
+  **`https://polygon-amoy-bor-rpc.publicnode.com` SÍ las acepta** (ya actualizado en `.env.example`).
+
+**Para completar el deploy (cuando recargues gas):**
+```bash
+# 1) Pide POL gratis al faucet con la wallet de prueba (necesitas ~0.2 POL):
+#    https://faucet.polygon.technology  (red Amoy, token POL) -> 0xa0A18C1D64272f9a6a248Deb5106994F5D8AFDf2
+# 2) Despliega SOLO los faltantes (preserva el anchor LIVE):
+cd Blockchain
+AMOY_RPC_URL=https://polygon-amoy-bor-rpc.publicnode.com npx hardhat run scripts/deploy-faltantes.js --network amoy
+# 3) Autoriza un 2o firmante en el multisig (si no, no registra nada) y, opcional,
+#    configura el gateway con las VOLTERA_BLOCKCHAIN_* que imprime el script.
+```
+El anchor LIVE (`0xd0Ef…EBcf530`) sigue intacto y verificado; nada de lo desplegado se tocó.
+
+---
+
+
+## 🧩 PATRONES DE BLOCKCHAIN (slide 05) + CONTRATO MULTIPLE AUTHORIZATION (2026-10-26)
+
+Pedido: a partir de las imágenes del enunciado "05 · Patrones de blockchain" (al menos 2 patrones
+con problema/solución/consecuencias/familia) y los diagramas del profesor (que mostraban
+multiple authorization, token ERC-721, oráculo ChainLink), "agregar todo acá" en el proyecto.
+
+**Qué se hizo (todo compila, 28 tests verdes, XML del diagrama válido):**
+
+1. **NUEVO contrato `blockchain/contracts/CesionCertificadoMultisig.sol`** — implementa el patrón
+   **MULTIPLE AUTHORIZATION** (familia seguridad) que faltaba y que el enunciado pedía
+   ("dos firmas antes de registrar"). Cesión de certificados de origen: `proponerCesion` (1ª firma)
+   → `confirmarCesion` (2ª firma de OTRA cuenta) → `CesionRegistrada`. Un firmante no puede firmar
+   dos veces. `AccessControl` (FIRMANTE_ROLE) + `Pausable`. **11 tests nuevos**.
+   - `test/CesionCertificadoMultisig.test.js` (11) → total suite **28 passing**
+     (8 anchor + 9 comunidad + 11 multisig).
+   - `scripts/deploy.js` ahora despliega los **3** contratos y guarda `cesionCertificados.address`
+     en `deployments/<red>.json` (+ aviso de autorizar 2º firmante).
+   - README del blockchain: añadida la tabla del contrato multisig.
+
+2. **NUEVO documento `PATRONES_BLOCKCHAIN_VOLTERA.md` (raíz)** — entregable del slide 05. Documenta
+   **4 patrones** (el enunciado pedía ≥2), cada uno con problema / solución / consecuencias
+   (qué se gana y qué se paga) / familia:
+   - Off-chain storage (datos) · Oráculo + confirmación por evento (exterior) ·
+     Multiple Authorization (seguridad) · Embedded Permission/Zero Trust (seguridad).
+   - Checklist "LISTO CUANDO" del enunciado marcado.
+
+3. **Diagrama vivo `Modificados/Voltera_Arquitectura_Completa.drawio` (regla permanente)** —
+   añadida la caja `bc-multisig` (CesionCertificadoMultisig, patrón multiple authorization) con su
+   arista JSON-RPC desde el gateway; banda blockchain ampliada; etiqueta de capa 4 lista los 4
+   patrones; stack y panel de estado actualizados a 2026-10-26; observabilidad/estado/pie corridos
+   para no solapar. **PNG regenerado** (`drawio --export`, 1.9 MB). XML verificado bien formado.
+
+**NOTA sobre las imágenes del profesor vs. lo implementado:** los diagramas del profesor muestran
+un **ERC-721 (token no fungible)** y un **oráculo tipo ChainLink** como ilustración del patrón
+*token* y *oráculo*. Voltera implementa el patrón **oráculo** con su `blockchain-gateway` (web3j),
+y los patrones *off-chain storage* + *multiple authorization* + *embedded permission* en Solidity.
+NO se implementó un ERC-721: el caso elegido (liquidación P2P + certificados) encaja mejor con
+anclaje de hash + multisig que con tokenización NFT. Si se quisiera el token ERC-721 como 5º
+patrón (familia datos), sería un contrato adicional — queda anotado como opción, no hecho.
+
+**PENDIENTE (requiere tu wallet con POL):** `cd blockchain && npm run deploy:amoy` desplegaría los
+3 contratos a Amoy y daría la dirección del multisig; luego autorizar un 2º firmante. Hoy el
+multisig está escrito+probado pero NO desplegado (igual que ComunidadEnergeticaRegistry).
+
+---
+
 
 ## 🧪 EXPERIMENTO REPRODUCIBLE + ORQUESTACIÓN EDA CERRADA (2026-10-22)
 

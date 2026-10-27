@@ -132,5 +132,20 @@ export const routes: Routes = [
     title: 'Marketplace P2P · Blockchain · Voltera',
     loadComponent: () => import('./pages/blockchain/blockchain.component').then((m) => m.BlockchainComponent),
   },
+  {
+    path: 'certificados',
+    title: 'Certificados de Origen · NFT · Voltera',
+    loadComponent: () => import('./pages/certificados/certificados.component').then((m) => m.CertificadosComponent),
+  },
+  {
+    path: 'microservicios-cadena',
+    title: 'Microservicios de la cadena · DDD · Voltera',
+    loadComponent: () => import('./pages/microservicios-cadena/microservicios-cadena.component').then((m) => m.MicroserviciosCadenaComponent),
+  },
+  {
+    path: 'experimento-validacion',
+    title: 'Experimento de validación · Blockchain · Voltera',
+    loadComponent: () => import('./pages/experimento-validacion/experimento-validacion.component').then((m) => m.ExperimentoValidacionComponent),
+  },
   { path: '**', redirectTo: 'panel' },
 ];

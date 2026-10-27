@@ -25,6 +25,8 @@ BUILDS=(
   "facturacion-service:${BASE}/ServiciosDeNegocio/facturacion-service"
   "liquidacion-mensual-service:${BASE}/ServiciosDeNegocio/liquidacion-mensual-service"
   "liquidacion-p2p-service:${BASE}/ServiciosDeNegocio/liquidacion-p2p-service"
+  "certificacion-generacion-service:${BASE}/ServiciosDeNegocio/certificacion-generacion-service"
+  "certificados-renovables-service:${BASE}/ServiciosDeNegocio/certificados-renovables-service"
   "volumetria-service:${BASE}/ServiciosDeNegocio/volumetria-service"
   "tarifas-service:${BASE}/ServiciosDeNegocio/tarifas-service"
   "pagos-service:${BASE}/ServiciosDeNegocio/pagos-service"

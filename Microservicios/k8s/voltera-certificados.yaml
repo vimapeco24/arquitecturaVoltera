@@ -1,0 +1,121 @@
+---
+# Microservicios nuevos de la lámina 04 (DDD alrededor de la cadena).
+# NINGUNO toca la cadena: Certificación de Generación es dominio puro; Certificados
+# Renovables usa el blockchain-gateway por REST. Solo el gateway habla web3j.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: certificacion-generacion-service
+  namespace: voltera-app
+  labels: { app: certificacion-generacion-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: certificacion-generacion-service } }
+  template:
+    metadata: { labels: { app: certificacion-generacion-service, version: v1 } }
+    spec:
+      imagePullSecrets: [{ name: harbor-cred }]
+      containers:
+        - name: certificacion-generacion-service
+          image: 192.168.3.13/app-voltaire/certificacion-generacion-service:1.0.0
+          ports: [{ containerPort: 8102 }]
+          env:
+            - { name: EUREKA_ENABLED, value: "true" }
+            - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
+          resources:
+            limits: { cpu: "500m", memory: "512Mi" }
+            requests: { cpu: "50m", memory: "256Mi" }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8102 }
+            initialDelaySeconds: 25
+            periodSeconds: 10
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: certificacion-generacion-service
+  namespace: voltera-app
+spec:
+  selector: { app: certificacion-generacion-service }
+  ports: [{ port: 8102, targetPort: 8102 }]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: certificacion-generacion-service
+  namespace: voltera-app
+spec:
+  parentRefs:
+    - name: istio-ingress
+      namespace: istio-ingress
+  rules:
+    - matches:
+        - path: { type: PathPrefix, value: /certificacion-generacion }
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path: { type: ReplacePrefixMatch, replacePrefixMatch: "" }
+      backendRefs:
+        - name: certificacion-generacion-service
+          port: 8102
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: certificados-renovables-service
+  namespace: voltera-app
+  labels: { app: certificados-renovables-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: certificados-renovables-service } }
+  template:
+    metadata: { labels: { app: certificados-renovables-service, version: v1 } }
+    spec:
+      imagePullSecrets: [{ name: harbor-cred }]
+      containers:
+        - name: certificados-renovables-service
+          image: 192.168.3.13/app-voltaire/certificados-renovables-service:1.0.0
+          ports: [{ containerPort: 8103 }]
+          env:
+            - { name: EUREKA_ENABLED, value: "true" }
+            - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
+            # Usa el gateway interno del clúster para pedir las operaciones de NFT.
+            - { name: VOLTERA_BLOCKCHAIN_GATEWAY_URL, value: "http://blockchain-gateway-service:8101" }
+          resources:
+            limits: { cpu: "500m", memory: "512Mi" }
+            requests: { cpu: "50m", memory: "256Mi" }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8103 }
+            initialDelaySeconds: 25
+            periodSeconds: 10
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: certificados-renovables-service
+  namespace: voltera-app
+spec:
+  selector: { app: certificados-renovables-service }
+  ports: [{ port: 8103, targetPort: 8103 }]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: certificados-renovables-service
+  namespace: voltera-app
+spec:
+  parentRefs:
+    - name: istio-ingress
+      namespace: istio-ingress
+  rules:
+    - matches:
+        - path: { type: PathPrefix, value: /certificados-renovables }
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path: { type: ReplacePrefixMatch, replacePrefixMatch: "" }
+      backendRefs:
+        - name: certificados-renovables-service
+          port: 8103

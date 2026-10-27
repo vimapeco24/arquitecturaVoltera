@@ -59,6 +59,37 @@ Tras `deploy:amoy`, copia la dirección impresa en la config del gateway
 
 Evento emitido: `LiquidacionAnclada(txId indexed, hashCasacion, energiaWh, liquidadaEn, ancladaEn, oraculo indexed)`.
 
+## Contrato `CesionCertificadoMultisig` (patrón Multiple Authorization)
+Cesión de certificados de origen renovable que exige **dos firmas distintas** antes de
+registrar (umbral M-de-N con M=2). Familia **seguridad**. Ver `../PATRONES_BLOCKCHAIN_VOLTERA.md`.
+
+| Función | Rol | Qué hace |
+|---|---|---|
+| `proponerCesion(cesionId, certificadoId, cedenteId, cesionarioId, hashDetalle)` | `FIRMANTE_ROLE` | 1ª firma: deja la cesión PENDIENTE (1/2). |
+| `confirmarCesion(cesionId)` | `FIRMANTE_ROLE` (otra cuenta) | 2ª firma: al llegar a 2, pasa a REGISTRADA. |
+| `estaRegistrada(cesionId)` / `obtenerCesion(cesionId)` | público (view) | Lee el estado de la cesión. |
+| `autorizarFirmante` / `revocarFirmante` | `DEFAULT_ADMIN_ROLE` | Gestiona el padrón de firmantes. |
+| `pausar` / `reanudar` | `DEFAULT_ADMIN_ROLE` | Parada de emergencia. |
+
+Eventos: `CesionPropuesta`, `CesionFirmada`, `CesionRegistrada`.
+⚠️ Requiere ≥2 firmantes autorizados; con uno solo nada se registra (es el costo del patrón).
+
+## Contrato `CertificadoOrigenNFT` (patrón Tokenización · ERC-721 NO fungible)
+Certificado de origen renovable como **token NO fungible** (cada certificado es único),
+usando las implementaciones de **OpenZeppelin**: `ERC721` + `ERC721URIStorage` (metadata
+off-chain) + `ERC721Burnable` + `AccessControl`. Familia **datos**. Se eligió ERC-721
+(no fungible) y **no** ERC-20 (fungible) ni ERC-1155 (semi-fungible) porque cada certificado
+es único e irrepetible. Ver `../PATRONES_BLOCKCHAIN_VOLTERA.md`.
+
+| Función | Rol | Qué hace |
+|---|---|---|
+| `emitirCertificado(propietario, uri, hashDetalle, energiaMWh, tecnologia)` | `EMISOR_ROLE` | Acuña un NFT único y lo asigna. Devuelve el `tokenId`. |
+| `tokenURI(tokenId)` / `certificados(tokenId)` | público (view) | Metadata off-chain + datos mínimos on-chain. |
+| `transferFrom` / `safeTransferFrom` | propietario | Transferencia estándar ERC-721. |
+| `burn(tokenId)` | propietario | Retira/cancela el certificado (ERC721Burnable). |
+
+Eventos: `CertificadoEmitido` + los estándar de ERC-721 (`Transfer`, `Approval`).
+
 ## Seguridad
 - `AccessControl` + `Pausable` de OpenZeppelin (patrón *Embedded Permission* / Zero Trust on-chain).
 - Sin transferencias de valor → sin superficie de reentrada.

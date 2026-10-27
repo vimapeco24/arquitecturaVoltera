@@ -1,12 +1,16 @@
 package com.voltera.blockchain.infrastructure.config;
 
 import com.voltera.blockchain.application.AnclajeService;
+import com.voltera.blockchain.application.CertificadoService;
 import com.voltera.blockchain.domain.port.out.AnclajeRepositoryPort;
 import com.voltera.blockchain.domain.port.out.CadenaBlockchainPort;
+import com.voltera.blockchain.domain.port.out.CertificadoNftPort;
 import com.voltera.blockchain.domain.port.out.EventPublisherPort;
 import com.voltera.blockchain.domain.port.out.HashServicePort;
 import com.voltera.blockchain.infrastructure.blockchain.CadenaNoConfigurada;
+import com.voltera.blockchain.infrastructure.blockchain.CertificadoNftDemoAdapter;
 import com.voltera.blockchain.infrastructure.blockchain.Web3jCadenaAdapter;
+import com.voltera.blockchain.infrastructure.blockchain.Web3jCertificadoNftAdapter;
 import com.voltera.blockchain.infrastructure.crypto.Web3jHashService;
 import com.voltera.blockchain.infrastructure.messaging.KafkaEventPublisher;
 import com.voltera.blockchain.infrastructure.messaging.LogEventPublisher;
@@ -84,6 +88,32 @@ public class BeanConfiguration {
                                          EventPublisherPort publicador, HashServicePort hash,
                                          BlockchainProperties props) {
         return new AnclajeService(repo, cadena, publicador, hash, props.getNetwork());
+    }
+
+    /**
+     * Adaptador hacia el contrato ERC-721 CertificadoOrigenNFT. Si no hay NFT
+     * configurado (o no hay cadena), usa el adaptador demo para que el flujo
+     * emision/transferencia/quema sea completo end-to-end sin cadena real.
+     */
+    @Bean
+    public CertificadoNftPort certificadoNftPort(BlockchainProperties props, ObjectProvider<Web3j> web3jProvider) {
+        Web3j web3j = web3jProvider.getIfAvailable();
+        String nft = props.getCertificadoNftAddress();
+        if (web3j == null || nft == null || nft.isBlank()
+                || props.getPrivateKey() == null || props.getPrivateKey().isBlank()) {
+            log.warn("Contrato NFT NO configurado (falta certificadoNftAddress/privateKey/RPC). "
+                    + "Certificados en modo demo (txHash simulado, estado en memoria).");
+            return new CertificadoNftDemoAdapter();
+        }
+        Credentials credentials = Credentials.create(normalizar(props.getPrivateKey()));
+        log.info("NFT on-chain: emisor={} | contrato={} | chainId={}",
+                credentials.getAddress(), nft, props.getChainId());
+        return new Web3jCertificadoNftAdapter(web3j, credentials, nft, props.getChainId());
+    }
+
+    @Bean
+    public CertificadoService certificadoService(CertificadoNftPort nft) {
+        return new CertificadoService(nft);
     }
 
     /**

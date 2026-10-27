@@ -1,0 +1,193 @@
+<div class="v-page v-fade mp">
+  <div class="v-page-head">
+    <span class="v-eyebrow">🧩 Módulo 4 · Lámina 04 · Nuevos microservicios</span>
+    <h1>Microservicios alrededor de la cadena</h1>
+    <p>
+      Los dos microservicios nuevos identificados con <strong>DDD</strong> y, sobre todo,
+      <strong>quién habla con la cadena y quién no</strong>. Regla de la lámina:
+      <em>“solo los servicios acotados tocan la cadena; si media arquitectura habla con blockchain, la frontera está maltrazada.”</em>
+    </p>
+  </div>
+
+  <!-- Estado backend -->
+  <div class="mp-net" [class.ok]="backendOk">
+    <span class="dot"></span>
+    <ng-container *ngIf="backendOk; else demo">
+      Servicios <strong>8102</strong> (Certificación) y <strong>8103</strong> (Certificados) conectados ·
+      Gateway: <strong>{{ gatewayEstado?.modo || '—' }}</strong>
+    </ng-container>
+    <ng-template #demo><span class="muted">Backend no alcanzable · esta vista necesita los servicios 8102/8103 (vía gateway WSO2).</span></ng-template>
+  </div>
+
+  <!-- ===================== MAPA DDD: QUIÉN TOCA LA CADENA ===================== -->
+  <section class="v-card onoff">
+    <h2>¿Quién toca la cadena y quién no? (lámina 04)</h2>
+    <div class="onoff-grid">
+      <div class="onoff-col offchain">
+        <h3>🚫 NO tocan la cadena (dominio off-chain)</h3>
+        <ul>
+          <li><strong>Servicio de Certificación de Generación</strong> (8102) · BC <em>Certificación de generación</em> · agregados <code>BalanceGeneracionCertificable</code> + <code>SolicitudCertificacion</code>. Reserva bloques de 1 MWh sin reutilizar mediciones y reúne el doble aval.</li>
+          <li><strong>Servicio de Certificados Renovables</strong> (8103) · BC <em>Certificados renovables</em> · agregado <code>CertificadoRenovable</code>. Gestiona emisión/titularidad/transferencia/retiro. <strong>No directamente: usa el gateway.</strong></li>
+          <li>Resto de la arquitectura (telemetría, facturación, tarifas…) — ni se entera de la cadena.</li>
+        </ul>
+      </div>
+      <div class="onoff-col onchain">
+        <h3>⛓️ SÍ tocan la cadena (acotados y aislados)</h3>
+        <ul>
+          <li><strong>blockchain-gateway</strong> (8101) · <em>adaptador de cadena</em> + <em>oráculo</em>. Único que habla web3j con Polygon.</li>
+          <li><strong>anticorruption layer</strong>: el Servicio de Certificados Renovables traduce su dominio al contrato del gateway y le PIDE acuñar/mover el NFT.</li>
+          <li><strong>Contrato ERC-721</strong> <code>CertificadoOrigenNFT</code> en Polygon Amoy.</li>
+        </ul>
+      </div>
+    </div>
+    <p class="onoff-oracle">
+      🔗 Flujo: <strong>Telemetría</strong> → (8102) reserva bloque 1 MWh + doble aval → solicitud <strong>APROBADA</strong> →
+      (8103) emite <code>CertificadoRenovable</code> → <strong>pide al gateway</strong> acuñar el NFT → Polygon. El estado on-chain
+      (tokenId, txHash) se guarda de vuelta en el agregado tras la confirmación.
+    </p>
+    <p class="hint">Todo el Módulo 4 también en:
+      <a class="link" href="/certificados">Certificados NFT (billetera→billetera)</a> ·
+      <a class="link" href="/blockchain">Marketplace P2P</a>.
+    </p>
+  </section>
+
+  <!-- Métricas -->
+  <div class="mp-metrics">
+    <div class="metric"><span class="n">{{ totalBloques }}</span><span class="l">Bloques 1 MWh</span></div>
+    <div class="metric"><span class="n">{{ solPendientes }}</span><span class="l">Sol. pendientes</span></div>
+    <div class="metric"><span class="n">{{ solAprobadas }}</span><span class="l">Sol. aprobadas</span></div>
+    <div class="metric"><span class="n">{{ certActivos }}</span><span class="l">Certificados activos</span></div>
+    <div class="metric"><span class="n">{{ transferencias }}</span><span class="l">Transferencias</span></div>
+  </div>
+
+  <!-- ===================== PASO 1 · CERTIFICACIÓN DE GENERACIÓN ===================== -->
+  <section class="v-card">
+    <h2>1 · Certificación de Generación <span class="pill pill-info">no toca la cadena</span></h2>
+    <div class="mp-cols">
+      <form [formGroup]="formGen" (ngSubmit)="registrarGeneracion()" class="v-form">
+        <h3 style="margin:0">Registrar generación (de Telemetría)</h3>
+        <label>Medidor <input formControlName="medidorId" /></label>
+        <label>ID de la medición (único; vacío = autogenerar) <input formControlName="medicionId" placeholder="m-001" /></label>
+        <label>Wh generados <input type="number" formControlName="wh" min="1" /></label>
+        <button type="submit" class="v-btn" [disabled]="formGen.invalid">➕ Registrar generación</button>
+        <p class="hint">Una medición ya contada NO se reutiliza (evita doble conteo).</p>
+      </form>
+      <form [formGroup]="formSol" (ngSubmit)="solicitar()" class="v-form">
+        <h3 style="margin:0">Solicitar certificación (reserva 1 MWh)</h3>
+        <label>Medidor <input formControlName="medidorId" /></label>
+        <label>Propietario (billetera) <input formControlName="propietario" /></label>
+        <label>Periodo (AAAAMM) <input type="number" formControlName="periodo" /></label>
+        <button type="submit" class="v-btn" [disabled]="formSol.invalid">🧾 Solicitar certificación</button>
+        <p class="hint">Reserva un bloque de 1 MWh del balance del medidor.</p>
+      </form>
+    </div>
+
+    <h3>Balances de generación certificable</h3>
+    <table class="v-table" *ngIf="balances.length; else sinBal">
+      <thead><tr><th>Medidor</th><th>Acumulado (Wh)</th><th>Bloque (Wh)</th><th>Bloques reservados</th><th>Mediciones</th><th>¿Reservable?</th></tr></thead>
+      <tbody>
+        <tr *ngFor="let b of balances">
+          <td>{{ b.medidorId }}</td>
+          <td>{{ b.generacionAcumuladaWh | number }}</td>
+          <td>{{ b.bloqueWh | number }}</td>
+          <td>{{ b.bloquesReservados }}</td>
+          <td>{{ b.medicionesContabilizadas }}</td>
+          <td><span class="pill" [class.pill-ok]="b.puedeReservarBloque" [class.pill-warn]="!b.puedeReservarBloque">{{ b.puedeReservarBloque ? 'sí' : 'no' }}</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <ng-template #sinBal><p class="muted">Aún no hay generación registrada.</p></ng-template>
+
+    <h3>Solicitudes de certificación (doble aval)</h3>
+    <table class="v-table" *ngIf="solicitudes.length; else sinSol">
+      <thead><tr><th>#</th><th>Medidor</th><th>Propietario</th><th>Wh</th><th>Periodo</th><th>Aval Voltera</th><th>Aval cert.</th><th>Estado</th><th>Acciones</th></tr></thead>
+      <tbody>
+        <tr *ngFor="let s of solicitudes">
+          <td>{{ s.id }}</td>
+          <td>{{ s.medidorId }}</td>
+          <td><code title="{{ s.propietario }}">{{ corto(s.propietario) }}</code></td>
+          <td>{{ s.energiaWh | number }}</td>
+          <td>{{ s.periodo }}</td>
+          <td>{{ s.avalVoltera ? '✓' : '—' }}</td>
+          <td>{{ s.avalCertificadora ? '✓' : '—' }}</td>
+          <td><span class="pill" [ngClass]="badgeSol(s.estado)">{{ s.estado }}</span></td>
+          <td class="acciones">
+            <button class="v-btn ghost xs" (click)="avalarVoltera(s)" [disabled]="s.estado!=='PENDIENTE' || s.avalVoltera">Aval Voltera</button>
+            <button class="v-btn ghost xs" (click)="avalarCertificadora(s)" [disabled]="s.estado!=='PENDIENTE' || s.avalCertificadora">Aval cert.</button>
+            <button class="v-btn ghost xs" (click)="rechazar(s)" [disabled]="s.estado!=='PENDIENTE'">Rechazar</button>
+            <button class="v-btn xs" (click)="emitirDesde(s)" [disabled]="s.estado!=='APROBADA'">→ Emitir NFT</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <ng-template #sinSol><p class="muted">Aún no hay solicitudes.</p></ng-template>
+  </section>
+
+  <!-- ===================== PASO 2 · CERTIFICADOS RENOVABLES ===================== -->
+  <section class="v-card">
+    <h2>2 · Certificados Renovables <span class="pill pill-info">usa el gateway</span></h2>
+    <form [formGroup]="formTransf" (ngSubmit)="transferir()" class="v-form" style="max-width:520px">
+      <h3 style="margin:0">Transferir titularidad (de una billetera a otra)</h3>
+      <label>Certificado
+        <select formControlName="id">
+          <option value="" disabled>Elige un certificado…</option>
+          <option *ngFor="let c of certificados" [value]="c.id" [disabled]="c.estadoDominio==='RETIRADO'">
+            {{ c.id }} · token {{ c.tokenId ?? '—' }} · titular {{ corto(c.titular) }}{{ c.estadoDominio==='RETIRADO' ? ' (retirado)' : '' }}
+          </option>
+        </select>
+      </label>
+      <label>Billetera destino <input formControlName="hacia" /></label>
+      <button type="submit" class="v-btn" [disabled]="formTransf.invalid">🔁 Transferir (vía gateway)</button>
+    </form>
+
+    <table class="v-table" *ngIf="certificados.length; else sinCert">
+      <thead><tr><th>#</th><th>Medidor</th><th>Titular</th><th>Token</th><th>Dominio</th><th>Cadena</th><th>Solicitud</th><th>Acciones</th></tr></thead>
+      <tbody>
+        <tr *ngFor="let c of certificados" [class.quemado]="c.estadoDominio==='RETIRADO'">
+          <td>{{ c.id }}</td>
+          <td>{{ c.idMedidor }}</td>
+          <td><code title="{{ c.titular }}">{{ corto(c.titular) }}</code></td>
+          <td>{{ c.tokenId ?? '—' }}</td>
+          <td><span class="pill" [class.pill-ok]="c.estadoDominio==='EMITIDO'" [class.pill-warn]="c.estadoDominio==='RETIRADO'">{{ c.estadoDominio }}</span></td>
+          <td><span class="pill" [ngClass]="badgeCadena(c.estadoCadena)">{{ c.estadoCadena }}</span></td>
+          <td>{{ c.solicitudCertificacionId || '—' }}</td>
+          <td class="acciones">
+            <button class="v-btn ghost xs" (click)="abrirDetalle(c)">Detalle</button>
+            <button class="v-btn ghost xs" (click)="retirar(c)" [disabled]="c.estadoDominio==='RETIRADO'">Retirar</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <ng-template #sinCert><p class="muted">Aún no hay certificados emitidos. Aprueba una solicitud y pulsa “→ Emitir NFT”.</p></ng-template>
+  </section>
+
+  <!-- Detalle -->
+  <div class="mp-modal" *ngIf="detalle" (click)="cerrarDetalle()">
+    <div class="mp-modal-card" (click)="$event.stopPropagation()">
+      <div class="mp-modal-head">
+        <h3>Certificado {{ detalle.id }}</h3>
+        <button class="v-btn ghost xs" (click)="cerrarDetalle()">✕</button>
+      </div>
+      <dl class="detalle">
+        <dt>Medidor</dt><dd>{{ detalle.idMedidor }}</dd>
+        <dt>Emisor</dt><dd><code>{{ detalle.emisor }}</code></dd>
+        <dt>Titular actual</dt><dd><code>{{ detalle.titular }}</code> <button class="link" (click)="copiar(detalle.titular,'Titular')">copiar</button></dd>
+        <dt>Consumo neto mensual</dt><dd>{{ detalle.consumoNetoMensualWh | number }} Wh</dd>
+        <dt>Periodo</dt><dd>{{ detalle.periodo }}</dd>
+        <dt>Token ERC-721</dt><dd>{{ detalle.tokenId ?? '—' }}</dd>
+        <dt>Estado dominio</dt><dd>{{ detalle.estadoDominio }}</dd>
+        <dt>Estado cadena</dt><dd>{{ detalle.estadoCadena }}</dd>
+        <dt>txHash</dt><dd><code>{{ corto(detalle.txHash) }}</code> <button class="link" (click)="copiar(detalle.txHash,'txHash')">copiar</button></dd>
+        <dt>Solicitud origen</dt><dd>{{ detalle.solicitudCertificacionId || '—' }}</dd>
+      </dl>
+      <h4>Cadena de custodia (billetera → billetera)</h4>
+      <ol class="timeline">
+        <li *ngFor="let m of detalle.historial">
+          <span class="pill" [class.pill-info]="m.tipo==='EMISION'" [class.pill-ok]="m.tipo==='TRANSFERENCIA'" [class.pill-warn]="m.tipo==='RETIRO'">{{ m.tipo }}</span>
+          <strong>{{ corto(m.desde) }}</strong> → <strong>{{ corto(m.hacia) }}</strong>
+          <small>{{ m.ts | date:'short' }} · tx {{ corto(m.txHash) }}</small>
+        </li>
+      </ol>
+    </div>
+  </div>
+</div>

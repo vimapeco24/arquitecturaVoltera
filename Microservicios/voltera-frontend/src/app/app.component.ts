@@ -48,6 +48,9 @@ export class AppComponent {
     { path: '/experimentos', label: 'Experimentos', icon: '🧪' },
     { path: '/observabilidad', label: 'Observabilidad', icon: '🔭' },
     { path: '/blockchain', label: 'Marketplace P2P · ⛓️', icon: '⛓️' },
+    { path: '/certificados', label: 'Certificados NFT · 🪙', icon: '🪙' },
+    { path: '/microservicios-cadena', label: 'Microservicios cadena · 🧩', icon: '🧩' },
+    { path: '/experimento-validacion', label: 'Experimento · 🧪', icon: '🧪' },
   ];
 
   toggle(): void {
