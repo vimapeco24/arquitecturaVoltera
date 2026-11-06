@@ -845,3 +845,43 @@ cd /Users/vimapeco/Downloads/ArquitectutaNuevaGenegeracion
 git log --oneline -1          # debe mostrar 2086dd7 (o posterior)
 git status --short            # limpio salvo material ignorado
 ```
+
+---
+
+## ✅ MULTI-FIRMANTE (billetera principal + respaldo, fallback por saldo) · 2026-11-06
+
+Pedido (notas de voz de Juan David + guía `1780845587043.md`): el gateway debe poder usar **dos (o más)
+billeteras oráculo** — una principal y una de respaldo — y, si una no tiene saldo para el gas, **usar la
+siguiente automáticamente**. Así un anclaje no queda en PENDIENTE por "insufficient funds for gas" y se
+puede mostrar bien la prueba (SAI) sin quedar cortos.
+
+**Qué se implementó en `blockchain-gateway-service` (código, no solo variables):**
+1. `BlockchainProperties`: nueva propiedad `privateKeys` (plural) desde `VOLTERA_BLOCKCHAIN_PRIVATE_KEYS`
+   (coma-separadas). Método `getTodasLasClaves()` = principal + respaldos, normalizadas (sin espacios,
+   prefijo 0x) y sin duplicados; `estaConfigurada()` ahora acepta cualquiera de las dos vías.
+2. **Nueva clase `SelectorFirmante`**: dada la lista ordenada de credenciales, consulta el saldo on-chain
+   (eth_getBalance) y elige la primera billetera con saldo >= umbral (~0.021 POL). Si ninguna supera el
+   umbral pero alguna tiene saldo, usa la de mayor saldo; si el RPC no responde, usa la principal (mejor
+   esfuerzo). Encapsula el fallback por saldo.
+3. `Web3jCadenaAdapter` y `Web3jCertificadoNftAdapter`: ahora reciben el `SelectorFirmante` y eligen el
+   firmante en CADA envío (anclar / emitir / transferir / quemar).
+4. `BeanConfiguration`: construye la lista de credenciales y el selector; loguea al arranque los oráculos
+   (#1 principal, #2 respaldo…).
+5. `application.yml`: mapea `private-keys: ${VOLTERA_BLOCKCHAIN_PRIVATE_KEYS:}`.
+6. `render.yaml` (raíz y del servicio): agregan `VOLTERA_BLOCKCHAIN_PRIVATE_KEYS` y
+   `VOLTERA_BLOCKCHAIN_CERTIFICADO_NFT` como secrets/vars; se corrige el contrato de ejemplo obsoleto
+   (`0xd0Ef…`) por el vigente `0x59965b…C828000` y se documenta el NFT `0x819bc4…98d2`.
+
+**Verificado:** `./mvnw -o test` → **15 tests verdes, BUILD SUCCESS**. Diagrama vivo
+`Modificados/Voltera_Arquitectura_Completa.drawio` actualizado (nodo `bc-gw` ahora dice "multi-firmante ·
+billetera principal + respaldo · fallback por saldo") y XML revalidado OK.
+
+**Saldos on-chain verificados (RPC publicnode, 2026-11-06):** ambas billeteras ya tienen POL, NO hace
+falta faucet para la prueba:
+- Principal `0xB7aCd8EEeE86Be961EAf832657b3B6807220fbCf` ≈ 0.867 POL.
+- Respaldo  `0x18b4358A54BF4742f877c855B60dA823dF414b5E` ≈ 0.997 POL.
+
+**Pendiente — lo hace el humano (no lo puede hacer el agente):** en el dashboard de **Render** del
+servicio `voltera-blockchain-gateway`, agregar/editar las variables de la guía `1780845587043.md`
+(incluidas las 2 claves privadas, que NO están en el repo), guardar y dejar que redepliegue. El push a
+`main` de este cambio dispara el auto-deploy del código; las claves y el deploy final los coloca el humano.

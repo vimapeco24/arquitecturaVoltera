@@ -9,6 +9,7 @@ import com.voltera.blockchain.domain.port.out.EventPublisherPort;
 import com.voltera.blockchain.domain.port.out.HashServicePort;
 import com.voltera.blockchain.infrastructure.blockchain.CadenaNoConfigurada;
 import com.voltera.blockchain.infrastructure.blockchain.CertificadoNftDemoAdapter;
+import com.voltera.blockchain.infrastructure.blockchain.SelectorFirmante;
 import com.voltera.blockchain.infrastructure.blockchain.Web3jCadenaAdapter;
 import com.voltera.blockchain.infrastructure.blockchain.Web3jCertificadoNftAdapter;
 import com.voltera.blockchain.infrastructure.crypto.Web3jHashService;
@@ -25,6 +26,9 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.web3j.crypto.Credentials;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.http.HttpService;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Wiring hexagonal (Ports & Adapters). Elige el adaptador de cadena segun haya o
@@ -65,10 +69,9 @@ public class BeanConfiguration {
                     + "Arrancando en modo demo: los anclajes quedaran PENDIENTE.");
             return new CadenaNoConfigurada();
         }
-        Credentials credentials = Credentials.create(normalizar(props.getPrivateKey()));
-        log.info("Oraculo on-chain: {} | contrato: {} | chainId: {}",
-                credentials.getAddress(), props.getContractAddress(), props.getChainId());
-        return new Web3jCadenaAdapter(web3j, credentials, props.getContractAddress(), props.getChainId());
+        SelectorFirmante selector = construirSelector(web3j, props);
+        logOraculos(selector, props);
+        return new Web3jCadenaAdapter(web3j, selector, props.getContractAddress(), props.getChainId());
     }
 
     @Bean
@@ -99,16 +102,15 @@ public class BeanConfiguration {
     public CertificadoNftPort certificadoNftPort(BlockchainProperties props, ObjectProvider<Web3j> web3jProvider) {
         Web3j web3j = web3jProvider.getIfAvailable();
         String nft = props.getCertificadoNftAddress();
-        if (web3j == null || nft == null || nft.isBlank()
-                || props.getPrivateKey() == null || props.getPrivateKey().isBlank()) {
+        if (web3j == null || nft == null || nft.isBlank() || props.getTodasLasClaves().isEmpty()) {
             log.warn("Contrato NFT NO configurado (falta certificadoNftAddress/privateKey/RPC). "
                     + "Certificados en modo demo (txHash simulado, estado en memoria).");
             return new CertificadoNftDemoAdapter();
         }
-        Credentials credentials = Credentials.create(normalizar(props.getPrivateKey()));
+        SelectorFirmante selector = construirSelector(web3j, props);
         log.info("NFT on-chain: emisor={} | contrato={} | chainId={}",
-                credentials.getAddress(), nft, props.getChainId());
-        return new Web3jCertificadoNftAdapter(web3j, credentials, nft, props.getChainId());
+                selector.credenciales().get(0).getAddress(), nft, props.getChainId());
+        return new Web3jCertificadoNftAdapter(web3j, selector, nft, props.getChainId());
     }
 
     @Bean
@@ -117,14 +119,24 @@ public class BeanConfiguration {
     }
 
     /**
-     * Normaliza la clave privada: quita espacios, tabuladores y saltos de línea
-     * (que a veces se cuelan al pegar el secret en paneles de PaaS) y garantiza
-     * el prefijo 0x. Sin esto, un salto accidental hace fallar web3j con
-     * NumberFormatException ("... under radix 16") y el servicio no arranca.
+     * Construye el selector de firmante a partir de todas las claves configuradas
+     * (principal + respaldos). El orden define la prioridad del fallback por saldo.
      */
-    private static String normalizar(String pk) {
-        if (pk == null) return "";
-        String limpio = pk.replaceAll("\\s+", "");
-        return limpio.startsWith("0x") ? limpio : "0x" + limpio;
+    private static SelectorFirmante construirSelector(Web3j web3j, BlockchainProperties props) {
+        List<Credentials> credenciales = new ArrayList<>();
+        for (String clave : props.getTodasLasClaves()) {
+            credenciales.add(Credentials.create(clave));
+        }
+        return new SelectorFirmante(web3j, credenciales);
+    }
+
+    /** Registra en el arranque todas las billeteras oraculo (principal + respaldos). */
+    private static void logOraculos(SelectorFirmante selector, BlockchainProperties props) {
+        List<Credentials> creds = selector.credenciales();
+        for (int i = 0; i < creds.size(); i++) {
+            String rol = (i == 0) ? "principal" : "respaldo";
+            log.info("Oraculo on-chain #{} ({}): {}", i + 1, rol, creds.get(i).getAddress());
+        }
+        log.info("Contrato: {} | chainId: {}", props.getContractAddress(), props.getChainId());
     }
 }

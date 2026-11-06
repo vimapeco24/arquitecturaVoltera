@@ -34,21 +34,21 @@ public class Web3jCadenaAdapter implements CadenaBlockchainPort {
     private static final Logger log = LoggerFactory.getLogger(Web3jCadenaAdapter.class);
 
     private final Web3j web3j;
-    private final Credentials credentials;
+    private final SelectorFirmante selectorFirmante;
     private final String contractAddress;
     private final long chainId;
 
-    public Web3jCadenaAdapter(Web3j web3j, Credentials credentials,
+    public Web3jCadenaAdapter(Web3j web3j, SelectorFirmante selectorFirmante,
                               String contractAddress, long chainId) {
         this.web3j = web3j;
-        this.credentials = credentials;
+        this.selectorFirmante = selectorFirmante;
         this.contractAddress = contractAddress;
         this.chainId = chainId;
     }
 
     @Override
     public boolean disponible() {
-        if (web3j == null || credentials == null
+        if (web3j == null || selectorFirmante == null
                 || contractAddress == null || contractAddress.isBlank()) {
             return false;
         }
@@ -79,6 +79,7 @@ public class Web3jCadenaAdapter implements CadenaBlockchainPort {
             String data = FunctionEncoder.encode(fn);
 
             var receiptProcessor = new PollingTransactionReceiptProcessor(web3j, 3000, 20);
+            Credentials credentials = selectorFirmante.elegir();
             var txManager = new RawTransactionManager(web3j, credentials, chainId, receiptProcessor);
 
             // Gas price dinámico: Amoy rechaza transacciones por debajo de ~25 gwei

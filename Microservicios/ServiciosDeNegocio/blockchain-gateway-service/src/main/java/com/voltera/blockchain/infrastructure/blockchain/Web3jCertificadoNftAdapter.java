@@ -43,21 +43,21 @@ public class Web3jCertificadoNftAdapter implements CertificadoNftPort {
     private static final BigInteger GAS_LIMIT = BigInteger.valueOf(350_000L);
 
     private final Web3j web3j;
-    private final Credentials credentials;
+    private final SelectorFirmante selectorFirmante;
     private final String contractAddress;
     private final long chainId;
 
-    public Web3jCertificadoNftAdapter(Web3j web3j, Credentials credentials,
+    public Web3jCertificadoNftAdapter(Web3j web3j, SelectorFirmante selectorFirmante,
                                       String contractAddress, long chainId) {
         this.web3j = web3j;
-        this.credentials = credentials;
+        this.selectorFirmante = selectorFirmante;
         this.contractAddress = contractAddress;
         this.chainId = chainId;
     }
 
     @Override
     public boolean disponible() {
-        if (web3j == null || credentials == null || contractAddress == null || contractAddress.isBlank()) {
+        if (web3j == null || selectorFirmante == null || contractAddress == null || contractAddress.isBlank()) {
             return false;
         }
         try {
@@ -109,6 +109,7 @@ public class Web3jCertificadoNftAdapter implements CertificadoNftPort {
         try {
             String data = FunctionEncoder.encode(fn);
             var receiptProcessor = new PollingTransactionReceiptProcessor(web3j, 3000, 20);
+            Credentials credentials = selectorFirmante.elegir();
             var txManager = new RawTransactionManager(web3j, credentials, chainId, receiptProcessor);
             BigInteger gasPrice = resolverGasPrice();
 

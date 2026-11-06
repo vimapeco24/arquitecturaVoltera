@@ -18,6 +18,10 @@ services:
       - key: VOLTERA_BLOCKCHAIN_RPC_URL
         sync: false               # se define en el dashboard
       - key: VOLTERA_BLOCKCHAIN_PRIVATE_KEY
-        sync: false               # SECRET (clave de prueba testnet)
+        sync: false               # SECRET (clave de prueba testnet — PRINCIPAL)
+      - key: VOLTERA_BLOCKCHAIN_PRIVATE_KEYS
+        sync: false               # SECRET (clave(s) de RESPALDO, coma-separadas)
       - key: VOLTERA_BLOCKCHAIN_CONTRACT_ADDRESS
+        sync: false
+      - key: VOLTERA_BLOCKCHAIN_CERTIFICADO_NFT
         sync: false
