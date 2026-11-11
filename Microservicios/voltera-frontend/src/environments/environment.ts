@@ -15,6 +15,12 @@ export const environment = {
    * proxy local; el marketplace cae al gateway normal (gatewayBase + /blockchain).
    */
   blockchainBase: '',
+  /**
+   * Base directa del ia-service (Copiloto GenAI). El servidor on-premise está
+   * saturado, así que el ia-service corre del lado de la nube (Render). En dev
+   * se deja vacío para usar el proxy local (gatewayBase + /ia).
+   */
+  iaBase: '',
   /** Credenciales del cliente OAuth2 (client_credentials). */
   oauth: {
     consumerKey: 'ndzpaXfp_KkDgRacWPzwfZvAjLMa',

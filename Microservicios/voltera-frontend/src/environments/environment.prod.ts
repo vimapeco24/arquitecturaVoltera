@@ -26,6 +26,12 @@ export const environment = {
    * Vacío = usa el gateway normal (gatewayBase + /blockchain).
    */
   blockchainBase: 'https://voltera-blockchain-gateway.onrender.com',
+  /**
+   * Base directa del ia-service (Copiloto GenAI, Render — público). El servidor
+   * on-premise está saturado, así que esta capa corre del lado de la nube igual
+   * que el blockchain-gateway. El front llama directo (no pasa por WSO2/BFF).
+   */
+  iaBase: 'https://voltera-ia.onrender.com',
   oauth: {
     consumerKey: '',
     consumerSecret: '',

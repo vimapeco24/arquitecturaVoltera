@@ -1,0 +1,145 @@
+<div class="v-page v-fade">
+  <div class="v-page-head">
+    <span class="v-eyebrow">🤖 Entrega 5 · GenAI · Grupo 5</span>
+    <h1>Agente de diagnóstico de activos DER</h1>
+    <p>
+      Copiloto de soporte de red: un flujo de <strong>tres agentes</strong> (Monitor →
+      Diagnosticador → Acción) que usa los <strong>microservicios como herramientas</strong> (MCP),
+      los <strong>eventos como disparadores</strong> y <strong>RAG</strong> sobre la documentación de
+      los activos (paneles, baterías, inversores, cargadores EV). El agente <strong>propone</strong> el
+      comando correctivo o la orden de campo; una persona <strong>aprueba</strong> (human-in-the-loop).
+    </p>
+  </div>
+
+  <!-- Banda de estado de la plataforma + cajas de la arquitectura de referencia -->
+  <div class="status-band v-card" *ngIf="estado">
+    <div class="chip">
+      <span class="chip-k">Motor</span>
+      <span class="v-badge" [ngClass]="estado.proveedorModeloActivo ? 'ok' : 'warn'">{{ estado.motor }}</span>
+    </div>
+    <div class="chip">
+      <span class="chip-k">Zero-retention</span>
+      <span class="v-badge" [ngClass]="estado.zeroRetention ? 'ok' : 'err'">{{ estado.zeroRetention ? 'sí' : 'no' }}</span>
+    </div>
+    <div class="chip">
+      <span class="chip-k">Humano en el lazo</span>
+      <span class="v-badge" [ngClass]="estado.humanInTheLoop ? 'ok' : 'err'">{{ estado.humanInTheLoop ? 'sí' : 'no' }}</span>
+    </div>
+    <div class="cajas" *ngIf="estado.cajas?.length">
+      <span class="chip-k">Cajas del mapa</span>
+      <span class="v-badge mini" *ngFor="let c of estado.cajas">{{ c }}</span>
+    </div>
+  </div>
+
+  <div class="layout">
+    <!-- Panel de entrada: alerta de telemetría -->
+    <form class="panel v-card" [formGroup]="form" (ngSubmit)="diagnosticar()">
+      <h3>Alerta de telemetría</h3>
+      <p class="sub">El Agente-Monitor evalúa la señal del activo y dispara el flujo.</p>
+
+      <div class="v-field"><label>Activo ID</label><input class="v-input" formControlName="activoId" placeholder="INV-042" /></div>
+      <div class="v-field">
+        <label>Tipo de activo</label>
+        <select class="v-input" formControlName="tipoActivo">
+          <option *ngFor="let t of tiposActivo" [value]="t">{{ t }}</option>
+        </select>
+      </div>
+      <div class="v-field"><label>Comunidad</label><input class="v-input" formControlName="comunidadId" placeholder="COM-NORTE" /></div>
+      <div class="v-field"><label>Métrica</label><input class="v-input" formControlName="metrica" placeholder="voltaje" /></div>
+      <div class="row2">
+        <div class="v-field"><label>Valor observado</label><input class="v-input" type="number" formControlName="valor" /></div>
+        <div class="v-field"><label>Umbral esperado</label><input class="v-input" type="number" formControlName="umbral" /></div>
+      </div>
+      <div class="v-field"><label>Minutos sin señal</label><input class="v-input" type="number" formControlName="minutosSinSenal" /></div>
+      <div class="v-field"><label>Descripción</label><textarea class="v-input" rows="2" formControlName="descripcion"></textarea></div>
+      <div class="v-field"><label>Operador (identidad · IAM)</label><input class="v-input" formControlName="usuario" placeholder="andrea.ops" /></div>
+
+      <div class="form-actions">
+        <button type="submit" class="v-btn primary" [disabled]="analizando">
+          <span class="v-spinner" *ngIf="analizando"></span>{{ analizando ? 'Diagnosticando…' : '🤖 Diagnosticar' }}
+        </button>
+      </div>
+      <p class="hint">POST <code>/api/v1/ia/diagnostico/der</code> · ia-service (nube · Render)</p>
+
+      <!-- Catálogo A2A (Agent Registry) -->
+      <div class="agentes" *ngIf="agentes.length">
+        <h4>Agentes (A2A)</h4>
+        <ul>
+          <li *ngFor="let a of agentes">
+            <strong>{{ a.nombre }}</strong>
+            <code>{{ a.permisos }}</code>
+          </li>
+        </ul>
+      </div>
+    </form>
+
+    <!-- Panel de resultado: diagnóstico -->
+    <div class="result v-card">
+      <div class="result-head">
+        <h3>Diagnóstico del agente</h3>
+        <span class="count" *ngIf="diagnostico">motor: {{ diagnostico.motor }} · {{ diagnostico.promptVersion }}</span>
+      </div>
+
+      <div class="v-empty" *ngIf="!diagnostico && !analizando">
+        <div class="ic">🤖</div>
+        <p>Envía una alerta para ver el diagnóstico, la acción propuesta, la evidencia citada y la traza de los tres agentes.</p>
+      </div>
+      <div class="v-empty" *ngIf="analizando">
+        <div class="ic">⏳</div><p>Monitor → Diagnosticador → Acción…</p>
+      </div>
+
+      <ng-container *ngIf="diagnostico as d">
+        <!-- Propuesta -->
+        <div class="decision-box">
+          <span class="v-badge big" [ngClass]="badgeSeveridad(d.severidad)">severidad {{ d.severidad }}</span>
+          <span class="v-badge" [ngClass]="badgeAccion(d.accionPropuesta)">{{ etiquetaAccion(d.accionPropuesta) }}</span>
+          <span class="v-badge err" *ngIf="d.requiereAprobacionHumana">🧑‍⚖️ requiere aprobación humana</span>
+          <span class="v-badge" *ngIf="d.datosEnmascarados">🔒 PII enmascarada</span>
+        </div>
+
+        <div class="kv"><span class="k">Activo</span><span class="val">{{ d.activoId }} · {{ d.tipoActivo }} · {{ d.comunidadId }}</span></div>
+        <div class="kv"><span class="k">Orden de trabajo</span><span class="val">{{ d.ordenTrabajo }}</span></div>
+        <div class="kv"><span class="k">Operador</span><span class="val">{{ d.usuario }}</span></div>
+
+        <p class="justificacion">{{ d.diagnostico }}</p>
+
+        <!-- Advertencia Responsible AI -->
+        <div class="raiband" [class.alert]="d.requiereAprobacionHumana">
+          <ng-container *ngIf="d.requiereAprobacionHumana; else libre">
+            ⚠️ Esta acción <strong>no se ejecuta sola</strong>: compromete infraestructura crítica, así que
+            el flujo queda en pausa hasta que un operador la apruebe. El agente no actúa sobre el activo.
+          </ng-container>
+          <ng-template #libre>
+            ✅ Acción de solo monitoreo, dentro de los límites del agente. Queda registrada (auditoría).
+          </ng-template>
+        </div>
+
+        <!-- Evidencia citada -->
+        <div class="detail-box">
+          <h4>Evidencia citada ({{ d.evidencias.length }})</h4>
+          <ul class="ev-list">
+            <li *ngFor="let e of d.evidencias">
+              <span class="ev-ic">{{ iconoFuente(e.fuente) }}</span>
+              <div class="ev-body">
+                <div class="ev-head"><strong>{{ e.titulo }}</strong><code class="ev-src">{{ e.fuente }}</code></div>
+                <p class="ev-detail">{{ e.detalle }}</p>
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Traza del flujo agéntico (3 agentes + cajas de gobierno) -->
+        <div class="detail-box">
+          <h4>Traza del flujo agéntico ({{ d.traza.length }} pasos)</h4>
+          <ol class="flow">
+            <li *ngFor="let p of d.traza">
+              <span class="flow-node">{{ p.nodo }}</span>
+              <span class="flow-patron">{{ p.patron }}</span>
+              <p class="flow-detail">{{ p.detalle }}</p>
+            </li>
+          </ol>
+        </div>
+      </ng-container>
+    </div>
+  </div>
+</div>

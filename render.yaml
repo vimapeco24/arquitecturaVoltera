@@ -12,6 +12,16 @@
 #   VOLTERA_BLOCKCHAIN_PRIVATE_KEYS   = 0x... (clave(s) de RESPALDO, coma-separadas; fallback por saldo)
 #   VOLTERA_BLOCKCHAIN_CONTRACT_ADDRESS = 0x59965b91bE294D1da408eAc8BB5455ca1C828000
 #   VOLTERA_BLOCKCHAIN_CERTIFICADO_NFT  = 0x819bc480006D279158CA9dFD6893e73071aC98d2
+#
+# -----------------------------------------------------------------------------
+# ia-service (Entrega 5 · Copiloto de Siniestros GenAI): se despliega también del
+# lado de la NUBE porque el servidor on-premise está saturado. En la nube el
+# broker Redpanda (LAN privada) no es alcanzable → VOLTERA_KAFKA_ENABLED=false
+# (publica por log). El Model Gateway es provider=none por defecto (motor local,
+# Zero-retention): para activar un LLM real, define IA_PROVIDER + IA_LLM_API_KEY
+# en el dashboard. La herramienta de blockchain apunta al gateway público de
+# Render; siniestros-service vive on-premise y el copiloto degrada con elegancia.
+# -----------------------------------------------------------------------------
 services:
   - type: web
     name: voltera-blockchain-gateway
@@ -37,3 +47,38 @@ services:
         sync: false
       - key: VOLTERA_BLOCKCHAIN_CERTIFICADO_NFT
         sync: false
+
+  # Capa GenAI (Entrega 5): Copiloto de Siniestros. Del lado de la nube.
+  - type: web
+    name: voltera-ia
+    runtime: docker
+    plan: free
+    rootDir: Microservicios/ServiciosDeNegocio/ia-service
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: VOLTERA_KAFKA_ENABLED
+        value: "false"            # modo NUBE: el broker Redpanda es LAN privada
+      - key: EUREKA_ENABLED
+        value: "false"            # sin registro Eureka fuera del clúster
+      # Model Gateway: provider=none ⇒ motor local (Zero-retention). Para usar
+      # un LLM real, cambia IA_PROVIDER a "openai-compatible" y define IA_LLM_API_KEY.
+      - key: IA_PROVIDER
+        value: "none"
+      - key: IA_ZERO_RETENTION
+        value: "true"
+      - key: IA_UMBRAL_HUMANO
+        value: "3000000"
+      - key: IA_LLM_API_KEY
+        sync: false               # SECRET (opcional; solo si IA_PROVIDER != none)
+      - key: IA_LLM_BASE_URL
+        sync: false               # opcional (endpoint OpenAI-compatible)
+      - key: IA_LLM_MODEL
+        sync: false               # opcional
+      # Herramientas MCP/REST: blockchain público (Render); siniestros on-premise.
+      - key: IA_TOOLS_ENABLED
+        value: "true"
+      - key: IA_TOOL_BLOCKCHAIN_URL
+        value: "https://voltera-blockchain-gateway.onrender.com"
+      - key: IA_TOOL_SINIESTROS_URL
+        sync: false               # opcional: URL pública si se expone el servicio

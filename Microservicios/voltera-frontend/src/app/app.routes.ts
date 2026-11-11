@@ -147,5 +147,10 @@ export const routes: Routes = [
     title: 'Experimento de validación · Blockchain · Voltera',
     loadComponent: () => import('./pages/experimento-validacion/experimento-validacion.component').then((m) => m.ExperimentoValidacionComponent),
   },
+  {
+    path: 'ia',
+    title: 'Agente de diagnóstico DER · GenAI · Voltera',
+    loadComponent: () => import('./pages/ia/ia.component').then((m) => m.IaComponent),
+  },
   { path: '**', redirectTo: 'panel' },
 ];

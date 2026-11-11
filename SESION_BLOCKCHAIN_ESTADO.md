@@ -885,3 +885,106 @@ falta faucet para la prueba:
 servicio `voltera-blockchain-gateway`, agregar/editar las variables de la guía `1780845587043.md`
 (incluidas las 2 claves privadas, que NO están en el repo), guardar y dejar que redepliegue. El push a
 `main` de este cambio dispara el auto-deploy del código; las claves y el deploy final los coloca el humano.
+
+
+---
+
+## 2026-11-11 · ENTREGA 5 · Capa GenAI (ia-service · Copiloto de Siniestros) — NUEVO
+
+**Qué se construyó (front + backend) y por qué.**
+Se agregó la **capa GenAI** que pide la entrega final: no una "app de IA aparte", sino una
+**capa transversal** que se monta sobre lo ya construido (microservicios como herramientas,
+eventos como disparadores, la cadena como fuente de verdad), bajo una banda de Responsible AI.
+El caso implementado es el **Copiloto de Siniestros** (equivalente Voltera del caso Solventa de
+los PDF de `IA/`): recupera evidencia (RAG), razona (ReAct), llama microservicios como
+herramientas (MCP/REST), consulta la cadena, y **PROPONE** una decisión con evidencia citada y
+traza auditable; **una persona DECIDE** (human-in-the-loop). El agente NO tiene herramienta para
+aprobar pagos.
+
+**Backend nuevo: `Microservicios/ServiciosDeNegocio/ia-service` (Spring Boot 3.3 / Java 21, puerto 8104).**
+Arquitectura hexagonal (misma plantilla que `siniestros-service`). Flujo agéntico de 7 nodos
+(disparo → RAG → ReAct → tool-calling → cadena → human-in-the-loop → registro). Componentes de la
+arquitectura de referencia: Model Gateway (único punto de salida a un LLM, `provider=none` por
+defecto ⇒ **motor LOCAL** determinista, Zero-retention: no saca datos), Knowledge/RAG (demo con
+fuentes citadas), Guardrails (enmascara PII, bloquea inyección de prompt), Herramientas MCP
+(siniestros-service + blockchain-gateway, solo lectura, best-effort con timeout). Emite el evento
+`topic.ia.recomendacion`. `./mvnw clean package` → **3 tests verdes, BUILD SUCCESS**. Verificado en
+runtime: monto alto ⇒ ESCALAR_HUMANO, monto bajo ⇒ APROBAR, PII enmascarada, inyección ⇒ HTTP 422.
+
+**Frontend: módulo `/ia` (Angular 18 standalone).** Nueva página `pages/ia` (consola del copiloto:
+formulario + propuesta + evidencia citada + traza del flujo), servicio `services/ia.service.ts`,
+entrada en `SERVICIOS.ia` (`core/gateway.ts`), ruta en `app.routes.ts` y ítem de menú "Copiloto IA ·
+🤖" en `app.component.ts`. `npm run build` → OK (chunk `ia-component`).
+
+**⚠ DECISIÓN DE DESPLIEGUE (steering del usuario): la capa GenAI va del lado de la NUBE, NO al
+servidor on-premise (saturado).** Mismo patrón que el `blockchain-gateway` (Render) y el front
+(Vercel):
+- `application.yml` respeta `${PORT}` (Render lo inyecta) y define `voltera.kafka.enabled`
+  (**false por defecto = nube**: el broker Redpanda vive en la LAN privada y no es alcanzable).
+- Kafka condicional con `@ConditionalOnProperty`: en la nube se usa `LogEventPublisher` (registra el
+  evento por log); on-premise `KafkaEventPublisher` lo publica al broker. Verificado en runtime con
+  `PORT=8210 VOLTERA_KAFKA_ENABLED=false`.
+- `render.yaml`: nuevo servicio web `voltera-ia` (rootDir del ia-service). La herramienta de
+  blockchain apunta al gateway público de Render; `siniestros-service` vive on-premise y el copiloto
+  **degrada con elegancia** (evidencia "no verificable", baja la confianza) cuando no lo alcanza.
+- Frontend: nuevo `iaBase` en `environment.prod.ts` (`https://voltera-ia.onrender.com`) — el front
+  llama DIRECTO a la nube (no pasa por WSO2/BFF on-premise), igual que `blockchainBase`. En dev
+  (`iaBase` vacío) cae al proxy local `/gw/ia`.
+- `k8s/voltera-ia.yaml` queda como **alternativa on-premise** (documentado así en el encabezado), con
+  `VOLTERA_KAFKA_ENABLED=true`; `docker-compose.yml` también incluye el servicio para pruebas locales.
+
+**Diagrama vivo actualizado** (`Modificados/Voltera_Arquitectura_Completa.drawio`): nueva banda
+**"IA · Capa GenAI (Entrega 5)"** en color morado (transversal), con `ia-service` marcado como
+**Render (nube)**, Model Gateway, Knowledge/RAG, Guardrails+PII y Human Review; aristas a los
+microservicios/cadena como herramientas (siniestros marcado "solo on-premise, degrada en nube"), al
+front (`/ia` directo a Render) y al broker (`topic.ia.recomendacion`, "en nube publica por log").
+Topic añadido al Job central `k8s/voltera-topics.yaml`. **XML revalidado OK** (xml.dom.minidom).
+
+
+---
+
+## 2026-11-11 (cont.) · ENTREGA 5 · Reorientado al CASO REAL del Grupo 5 (taller propuesta-ia)
+
+El usuario aportó el taller "La propuesta de IA del equipo" (Grupo 5) con el caso de negocio
+concreto y las **8 cajas marcadas en amarillo** del mapa de arquitectura de referencia. El caso NO es
+seguros/siniestros sino:
+
+**"Agente de diagnóstico de activos distribuidos (DER) y copiloto de soporte de red".**
+Problema: Voltera gestiona paneles, baterías, inversores y cargadores EV con protocolos heterogéneos y
+conectividad intermitente; operaciones de red necesita detectar anomalías (degradación de batería,
+inversor fuera de rango, medidor sin señal) antes de que escalen a cortes o facturación errónea. Valor:
+reducir el tiempo medio de detección de ~45 min a <5 min; −40% de incidentes que afectan facturación.
+Qué decide una persona: ejecución de comandos físicos, despacho de técnico, corte de suministro.
+
+**Flujo de 3 agentes implementado** (AI Flows): Agente-Monitor (umbrales adaptativos) →
+Agente-Diagnosticador (RAG + MCP, severidad) → Agente-Acción (propone comando/orden de trabajo).
+
+**Las 8 cajas amarillas del taller, realizadas en el `ia-service`:**
+1. **Human Review** — acción sobre infraestructura crítica queda en pausa hasta aprobación humana.
+2. **Knowledge Service (RAG)** — `StubConocimientoDer` (fichas técnicas, fallos por modelo, procedimientos).
+3. **MCP Servers** — `McpDerAdapter` (telemetría tiempo real, historial de comandos, topología; solo lectura).
+4. **Agent Registry (A2A)** — `InMemoryAgentRegistry` (catálogo de los 3 agentes, dueño, permisos) + endpoint GET /agentes.
+5. **Guardrails** — `RegexGuardrails` (enmascara PII, bloquea inyección de prompt).
+6. **Prompt & Model Registry** — `InMemoryPromptModelRegistry` (prompt versionado por agente, p.ej. diagnosticador@v3).
+7. **Identity (IAM)** — la identidad del operador (`usuario`) se propaga; el agente hereda su mínimo privilegio.
+8. **Audit & Retention** — `LogAuditLog` (registra quién, qué activo, acción, prompt/modelo, aprobación).
+
+**Backend:** nuevo use case `DiagnosticoDerUseCase` + `DiagnosticoDerService` + modelo `der/*` +
+controller `POST /api/v1/ia/diagnostico/der` y `GET /api/v1/ia/agentes`; evento nuevo
+`topic.ia.diagnostico` (Kafka on-premise / log en nube). `GET /api/v1/ia/estado` ahora expone el caso,
+los 3 agentes y las 8 cajas. Se conservó el Copiloto de Siniestros como segundo caso. `./mvnw clean
+package` → **6 tests verdes** (3 DER + 3 siniestros). Verificado en runtime: inversor fuera de rango →
+CRÍTICA → COMANDO_FISICO → requiere aprobación humana → OT "PENDIENTE DE APROBACIÓN", PII enmascarada,
+prompt versionado, traza de 8 nodos.
+
+**Frontend:** la página `/ia` ahora es la **consola de diagnóstico DER** (alerta de telemetría →
+diagnóstico + acción + evidencia + traza de los 3 agentes + catálogo A2A + banda con las 8 cajas).
+Menú "Agente DER · 🤖". `npm run build` OK.
+
+**Despliegue:** sin cambios respecto a la nota anterior — sigue del lado de la NUBE (Render,
+`voltera-ia`), Kafka OFF en nube (publica por log), herramienta de telemetría on-premise degrada con
+elegancia. Topic `topic.ia.diagnostico` añadido a `k8s/voltera-topics.yaml`.
+
+**Diagrama vivo actualizado** (`Modificados/Voltera_Arquitectura_Completa.drawio`): la banda GenAI
+ahora describe el caso DER (3 agentes) y mapea las 8 cajas del taller; aristas reapuntadas a la capa de
+telemetría on-premise y al topic `topic.ia.diagnostico`. XML revalidado OK.

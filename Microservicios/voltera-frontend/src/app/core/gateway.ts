@@ -34,4 +34,8 @@ export const SERVICIOS = {
   // Nuevos microservicios DDD alrededor de la cadena (lámina 04). NO tocan la cadena.
   certificacionGeneracion: 'certificacion-generacion',
   certificadosRenovables: 'certificados-renovables',
+  // Plataforma GenAI (Entrega 5): capa transversal. El Copiloto de Siniestros usa
+  // los microservicios como herramientas, los eventos como disparadores y la
+  // cadena como fuente de verdad. El agente PROPONE; la persona DECIDE.
+  ia: 'ia',
 } as const;

@@ -51,6 +51,7 @@ export class AppComponent {
     { path: '/certificados', label: 'Certificados NFT · 🪙', icon: '🪙' },
     { path: '/microservicios-cadena', label: 'Microservicios cadena · 🧩', icon: '🧩' },
     { path: '/experimento-validacion', label: 'Experimento · 🧪', icon: '🧪' },
+    { path: '/ia', label: 'Agente DER · 🤖', icon: '🤖' },
   ];
 
   toggle(): void {

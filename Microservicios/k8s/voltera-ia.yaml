@@ -1,0 +1,118 @@
+# ============================================================================
+# VOLTERA — CAPA GenAI (Entrega 5): ia-service (Copiloto de Siniestros)
+# ----------------------------------------------------------------------------
+# ⚠ DESPLIEGUE PRINCIPAL = NUBE (Render), NO este clúster. El servidor
+# on-premise está saturado, por eso el ia-service se despliega del lado de la
+# nube (ver render.yaml, servicio "voltera-ia"), junto al frontend (Vercel) y
+# al blockchain-gateway (Render). Este manifiesto queda como ALTERNATIVA para
+# correr el servicio DENTRO del clúster si en el futuro hay capacidad: aquí sí
+# hay broker Redpanda, por eso VOLTERA_KAFKA_ENABLED=true.
+#
+# Plataforma GenAI que se monta como CAPA TRANSVERSAL sobre los cuatro estilos
+# previos (ver IA/*.pdf · arquitectura de referencia GenAI / caso Solventa):
+#   - usa los microservicios como HERRAMIENTAS (MCP/REST, minimo privilegio),
+#   - reacciona a EVENTOS del broker (disparadores),
+#   - consulta la CADENA del consorcio como fuente de verdad,
+#   - y bajo una banda de Responsible AI (guardrails, PII, human-in-the-loop).
+#
+#   ia-service (8104)
+#     - Model Gateway : unico punto de salida a un LLM. provider=none por
+#                       defecto -> motor LOCAL (Zero-retention: no saca datos).
+#     - Knowledge/RAG : recupera evidencia citada (demo: StubKnowledgeService).
+#     - Herramientas  : siniestros-service (estado) + blockchain-gateway (riesgo
+#                       cedido), via REST con timeout best-effort.
+#     - Guardrails    : enmascara PII y bloquea inyeccion de prompt.
+#     - EDA           : publica topic.ia.recomendacion por cada propuesta.
+#
+# El agente PROPONE; la persona DECIDE. No tiene herramienta para aprobar pagos.
+#
+# Para activar un LLM real (opcional), crear el Secret y poner IA_PROVIDER:
+#   kubectl -n voltera-app create secret generic voltera-ia-secret \
+#     --from-literal=llm-api-key='sk-...'
+#
+# Aplicar (SOLO si se corre on-premise):  kubectl apply -f voltera-ia.yaml
+# Requiere: redpanda (voltera-eda.yaml) y topics (voltera-topics.yaml, que ya
+#           incluye topic.ia.recomendacion).
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ia-service
+  namespace: voltera-app
+  labels: { app: ia-service }
+  annotations:
+    voltera.io/entrega-5: "Capa GenAI transversal"
+    voltera.io/rol: "Copiloto de Siniestros (RAG + ReAct + MCP + guardrails + human-in-the-loop)"
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: ia-service } }
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 0, maxUnavailable: 1 }
+  template:
+    metadata:
+      labels: { app: ia-service, version: v1 }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/actuator/prometheus"
+        prometheus.io/port: "8104"
+    spec:
+      imagePullSecrets: [{ name: harbor-cred }]
+      containers:
+        - name: ia-service
+          image: 192.168.3.13/app-voltaire/ia-service:1.0.0
+          ports: [{ containerPort: 8104 }]
+          env:
+            - { name: EUREKA_ENABLED, value: "true" }
+            - { name: EUREKA_URL, value: "http://service-registry:8761/eureka/" }
+            - { name: KAFKA_BOOTSTRAP_SERVERS, value: "redpanda.voltera-app:9092" }
+            # On-premise SÍ hay broker: se habilita la publicación a Kafka.
+            - { name: VOLTERA_KAFKA_ENABLED, value: "true" }
+            # --- Model Gateway (Zero-retention por defecto: sin proveedor) ---
+            - { name: IA_PROVIDER, value: "none" }
+            - name: IA_LLM_API_KEY
+              valueFrom:
+                secretKeyRef: { name: voltera-ia-secret, key: llm-api-key, optional: true }
+            - { name: IA_ZERO_RETENTION, value: "true" }
+            - { name: IA_UMBRAL_HUMANO, value: "3000000" }
+            # --- Herramientas MCP/REST (clúster interno) ---
+            - { name: IA_TOOLS_ENABLED, value: "true" }
+            - { name: IA_TOOL_SINIESTROS_URL, value: "http://siniestros-service:8091" }
+            - { name: IA_TOOL_BLOCKCHAIN_URL, value: "http://blockchain-gateway-service:8101" }
+          resources:
+            limits: { cpu: "500m", memory: "512Mi" }
+            requests: { cpu: "50m", memory: "200Mi" }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8104 }
+            initialDelaySeconds: 25
+            periodSeconds: 10
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ia-service
+  namespace: voltera-app
+spec:
+  selector: { app: ia-service }
+  ports: [{ port: 8104, targetPort: 8104 }]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: ia-service
+  namespace: voltera-app
+spec:
+  parentRefs:
+    - name: istio-ingress
+      namespace: istio-ingress
+  rules:
+    - matches:
+        - path: { type: PathPrefix, value: /ia }
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path: { type: ReplacePrefixMatch, replacePrefixMatch: "" }
+      backendRefs:
+        - name: ia-service
+          port: 8104

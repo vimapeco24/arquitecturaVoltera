@@ -87,6 +87,14 @@ spec:
               crear topic.cobros.pago-confirmado 1
               # --- Dominio Blockchain (anclaje de liquidaciones P2P en Polygon) ---
               crear topic.blockchain.anclada 1
+              # --- Capa GenAI (Entrega 5): recomendaciones del Copiloto de Siniestros ---
+              # El ia-service publica aqui cada propuesta (decision sugerida, monto,
+              # confianza, si exige revision humana). Sin PII: Zero-retention / Audit.
+              crear topic.ia.recomendacion 1
+              # --- Capa GenAI (Entrega 5 · Grupo 5): diagnosticos del Agente DER ---
+              # El ia-service publica aqui cada diagnostico de activo DER (severidad,
+              # accion propuesta, si exige aprobacion humana). Sin PII.
+              crear topic.ia.diagnostico 1
               echo "=== Topics declarados ==="
               rpk topic list --brokers "$BROKER"
           resources:
