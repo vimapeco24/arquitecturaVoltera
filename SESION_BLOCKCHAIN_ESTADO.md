@@ -1,7 +1,7 @@
 # Estado de la sesión — Blockchain Voltera
 
-> Punto de retome para la próxima sesión. Última actualización: 2026-11-03 (AUDITORÍA DE ENTREGA del
-> proyecto Blockchain: sincronización de docs con el código real; sin cambios de arquitectura).
+> Punto de retome para la próxima sesión. Última actualización: 2026-11-11 (DESPLIEGUE de la capa
+> GenAI — Entrega 5 — a la nube + UX del flujo agéntico paso a paso en el front `/ia`).
 > Lee este archivo primero al reconectar.
 
 ## ✅ AUDITORÍA DE ENTREGA · carpeta `Blockchain/` (2026-11-03)
@@ -988,3 +988,79 @@ elegancia. Topic `topic.ia.diagnostico` añadido a `k8s/voltera-topics.yaml`.
 **Diagrama vivo actualizado** (`Modificados/Voltera_Arquitectura_Completa.drawio`): la banda GenAI
 ahora describe el caso DER (3 agentes) y mapea las 8 cajas del taller; aristas reapuntadas a la capa de
 telemetría on-premise y al topic `topic.ia.diagnostico`. XML revalidado OK.
+
+
+---
+
+## 2026-11-11 (cont.) · DESPLIEGUE de la capa GenAI a la nube + UX del flujo agéntico
+
+Pedido de la sesión: desplegar front y backend de la capa GenAI (Entrega 5 · Grupo 5), validar que
+todo quede LIVE, y mejorar el front `/ia` para que al diagnosticar se vea el **flujo paso a paso**.
+
+### ✅ Despliegue — TODO LIVE Y VERIFICADO EN VIVO
+- **Backend (Render, auto-deploy por push a `main`):**
+  - `voltera-ia` (ia-service, Entrega 5) → **HTTP 200**. `GET /api/v1/ia/estado` devuelve la versión
+    nueva: caso "Agente de diagnóstico de activos DER (Grupo 5)", 3 agentes (Monitor→Diagnosticador→
+    Acción), las **8 cajas** (1-Human Review … 8-Audit & Retention), `motor: local`,
+    `zeroRetention:true`, `humanInTheLoop:true`. `GET /api/v1/ia/agentes` (A2A) 200. Caso 1 (DER):
+    inversor 265>240 → CRÍTICA → COMANDO_FISICO → requiere aprobación humana, 7 evidencias, traza de
+    8 nodos. Caso 2 (Copiloto Siniestros): monto alto → ESCALAR_HUMANO.
+  - `voltera-blockchain-gateway` → HTTP 200 (resultó que `voltera-ia` ya existía en Render, así que
+    el push bastó para redesplegar ambos; no hubo que crear el servicio a mano).
+  - ⚠ **Cold start de Render (plan free):** la 1ª petición tras inactividad tarda 30–60 s (lo vimos:
+    gateway tardó 50 s el primer golpe, luego instantáneo). Para la DEMO: calentar antes abriendo
+    `/api/v1/ia/estado` y `/api/v1/anclajes/red` ~1 min antes. NO es un fallo.
+- **Front (Vercel):** `https://voltera-frontend.vercel.app/ia` → HTTP 200, chunk del build nuevo
+  servido (verificado por hash del chunk). **IMPORTANTE: el proyecto de Vercel NO está conectado a
+  Git** → el push a `main` NO redespliega el front solo. El front se despliega con el CLI:
+  `cd Microservicios/voltera-frontend && npx vercel --prod --yes --token <TOKEN_VERCEL>`
+  (o conectar una vez con `vercel git connect` para auto-deploy).
+
+### ✅ Validación contra el taller del profesor (Grupo 5)
+Se contrastó código real vs. taller "La propuesta de IA" y el mapa de arquitectura de referencia:
+- Las **8 cajas amarillas** del mapa están implementadas (Human Review, RAG, MCP, Agent Registry A2A,
+  Guardrails+PII, Prompt&Model Registry, IAM, Audit&Retention) — mapeadas 1:1 en `DiagnosticoDerService`
+  y sus puertos/adaptadores. Confirmado por lectura de `InMemoryAgentRegistry`, `McpDerAdapter`, etc.
+- El **Paso 1 del taller (caso de negocio)** queda respaldado por el servicio desplegado: nombre del
+  caso, problema, quién lo usa, valor esperado (45min→<5min, −40% facturación), qué hace la IA
+  (3 agentes + RAG + MCP) y qué decide una persona (comando físico/corte/despacho → human-in-the-loop).
+
+### ✅ UX nueva en el front `/ia` — reproductor del flujo agéntico paso a paso
+Archivos: `Microservicios/voltera-frontend/src/app/pages/ia/ia.component.{ts,html,scss}`.
+- **Línea de tiempo animada** de los 8 nodos (Guardrails+IAM → Agent Registry A2A → Agente-Monitor →
+  RAG → MCP → Agente-Diagnosticador → Agente-Acción → Human Review): nodo activo con **pulso**,
+  completados con **check**, línea vertical que se "enciende". Ritmo ~520 ms/nodo (~4 s total).
+- El **detalle real** de cada paso se engancha desde `d.traza` del backend (las 8 claves del guion del
+  front coinciden EXACTAMENTE con los `nodo` que emite el backend: `guardrails, agent-registry,
+  agente-monitor, rag, mcp, agente-diagnosticador, agente-accion, human-review`). El resultado final
+  (decisión/evidencia) se revela al terminar el recorrido. Respeta `prefers-reduced-motion`. Maneja
+  cold start: si la red tarda, la animación espera la respuesta real antes de revelar.
+- **Activo ID autogenerado** por petición: prefijo por tipo de activo (INV/BAT/PNL/EVC/MED) + correlativo
+  del reloj; campo readonly con botón **🎲 regenerar**; se regenera al cambiar el tipo de activo.
+- **Scroll automático** al panel de resultado al presionar "Diagnosticar" (corrige el síntoma "no veo
+  el flujo": la animación corría pero quedaba fuera de vista si había scroll). `npm run build` OK
+  (`ia-component` ~26 kB).
+
+### Commits de la sesión (todos en `origin/main`, repo sincronizado)
+- `373e739` Entrega 5 (capa GenAI): ia-service + página `/ia` + render.yaml/k8s/docker-compose/topics/diagrama.
+- `243cd18` Front `/ia`: reproductor del flujo agéntico paso a paso (timeline animada).
+- `9f65b98` Front `/ia`: Activo ID autogenerado + scroll automático al panel (flujo siempre visible).
+
+### Diagrama vivo
+NO se tocó en esta sesión: no hubo cambio de topología (ni servicios, ni topics, ni puertos, ni
+patrones nuevos) — solo despliegue y UX del front. La banda GenAI con el caso DER y las 8 cajas ya
+estaba en el `.drawio` (de la nota del 2026-11-11 previa). Regla permanente cumplida.
+
+### ⚠ SEGURIDAD — acción pendiente del usuario
+En el chat se pegaron dos tokens que quedaron COMPROMETIDOS → **revocarlos**:
+- GitHub PAT `ghp_9tHk…` (usado para `git push https://vimapeco24:<PAT>@github.com/...`).
+- Vercel token `vcp_0xcF…` (usado para `vercel --prod --token`).
+Ninguno se escribió en archivos ni en `.git/config` (verificado: `origin` queda sin credenciales).
+
+### Cómo retomar / reproducir el despliegue la próxima vez
+1. Backend: `git push origin main` → Render redesplega `voltera-ia` y `voltera-blockchain-gateway`.
+2. Front: `cd Microservicios/voltera-frontend && npx vercel --prod --yes --token <TOKEN_VERCEL>`.
+3. Calentar Render antes de demo (cold start): abrir `/api/v1/ia/estado` y `/api/v1/anclajes/red`.
+4. Credenciales de git: la cuenta activa de la máquina es `victorperez-TCS` (SIN permiso de escritura
+   en el repo `vimapeco24/arquitecturaVoltera`) → el push necesita un PAT de `vimapeco24` o
+   re-autenticar `gh` como `vimapeco24`.
