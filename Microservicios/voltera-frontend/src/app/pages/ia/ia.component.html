@@ -55,8 +55,8 @@
       <div class="v-field"><label>Operador (identidad · IAM)</label><input class="v-input" formControlName="usuario" placeholder="andrea.ops" /></div>
 
       <div class="form-actions">
-        <button type="submit" class="v-btn primary" [disabled]="analizando">
-          <span class="v-spinner" *ngIf="analizando"></span>{{ analizando ? 'Diagnosticando…' : '🤖 Diagnosticar' }}
+        <button type="submit" class="v-btn primary" [disabled]="reproduciendo">
+          <span class="v-spinner" *ngIf="reproduciendo"></span>{{ reproduciendo ? 'Diagnosticando…' : '🤖 Diagnosticar' }}
         </button>
       </div>
       <p class="hint">POST <code>/api/v1/ia/diagnostico/der</code> · ia-service (nube · Render)</p>
@@ -80,15 +80,42 @@
         <span class="count" *ngIf="diagnostico">motor: {{ diagnostico.motor }} · {{ diagnostico.promptVersion }}</span>
       </div>
 
-      <div class="v-empty" *ngIf="!diagnostico && !analizando">
+      <div class="v-empty" *ngIf="!diagnostico && !reproduciendo">
         <div class="ic">🤖</div>
         <p>Envía una alerta para ver el diagnóstico, la acción propuesta, la evidencia citada y la traza de los tres agentes.</p>
       </div>
-      <div class="v-empty" *ngIf="analizando">
-        <div class="ic">⏳</div><p>Monitor → Diagnosticador → Acción…</p>
+
+      <!-- ============ Reproductor del flujo agéntico (paso a paso en vivo) ============ -->
+      <div class="runner" *ngIf="reproduciendo">
+        <div class="runner-head">
+          <span class="v-spinner"></span>
+          <span class="runner-title">Ejecutando el flujo agéntico…</span>
+          <span class="runner-count">{{ pasoActivo + 1 }} / {{ flujo.length }}</span>
+        </div>
+        <ol class="runline">
+          <li *ngFor="let n of flujo; let i = index"
+              [class.pendiente]="n.estado === 'pendiente'"
+              [class.activo]="n.estado === 'activo'"
+              [class.ok]="n.estado === 'ok'">
+            <span class="dot">
+              <span class="pulse" *ngIf="n.estado === 'activo'"></span>
+              <span class="tick" *ngIf="n.estado === 'ok'">✓</span>
+            </span>
+            <div class="rl-body">
+              <div class="rl-head">
+                <span class="rl-ic">{{ n.icono }}</span>
+                <strong class="rl-title">{{ n.titulo }}</strong>
+                <code class="rl-patron">{{ n.patron }}</code>
+                <span class="rl-state" *ngIf="n.estado === 'activo'">procesando…</span>
+              </div>
+              <p class="rl-detail" *ngIf="n.estado === 'ok' && n.detalle">{{ n.detalle }}</p>
+            </div>
+          </li>
+        </ol>
       </div>
 
       <ng-container *ngIf="diagnostico as d">
+        <div class="result-reveal"></div>
         <!-- Propuesta -->
         <div class="decision-box">
           <span class="v-badge big" [ngClass]="badgeSeveridad(d.severidad)">severidad {{ d.severidad }}</span>

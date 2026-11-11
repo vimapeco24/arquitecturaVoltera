@@ -103,3 +103,91 @@
 }
 .flow-patron { font-size: 11.5px; color: var(--v-text-dim); }
 .flow-detail { font-size: 13px; color: var(--v-text-soft); line-height: 1.5; margin-top: 3px; }
+
+/* ======================================================================
+   Reproductor del flujo agéntico (animación paso a paso en vivo)
+   ====================================================================== */
+.runner {
+  animation: runner-in 0.25s ease both;
+}
+@keyframes runner-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+.runner-head {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 18px;
+  padding-bottom: 12px; border-bottom: 1px dashed var(--v-border);
+}
+.runner-title { font-size: 14px; font-weight: 700; color: var(--v-text); }
+.runner-count {
+  margin-left: auto; font-size: 12px; font-weight: 700; color: var(--v-primary);
+  font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--v-primary) 14%, transparent);
+  padding: 2px 10px; border-radius: 999px;
+}
+
+.runline { list-style: none; margin: 0; padding: 0; }
+.runline li {
+  position: relative; display: flex; gap: 14px; padding: 0 0 14px 0;
+  transition: opacity 0.3s ease;
+}
+/* línea vertical que une los nodos */
+.runline li::before {
+  content: ''; position: absolute; left: 12px; top: 26px; bottom: 0; width: 2px;
+  background: var(--v-border);
+}
+.runline li:last-child::before { display: none; }
+.runline li.ok::before { background: color-mix(in srgb, var(--v-primary) 55%, transparent); }
+
+.runline .dot {
+  position: relative; flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  border: 2px solid var(--v-border); background: var(--v-bg-2);
+  font-size: 12px; font-weight: 800; color: #06121f; transition: all 0.3s ease; z-index: 1;
+}
+.runline li.pendiente { opacity: 0.5; }
+.runline li.pendiente .dot { border-color: var(--v-border); }
+.runline li.activo .dot {
+  border-color: var(--v-primary);
+  background: color-mix(in srgb, var(--v-primary) 18%, transparent);
+}
+.runline li.ok .dot { border-color: var(--v-primary); background: var(--v-primary); }
+
+.runline .dot .tick { color: #06121f; font-size: 14px; line-height: 1; }
+/* pulso del nodo activo */
+.runline .dot .pulse {
+  position: absolute; inset: -2px; border-radius: 50%;
+  border: 2px solid var(--v-primary);
+  animation: node-pulse 1.1s ease-out infinite;
+}
+@keyframes node-pulse {
+  0%   { transform: scale(1);   opacity: 0.8; }
+  100% { transform: scale(1.9); opacity: 0;   }
+}
+
+.rl-body { flex: 1 1 auto; padding-top: 1px; }
+.rl-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.rl-ic { font-size: 15px; }
+.rl-title { font-size: 13.5px; font-weight: 700; color: var(--v-text); }
+.runline li.pendiente .rl-title { color: var(--v-text-dim); }
+.runline li.activo .rl-title { color: var(--v-primary); }
+.rl-patron { font-size: 11px; background: var(--v-surface); padding: 1px 7px; border-radius: 5px; color: var(--v-accent); }
+.rl-state {
+  font-size: 11px; color: var(--v-primary); font-weight: 700; letter-spacing: 0.3px;
+  animation: blink 1s steps(2, start) infinite;
+}
+@keyframes blink { to { opacity: 0.35; } }
+
+.rl-detail {
+  font-size: 12.5px; color: var(--v-text-soft); line-height: 1.5; margin-top: 5px;
+  animation: detail-in 0.3s ease both;
+}
+@keyframes detail-in { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+
+/* el resultado final aparece con un suave fade cuando termina el recorrido */
+.result-reveal { animation: none; }
+.decision-box { animation: reveal-in 0.4s ease both; }
+@keyframes reveal-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .runner, .rl-detail, .decision-box { animation: none; }
+  .runline .dot .pulse, .rl-state { animation: none; }
+}
