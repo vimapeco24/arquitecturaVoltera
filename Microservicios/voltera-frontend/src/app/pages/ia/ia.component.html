@@ -37,7 +37,13 @@
       <h3>Alerta de telemetría</h3>
       <p class="sub">El Agente-Monitor evalúa la señal del activo y dispara el flujo.</p>
 
-      <div class="v-field"><label>Activo ID</label><input class="v-input" formControlName="activoId" placeholder="INV-042" /></div>
+      <div class="v-field">
+        <label>Activo ID <span class="auto-tag">· auto</span></label>
+        <div class="input-with-btn">
+          <input class="v-input" formControlName="activoId" placeholder="INV-0423" readonly />
+          <button type="button" class="v-btn ghost gen" (click)="regenerarActivoId()" title="Generar otro Activo ID" [disabled]="reproduciendo">🎲</button>
+        </div>
+      </div>
       <div class="v-field">
         <label>Tipo de activo</label>
         <select class="v-input" formControlName="tipoActivo">
@@ -74,7 +80,7 @@
     </form>
 
     <!-- Panel de resultado: diagnóstico -->
-    <div class="result v-card">
+    <div class="result v-card" #panelResultado>
       <div class="result-head">
         <h3>Diagnóstico del agente</h3>
         <span class="count" *ngIf="diagnostico">motor: {{ diagnostico.motor }} · {{ diagnostico.promptVersion }}</span>

@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, inject } from '@angular/core';
+import { Component, ElementRef, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { IaService, DiagnosticoResponse, EstadoIa, AgenteRegistrado, PasoDto } from '../../services/ia.service';
@@ -48,6 +48,9 @@ export class IaComponent implements OnInit, OnDestroy {
   diagnostico?: DiagnosticoResponse;
   analizando = false;
 
+  /** Panel de resultado, para hacer scroll al arrancar el flujo. */
+  @ViewChild('panelResultado') panelResultado?: ElementRef<HTMLElement>;
+
   /** Pipeline visual del flujo agéntico (se anima paso a paso al diagnosticar). */
   flujo: NodoFlujo[] = [];
   /** índice del paso que se está "ejecutando" ahora (-1 = ninguno). */
@@ -75,7 +78,7 @@ export class IaComponent implements OnInit, OnDestroy {
   readonly tiposActivo = ['PANEL_SOLAR', 'BATERIA', 'INVERSOR', 'CARGADOR_EV', 'MEDIDOR'];
 
   form: FormGroup = this.fb.group({
-    activoId: ['INV-042', Validators.required],
+    activoId: [this.generarActivoId(), Validators.required],
     tipoActivo: ['INVERSOR', Validators.required],
     comunidadId: ['COM-NORTE', Validators.required],
     metrica: ['voltaje', Validators.required],
@@ -86,9 +89,35 @@ export class IaComponent implements OnInit, OnDestroy {
     usuario: ['andrea.ops', Validators.required],
   });
 
+  /**
+   * Genera un Activo ID único para la petición. Prefijo según el tipo de activo
+   * seleccionado (INV, BAT, PNL, EVC, MED) + un correlativo de 4 dígitos derivado
+   * del reloj, de modo que cada diagnóstico sea trazable a un activo distinto.
+   */
+  generarActivoId(): string {
+    const prefijos: Record<string, string> = {
+      PANEL_SOLAR: 'PNL',
+      BATERIA: 'BAT',
+      INVERSOR: 'INV',
+      CARGADOR_EV: 'EVC',
+      MEDIDOR: 'MED',
+    };
+    const tipo = this.form?.get('tipoActivo')?.value ?? 'INVERSOR';
+    const px = prefijos[tipo] ?? 'DER';
+    const n = (Date.now() % 9000) + 1000; // 1000..9999
+    return `${px}-${n}`;
+  }
+
+  /** Botón "regenerar": asigna un nuevo Activo ID al formulario. */
+  regenerarActivoId(): void {
+    this.form.get('activoId')?.setValue(this.generarActivoId());
+  }
+
   ngOnInit(): void {
     this.svc.estado().subscribe({ next: (e) => (this.estado = e), error: () => {} });
     this.svc.agentes().subscribe({ next: (a) => (this.agentes = a ?? []), error: () => {} });
+    // Si cambia el tipo de activo, el Activo ID autogenerado toma el nuevo prefijo.
+    this.form.get('tipoActivo')?.valueChanges.subscribe(() => this.regenerarActivoId());
   }
 
   ngOnDestroy(): void {
@@ -109,6 +138,12 @@ export class IaComponent implements OnInit, OnDestroy {
     this.pendiente = undefined;
     this.pasoActivo = -1;
     this.flujo = this.guion.map((g) => ({ ...g, estado: 'pendiente' as const }));
+
+    // Lleva el panel de resultado a la vista para que SIEMPRE se vea el flujo
+    // arrancar (en móvil/scroll el runner queda arriba del panel derecho).
+    setTimeout(() => {
+      this.panelResultado?.nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 0);
 
     // Arranca la animación del recorrido inmediatamente (no espera la red):
     // el primer nodo se enciende y los siguientes avanzan por tiempo. El detalle
