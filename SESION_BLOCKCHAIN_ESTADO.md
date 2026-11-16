@@ -1,8 +1,61 @@
 # Estado de la sesión — Blockchain Voltera
 
-> Punto de retome para la próxima sesión. Última actualización: 2026-11-11 (DESPLIEGUE de la capa
-> GenAI — Entrega 5 — a la nube + UX del flujo agéntico paso a paso en el front `/ia`).
+> Punto de retome para la próxima sesión. Última actualización: 2026-11-16 (MÓDULO 5 completo: el
+> `ia-service` y el front `/ia` ahora implementan lo que describe el documento Final —
+> 4 agentes + Assistant + gobernanza multi-firma 3/3 (contrato `MultiFirmaAccionDER`) + 2 MCP Servers
+> + Evals&Tracing + tópicos `der.*`. Diagrama `.drawio` actualizado y validado).
 > Lee este archivo primero al reconectar.
+
+## 2026-11-16 · MÓDULO 5 · Alinear el código al documento Final (Agente DER + gobernanza 3/3) — NUEVO
+
+Pedido: revisar `Voltera_Modulo5_Agente_Diagnostico_DER- Final.md` y, si faltaba algo, agregarlo al
+proyecto de IA. El documento Final describía un diseño más completo que el `ia-service` implementado
+(que tenía 3 agentes, MCP de solo lectura y un "Human Review" genérico). Se implementó TODO lo que el
+documento promete (opción "hazlo todo completo"), incluido el front.
+
+**Backend `ia-service` (hexagonal, se conservó lo existente):**
+- **4º agente · Notificador** (`NotificadorPort` + `NotificacionesAdapter`): notifica a los firmantes
+  y **escala al MISMO firmante pendiente** ante timeout (nunca transfiere la decisión).
+- **Assistant** (`AsistenteUseCase`/`AsistenteService` + `AsistenteController`): conversa sobre un
+  diagnóstico concreto antes de firmar, **sin herramientas de acción**, prompts por audiencia
+  (prosumidor simple / operador técnico) y **guardrail de no persuasión** (`neutralizarPersuasion`).
+- **Gobernanza multi-firma 3/3** (`GobernanzaAccionUseCase`/`GobernanzaAccionService` +
+  `GobernanzaController`): agregado `PropuestaAccion` con el ciclo PENDIENTE→APROBADA→EJECUTADA /
+  RECHAZADA / VENCIDA. Firma 1 Agente IA (al crear) · Firma 2 Operador · Firma 3 Prosumidor.
+  **Sin modo 2/3 (fail-closed)**: la ejecución solo se dispara con 3/3. TTL por criticidad.
+- **2º MCP Server · MCP Blockchain Gateway** (`McpBlockchainGatewayPort` + `McpBlockchainGatewayAdapter`):
+  crear propuesta / registrar firma / ejecutar, REST al blockchain-gateway con fallback demo
+  determinista; re-verifica 3/3 antes de ejecutar.
+- **Evals & Tracing (Tema 5)** (`EvalsUseCase`/`EvalsService` + `EvalsController`): compuerta de
+  calidad por versión de prompt (acierto ≥85%, citas ≥95%, 0 comandos inventados ⇒ APTA; si no, rollback).
+- **Tópicos `der.*`**: publicador de gobernanza a `der.gobernanza` (Kafka on-premise / log en nube);
+  `der.estado`/`der.alertas`/`der.gobernanza` añadidos a `k8s/voltera-topics.yaml`. TTL en `application.yml`.
+- **State & Memory**: repositorios en memoria de diagnósticos y propuestas; el diagnóstico se guarda
+  para que el Assistant y la gobernanza lo recuperen por id.
+- **`/estado`** actualizado (4 agentes, Assistant, 2 MCP, gobernanza 3/3, tópico).
+- **Tests**: de 6 a **16 verdes** (`./mvnw clean test` BUILD SUCCESS) — + gobernanza (6) + Assistant (4).
+
+**Blockchain `Blockchain/`:**
+- Nuevo contrato **`MultiFirmaAccionDER.sol`** (patrón MULTIPLE AUTHORIZATION 3/3 tipado: roles
+  AGENTE_IA/OPERADOR/PROSUMIDOR; TTL, rechazo, caducidad; guarda hash del diagnóstico + versión de
+  prompt/modelo). **8 tests nuevos** → suite total **45 passing** (`npx hardhat test`).
+  Estado: escrito+probado, **NO desplegado** (gas, como el resto de contratos nuevos).
+
+**Front `voltera-frontend` (`/ia`), build OK (`ia-component` 41.56 kB):**
+- `ia.service.ts`: métodos de gobernanza (proponer/firmar/rechazar/listar), Assistant (preguntar) y Evals.
+- Página `/ia`: sección **Assistant** (chat por audiencia, sin acción), sección **Gobernanza 3/3**
+  (crear propuesta → firmar operador/prosumidor → estado EJECUTADA/RECHAZADA/VENCIDA, firmas, hash,
+  versión de prompt/modelo) y tabla **Evals & Tracing** por versión. Banda de estado actualizada.
+
+**Diagrama vivo** (`Modificados/Voltera_Arquitectura_Completa.drawio`): banda GenAI ampliada
+(4 agentes + Assistant, 2 MCP Servers, Evals); nuevo contrato `MultiFirmaAccionDER` en la capa
+blockchain con aristas MCP Blockchain Gateway → contrato (3/3); tópicos `der.*` en la arista al broker.
+**XML revalidado OK** (xml.dom.minidom). Regla permanente cumplida.
+
+**Pendiente (acción del usuario):** desplegar `MultiFirmaAccionDER` a Amoy requiere gas (como los otros
+3 contratos nuevos). El front se despliega con el CLI de Vercel; el backend redesplega en Render al push.
+
+---
 
 ## ✅ AUDITORÍA DE ENTREGA · carpeta `Blockchain/` (2026-11-03)
 

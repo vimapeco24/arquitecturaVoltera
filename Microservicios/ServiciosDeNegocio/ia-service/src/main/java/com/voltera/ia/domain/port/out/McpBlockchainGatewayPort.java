@@ -1,0 +1,28 @@
+package com.voltera.ia.domain.port.out;
+
+import com.voltera.ia.domain.model.gobernanza.Firma;
+import com.voltera.ia.domain.model.gobernanza.PropuestaAccion;
+
+/**
+ * MCP Blockchain Gateway (segundo MCP Server del caso). Aísla al LLM y a los
+ * agentes de la complejidad on-chain del contrato {@code MultiFirmaAccionDER}:
+ * expone crear propuesta, registrar firma y ejecutar la acción aprobada como
+ * herramientas con identidad Zero Trust. Es un puerto de salida; el adaptador
+ * puede hablar con el contrato real (vía blockchain-gateway) o funcionar en modo
+ * demo determinista cuando la red no es alcanzable (fail-closed: no ejecuta nada
+ * que no esté 3/3).
+ *
+ * <p>El resultado de cada operación es un {@code txRef} (hash/txId on-chain o un
+ * identificador demo) que queda en la traza y en la auditoría.</p>
+ */
+public interface McpBlockchainGatewayPort {
+
+    /** Registra la propuesta on-chain (incluye hash del diagnóstico y versión de prompt+modelo). */
+    String registrarPropuesta(PropuestaAccion propuesta);
+
+    /** Registra una firma (aprobación o rechazo) sobre una propuesta existente. */
+    String registrarFirma(PropuestaAccion propuesta, Firma firma);
+
+    /** Emite la ejecución del comando aprobado (solo si la propuesta está 3/3). */
+    String ejecutarAccion(PropuestaAccion propuesta);
+}

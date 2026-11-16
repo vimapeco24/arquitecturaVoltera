@@ -91,11 +91,68 @@ export interface EstadoIa {
   servicio: string;
   caso: string;
   agentes: string[];
+  assistant?: string;
+  mcpServers?: string[];
+  gobernanza?: {
+    contrato: string;
+    firmas: string;
+    modoDegradado2de3: boolean;
+    topico: string;
+  };
   cajas: string[];
   proveedorModeloActivo: boolean;
   motor: string;
-  zeroRetention: boolean;
-  humanInTheLoop: boolean;
+}
+
+/** Firma registrada sobre una propuesta de acción 3/3. */
+export interface FirmaDto {
+  firmante: 'AGENTE_IA' | 'OPERADOR' | 'PROSUMIDOR';
+  identidad: string;
+  aprueba: boolean;
+  razon: string;
+  firmadoEn: string;
+}
+
+/** Propuesta de acción gobernada por el contrato multi-firma 3/3. */
+export interface PropuestaResponse {
+  propuestaId: string;
+  diagnosticoId: string;
+  activoId: string;
+  comunidadId: string;
+  tipoAccion: string;
+  comando: string;
+  severidad: string;
+  estado: 'PENDIENTE' | 'APROBADA' | 'RECHAZADA' | 'VENCIDA' | 'EJECUTADA';
+  firmas: string;
+  siguienteFirmante: string | null;
+  hashDiagnostico: string;
+  versionPrompt: string;
+  versionModelo: string;
+  resultadoEjecucion: string | null;
+  creadaEn: string;
+  venceEn: string;
+  firmasDetalle: FirmaDto[];
+}
+
+/** Respuesta del Assistant (acotada al diagnóstico, sin herramientas de acción). */
+export interface RespuestaAsistente {
+  diagnosticoId: string;
+  respuesta: string;
+  evidencias: EvidenciaDto[];
+  promptVersion: string;
+  noPersuasion: boolean;
+  generadoEn: string;
+}
+
+/** Resultado de Evals por versión de prompt (Tema 5). */
+export interface ResultadoEval {
+  agente: string;
+  version: string;
+  casos: number;
+  acierto: number;
+  citasValidas: number;
+  comandosInventados: number;
+  apta: boolean;
 }
 
 /**
@@ -140,5 +197,56 @@ export class IaService {
   /** Catálogo A2A de agentes (Agent Registry). */
   agentes(): Observable<AgenteRegistrado[]> {
     return this.http.get<AgenteRegistrado[]>(this.url('api/v1/ia/agentes'));
+  }
+
+  // ── Gobernanza multi-firma 3/3 (contrato MultiFirmaAccionDER) ──────────────
+
+  /** El Agente de Acción crea la propuesta (Firma 1) a partir de un diagnóstico. */
+  proponerAccion(diagnosticoId: string): Observable<PropuestaResponse> {
+    return this.http.post<PropuestaResponse>(
+      this.url(`api/v1/ia/gobernanza/propuestas/${diagnosticoId}`), {});
+  }
+
+  /** Firma 2: el operador valida técnicamente (aprueba). */
+  firmarOperador(propuestaId: string, identidad: string, razon: string): Observable<PropuestaResponse> {
+    return this.http.post<PropuestaResponse>(
+      this.url(`api/v1/ia/gobernanza/propuestas/${propuestaId}/firmas/operador`), { identidad, razon });
+  }
+
+  /** Firma 3: el prosumidor consiente (aprueba). */
+  firmarProsumidor(propuestaId: string, identidad: string, razon: string): Observable<PropuestaResponse> {
+    return this.http.post<PropuestaResponse>(
+      this.url(`api/v1/ia/gobernanza/propuestas/${propuestaId}/firmas/prosumidor`), { identidad, razon });
+  }
+
+  /** Rechazo del operador (razón obligatoria). */
+  rechazarOperador(propuestaId: string, identidad: string, razon: string): Observable<PropuestaResponse> {
+    return this.http.post<PropuestaResponse>(
+      this.url(`api/v1/ia/gobernanza/propuestas/${propuestaId}/rechazos/operador`), { identidad, razon });
+  }
+
+  /** Rechazo del prosumidor (razón obligatoria). */
+  rechazarProsumidor(propuestaId: string, identidad: string, razon: string): Observable<PropuestaResponse> {
+    return this.http.post<PropuestaResponse>(
+      this.url(`api/v1/ia/gobernanza/propuestas/${propuestaId}/rechazos/prosumidor`), { identidad, razon });
+  }
+
+  propuestas(): Observable<PropuestaResponse[]> {
+    return this.http.get<PropuestaResponse[]>(this.url('api/v1/ia/gobernanza/propuestas'));
+  }
+
+  // ── Assistant (conversación acotada antes de firmar) ───────────────────────
+
+  preguntarAsistente(diagnosticoId: string, audiencia: 'PROSUMIDOR' | 'OPERADOR',
+                     texto: string, usuario?: string): Observable<RespuestaAsistente> {
+    return this.http.post<RespuestaAsistente>(
+      this.url('api/v1/ia/asistente/preguntar'),
+      { diagnosticoId, audiencia, texto, usuario });
+  }
+
+  // ── Evals & Tracing (Tema 5) ───────────────────────────────────────────────
+
+  evals(): Observable<ResultadoEval[]> {
+    return this.http.get<ResultadoEval[]>(this.url('api/v1/ia/evals'));
   }
 }

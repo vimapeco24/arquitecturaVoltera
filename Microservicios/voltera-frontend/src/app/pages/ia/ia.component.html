@@ -3,11 +3,13 @@
     <span class="v-eyebrow">🤖 Entrega 5 · GenAI · Grupo 5</span>
     <h1>Agente de diagnóstico de activos DER</h1>
     <p>
-      Copiloto de soporte de red: un flujo de <strong>tres agentes</strong> (Monitor →
-      Diagnosticador → Acción) que usa los <strong>microservicios como herramientas</strong> (MCP),
-      los <strong>eventos como disparadores</strong> y <strong>RAG</strong> sobre la documentación de
-      los activos (paneles, baterías, inversores, cargadores EV). El agente <strong>propone</strong> el
-      comando correctivo o la orden de campo; una persona <strong>aprueba</strong> (human-in-the-loop).
+      Copiloto de soporte de red: un flujo de <strong>cuatro agentes</strong> (Monitor →
+      Diagnosticador → Acción → Notificador) que usa los <strong>microservicios como herramientas</strong>
+      (MCP), los <strong>eventos como disparadores</strong> y <strong>RAG</strong> sobre la documentación
+      de los activos. El Agente de Acción <strong>propone</strong>; la acción solo se ejecuta con la
+      <strong>firma 3/3</strong> (agente IA + operador + prosumidor) del contrato
+      <code>MultiFirmaAccionDER</code>. Antes de firmar, el <strong>Assistant</strong> explica el caso
+      sin persuadir y sin herramientas de acción.
     </p>
   </div>
 
@@ -17,13 +19,17 @@
       <span class="chip-k">Motor</span>
       <span class="v-badge" [ngClass]="estado.proveedorModeloActivo ? 'ok' : 'warn'">{{ estado.motor }}</span>
     </div>
-    <div class="chip">
-      <span class="chip-k">Zero-retention</span>
-      <span class="v-badge" [ngClass]="estado.zeroRetention ? 'ok' : 'err'">{{ estado.zeroRetention ? 'sí' : 'no' }}</span>
+    <div class="chip" *ngIf="estado.gobernanza">
+      <span class="chip-k">Gobernanza</span>
+      <span class="v-badge ok">{{ estado.gobernanza.firmas }}</span>
     </div>
-    <div class="chip">
-      <span class="chip-k">Humano en el lazo</span>
-      <span class="v-badge" [ngClass]="estado.humanInTheLoop ? 'ok' : 'err'">{{ estado.humanInTheLoop ? 'sí' : 'no' }}</span>
+    <div class="chip" *ngIf="estado.gobernanza">
+      <span class="chip-k">Modo 2/3</span>
+      <span class="v-badge err">no existe (fail-closed)</span>
+    </div>
+    <div class="chip" *ngIf="estado.mcpServers?.length">
+      <span class="chip-k">MCP Servers</span>
+      <span class="v-badge mini" *ngFor="let m of estado.mcpServers">{{ m }}</span>
     </div>
     <div class="cajas" *ngIf="estado.cajas?.length">
       <span class="chip-k">Cajas del mapa</span>
@@ -161,7 +167,7 @@
           </ul>
         </div>
 
-        <!-- Traza del flujo agéntico (3 agentes + cajas de gobierno) -->
+        <!-- Traza del flujo agéntico (4 agentes + cajas de gobierno) -->
         <div class="detail-box">
           <h4>Traza del flujo agéntico ({{ d.traza.length }} pasos)</h4>
           <ol class="flow">
@@ -172,7 +178,120 @@
             </li>
           </ol>
         </div>
+
+        <!-- ============ Assistant · conversación acotada antes de firmar ============ -->
+        <div class="detail-box asistente" *ngIf="d.requiereAprobacionHumana">
+          <h4>💬 Assistant · pregunta antes de firmar</h4>
+          <p class="sub">
+            Conversación acotada a <strong>este</strong> diagnóstico. El Assistant informa, cita la
+            evidencia y presenta de forma neutral las consecuencias; <strong>no firma, no ejecuta y no
+            persuade</strong>.
+          </p>
+          <div class="aud-toggle">
+            <label>Audiencia:</label>
+            <button type="button" class="v-btn ghost sm" [class.on]="audiencia === 'PROSUMIDOR'" (click)="audiencia = 'PROSUMIDOR'">🏠 Prosumidor</button>
+            <button type="button" class="v-btn ghost sm" [class.on]="audiencia === 'OPERADOR'" (click)="audiencia = 'OPERADOR'">🛠️ Operador</button>
+          </div>
+          <div class="chat" *ngIf="chat.length">
+            <div class="msg" *ngFor="let m of chat" [class.me]="m.rol === 'firmante'" [class.bot]="m.rol === 'assistant'">
+              <span class="who">{{ m.rol === 'firmante' ? 'Tú' : 'Assistant' }}</span>
+              <p>{{ m.texto }}</p>
+            </div>
+          </div>
+          <div class="input-with-btn">
+            <input class="v-input" [(ngModel)]="preguntaTexto" name="preguntaTexto"
+                   placeholder="¿por qué hay que reiniciar mi inversor? ¿qué pasa si no apruebo?"
+                   (keyup.enter)="preguntar()" [disabled]="consultandoAsistente" />
+            <button type="button" class="v-btn primary" (click)="preguntar()" [disabled]="consultandoAsistente || !preguntaTexto.trim()">
+              <span class="v-spinner" *ngIf="consultandoAsistente"></span>Preguntar
+            </button>
+          </div>
+          <p class="hint">POST <code>/api/v1/ia/asistente/preguntar</code> · sin herramientas de acción</p>
+        </div>
+
+        <!-- ============ Gobernanza multi-firma 3/3 ============ -->
+        <div class="detail-box gobernanza" *ngIf="d.requiereAprobacionHumana">
+          <h4>🔏 Gobernanza multi-firma 3/3 · <code>MultiFirmaAccionDER</code></h4>
+
+          <div class="v-empty mini" *ngIf="!propuesta">
+            <p>La acción compromete el activo: requiere las <strong>3 firmas</strong> (agente IA +
+              operador + prosumidor) antes de ejecutarse. Crea la propuesta para iniciar el ciclo.</p>
+            <button type="button" class="v-btn primary" (click)="proponerAccion()" [disabled]="proponiendo">
+              <span class="v-spinner" *ngIf="proponiendo"></span>⚙️ Crear propuesta (Firma 1 · agente)
+            </button>
+            <p class="hint">POST <code>/api/v1/ia/gobernanza/propuestas/&#123;diagnosticoId&#125;</code></p>
+          </div>
+
+          <ng-container *ngIf="propuesta as p">
+            <div class="decision-box">
+              <span class="v-badge big" [ngClass]="badgeEstadoPropuesta(p.estado)">{{ p.estado }}</span>
+              <span class="v-badge ok">firmas {{ p.firmas }}</span>
+              <span class="v-badge warn" *ngIf="p.siguienteFirmante">falta: {{ p.siguienteFirmante }}</span>
+            </div>
+            <div class="kv"><span class="k">Comando</span><span class="val"><code>{{ p.comando }}</code></span></div>
+            <div class="kv"><span class="k">Hash diagnóstico</span><span class="val mono">{{ p.hashDiagnostico }}</span></div>
+            <div class="kv"><span class="k">Versión prompt/modelo</span><span class="val">{{ p.versionPrompt }} · {{ p.versionModelo }}</span></div>
+            <div class="kv" *ngIf="p.resultadoEjecucion"><span class="k">Resultado</span><span class="val">{{ p.resultadoEjecucion }}</span></div>
+
+            <!-- Firmas registradas -->
+            <ul class="firmas" *ngIf="p.firmasDetalle.length">
+              <li *ngFor="let f of p.firmasDetalle">
+                <span class="v-badge" [ngClass]="f.aprueba ? 'ok' : 'err'">{{ f.firmante }}</span>
+                <span class="f-id">{{ f.identidad }}</span>
+                <span class="f-ra">{{ f.aprueba ? '✔ aprueba' : '✘ rechaza' }} · {{ f.razon }}</span>
+              </li>
+            </ul>
+
+            <!-- Acciones de firma (según el firmante pendiente) -->
+            <div class="firma-actions" *ngIf="p.estado === 'PENDIENTE'">
+              <ng-container *ngIf="p.siguienteFirmante === 'OPERADOR'">
+                <button type="button" class="v-btn primary" (click)="firmar('OPERADOR')" [disabled]="firmando">🛠️ Firmar como operador (2/3)</button>
+                <button type="button" class="v-btn ghost danger" (click)="rechazar('OPERADOR')" [disabled]="firmando">Rechazar</button>
+              </ng-container>
+              <ng-container *ngIf="p.siguienteFirmante === 'PROSUMIDOR'">
+                <button type="button" class="v-btn primary" (click)="firmar('PROSUMIDOR')" [disabled]="firmando">🏠 Firmar como prosumidor (3/3)</button>
+                <button type="button" class="v-btn ghost danger" (click)="rechazar('PROSUMIDOR')" [disabled]="firmando">Rechazar</button>
+              </ng-container>
+            </div>
+
+            <div class="raiband" [class.alert]="p.estado !== 'EJECUTADA'">
+              <ng-container [ngSwitch]="p.estado">
+                <span *ngSwitchCase="'EJECUTADA'">✅ Las 3 firmas quedaron registradas y el comando se emitió vía el MCP Device Management. Trazabilidad on-chain completa.</span>
+                <span *ngSwitchCase="'RECHAZADA'">⛔ Un firmante rechazó. La acción no se ejecuta; el rechazo queda on-chain con su razón.</span>
+                <span *ngSwitchCase="'VENCIDA'">⌛ La propuesta venció sin las 3 firmas. No se ejecuta; se puede generar una nueva.</span>
+                <span *ngSwitchDefault>⏳ Faltan firmas. La acción <strong>no se ejecuta sin 3/3</strong> — no existe modo degradado 2/3.</span>
+              </ng-container>
+            </div>
+          </ng-container>
+        </div>
       </ng-container>
     </div>
+  </div>
+
+  <!-- ============ Evals & Tracing (Tema 5) ============ -->
+  <div class="evals v-card" *ngIf="evals.length">
+    <h3>🧪 Evals &amp; Tracing · Prompt &amp; Model Registry (Tema 5)</h3>
+    <p class="sub">
+      Cada versión de prompt se evalúa contra el conjunto de referencia antes de publicarse:
+      <strong>acierto ≥ 85 %</strong>, <strong>citas ≥ 95 %</strong>, <strong>0 comandos inventados</strong>.
+      Si no pasa, el registro mantiene la versión anterior (rollback).
+    </p>
+    <table class="eval-table">
+      <thead>
+        <tr><th>Familia</th><th>Versión</th><th>Casos</th><th>Acierto</th><th>Citas</th><th>Inventados</th><th>Veredicto</th></tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let e of evals">
+          <td>{{ e.agente }}</td>
+          <td><code>{{ e.version }}</code></td>
+          <td>{{ e.casos }}</td>
+          <td>{{ (e.acierto * 100) | number:'1.0-0' }}%</td>
+          <td>{{ (e.citasValidas * 100) | number:'1.0-0' }}%</td>
+          <td>{{ e.comandosInventados }}</td>
+          <td><span class="v-badge" [ngClass]="e.apta ? 'ok' : 'err'">{{ e.apta ? 'APTA' : 'NO apta' }}</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="hint">GET <code>/api/v1/ia/evals</code></p>
   </div>
 </div>

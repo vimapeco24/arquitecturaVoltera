@@ -202,3 +202,35 @@
 }
 .input-with-btn .gen:hover:not(:disabled) { transform: rotate(-20deg); }
 .input-with-btn .gen { transition: transform 0.2s ease; }
+
+/* ---------- Assistant (conversación antes de firmar) ---------- */
+.asistente .sub { color: var(--v-muted); font-size: 12.5px; margin: 2px 0 10px; }
+.aud-toggle { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.aud-toggle label { font-size: 12px; color: var(--v-muted); }
+.v-btn.sm { padding: 4px 10px; font-size: 12px; }
+.v-btn.ghost.on { border-color: var(--v-primary); color: var(--v-primary); font-weight: 700; }
+.chat { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+.chat .msg { max-width: 92%; padding: 8px 12px; border-radius: 12px; font-size: 13px; }
+.chat .msg .who { font-size: 10.5px; font-weight: 700; opacity: 0.7; display: block; margin-bottom: 2px; }
+.chat .msg.me { align-self: flex-end; background: var(--v-primary); color: #fff; }
+.chat .msg.bot { align-self: flex-start; background: rgba(127,127,127,0.12); }
+.chat .msg p { margin: 0; }
+
+/* ---------- Gobernanza multi-firma 3/3 ---------- */
+.gobernanza .v-empty.mini { padding: 14px; text-align: center; }
+.gobernanza .v-empty.mini p { font-size: 13px; margin-bottom: 10px; }
+.val.mono { font-family: ui-monospace, monospace; font-size: 11px; word-break: break-all; }
+.firmas { list-style: none; padding: 0; margin: 12px 0; display: flex; flex-direction: column; gap: 6px; }
+.firmas li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; }
+.firmas .f-id { font-family: ui-monospace, monospace; font-size: 11.5px; color: var(--v-muted); }
+.firmas .f-ra { color: var(--v-muted); }
+.firma-actions { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+.v-btn.ghost.danger { border-color: var(--v-danger, #d9534f); color: var(--v-danger, #d9534f); }
+
+/* ---------- Evals & Tracing ---------- */
+.evals { margin-top: 18px; }
+.evals .sub { color: var(--v-muted); font-size: 12.5px; margin: 2px 0 12px; }
+.eval-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.eval-table th, .eval-table td { text-align: left; padding: 7px 10px; border-bottom: 1px solid rgba(127,127,127,0.18); }
+.eval-table th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--v-muted); }
+.eval-table code { font-size: 11.5px; }

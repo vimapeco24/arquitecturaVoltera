@@ -56,6 +56,13 @@ ia:
   human-in-the-loop:
     # Umbral (COP) por encima del cual la recomendacion EXIGE revision humana.
     umbral-aprobacion-humana: ${IA_UMBRAL_HUMANO:3000000}
+  gobernanza:
+    # Gobernanza multi-firma 3/3 (contrato MultiFirmaAccionDER). TTL de la
+    # propuesta segun criticidad (Rules Engine): critica = 30 min; resto = 4 h.
+    # Vencido el plazo sin las 3 firmas, la propuesta queda VENCIDA y no se
+    # ejecuta (fail-closed). No existe modo degradado 2/3.
+    ttl-critica-min: ${IA_GOBERNANZA_TTL_CRITICA_MIN:30}
+    ttl-normal-min: ${IA_GOBERNANZA_TTL_NORMAL_MIN:240}
   tools:
     # URLs base de los microservicios usados como herramientas (MCP/REST).
     # En modo NUBE: siniestros-service vive en la LAN privada y NO es alcanzable

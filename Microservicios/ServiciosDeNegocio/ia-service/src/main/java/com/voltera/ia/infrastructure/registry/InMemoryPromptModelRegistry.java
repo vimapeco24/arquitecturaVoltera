@@ -17,7 +17,10 @@ public class InMemoryPromptModelRegistry implements PromptModelRegistryPort {
     private static final Map<String, String> VERSIONES = Map.of(
             "monitor", "monitor@v1",
             "diagnosticador", "diagnosticador@v3",
-            "accion", "accion@v2");
+            "accion", "accion@v2",
+            "notificador", "notificador@v1",
+            "asistente-prosumidor", "asistente-prosumidor@v2",
+            "asistente-operador", "asistente-operador@v2");
 
     private static final Map<String, String> PLANTILLAS = Map.of(
             "diagnosticador",

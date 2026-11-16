@@ -53,7 +53,8 @@ class DiagnosticoDerServiceTest {
 
     private DiagnosticoDerService servicio(ConocimientoDerPort rag, HerramientasDerPort tools,
                                            AuditLogPort audit, DiagnosticoEventPublisherPort pub) {
-        return new DiagnosticoDerService(rag, tools, registry, guardrails, gatewayLocal, prompts, audit, pub);
+        var repo = new com.voltera.ia.infrastructure.persistence.InMemoryDiagnosticoRepository();
+        return new DiagnosticoDerService(rag, tools, registry, guardrails, gatewayLocal, prompts, audit, pub, repo);
     }
 
     @Test

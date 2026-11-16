@@ -47,15 +47,21 @@ public class CopilotoController {
     public ResponseEntity<Map<String, Object>> estado() {
         return ResponseEntity.ok(Map.of(
                 "servicio", "ia-service",
-                "caso", "Agente de diagnóstico de activos DER y copiloto de soporte de red (Grupo 5)",
-                "agentes", java.util.List.of("Agente-Monitor", "Agente-Diagnosticador", "Agente-Accion"),
+                "caso", "Agente de diagnóstico de activos DER con gobernanza multi-firma (Grupo 5)",
+                "agentes", java.util.List.of(
+                        "Agente-Monitor", "Agente-Diagnosticador", "Agente-Accion", "Agente-Notificador"),
+                "assistant", "conversación acotada al diagnóstico antes de firmar (sin herramientas de acción)",
+                "mcpServers", java.util.List.of("MCP Device Management (lectura)", "MCP Blockchain Gateway (3/3)"),
+                "gobernanza", Map.of(
+                        "contrato", "MultiFirmaAccionDER",
+                        "firmas", "3/3 (Agente IA + Operador + Prosumidor)",
+                        "modoDegradado2de3", false,
+                        "topico", "der.gobernanza"),
                 "cajas", java.util.List.of(
                         "1-Human Review", "2-Knowledge Service (RAG)", "3-MCP Servers",
                         "4-Agent Registry (A2A)", "5-Guardrails", "6-Prompt & Model Registry",
                         "7-Identity (IAM)", "8-Audit & Retention"),
                 "proveedorModeloActivo", modelGateway.proveedorActivo(),
-                "motor", modelGateway.identificadorMotor(),
-                "zeroRetention", true,
-                "humanInTheLoop", true));
+                "motor", modelGateway.identificadorMotor()));
     }
 }

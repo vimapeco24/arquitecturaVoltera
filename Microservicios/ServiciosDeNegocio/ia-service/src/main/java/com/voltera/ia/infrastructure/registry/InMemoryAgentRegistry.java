@@ -6,10 +6,12 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * Caja 4 · Agent Registry (A2A). Catálogo en memoria de los tres agentes del
- * flujo de diagnóstico DER, con su dueño, capacidad y permisos declarados. En
- * producción sería un registro central consultable por otros equipos; aquí basta
- * para demostrar el patrón de descubrimiento/delegación y de baja de agentes.
+ * Caja 4 · Agent Registry (A2A). Catálogo en memoria de los cuatro agentes del
+ * flujo de diagnóstico DER más el Assistant, con su dueño, capacidad y permisos
+ * declarados. En producción sería un registro central consultable por otros
+ * equipos; aquí basta para demostrar el patrón de descubrimiento/delegación y de
+ * baja de agentes. Ninguno de ellos ejecuta comandos: el Agente-Acción solo
+ * PROPONE (gobernanza 3/3) y el Assistant solo informa (sin herramientas).
  */
 @Component
 public class InMemoryAgentRegistry implements AgentRegistryPort {
@@ -22,8 +24,15 @@ public class InMemoryAgentRegistry implements AgentRegistryPort {
                     "Correlaciona la anomalía con RAG y herramientas MCP; clasifica severidad",
                     "lectura:rag, lectura:mcp", true),
             new AgenteRegistrado("Agente-Accion", "Equipo Operaciones de Red",
-                    "Propone comando correctivo u orden de trabajo (NO ejecuta; requiere Human Review)",
-                    "propuesta:accion", true));
+                    "Propone comando correctivo u orden de trabajo y crea la propuesta 3/3 "
+                            + "(NO ejecuta; requiere firmas de operador y prosumidor)",
+                    "propuesta:accion, mcp:blockchain-gateway", true),
+            new AgenteRegistrado("Agente-Notificador", "Equipo Operaciones de Red",
+                    "Notifica a los firmantes y escala al mismo firmante pendiente ante timeout",
+                    "notificaciones:enviar", true),
+            new AgenteRegistrado("Assistant", "Equipo Operaciones de Red",
+                    "Conversa sobre un diagnóstico antes de firmar (sin herramientas de acción; no persuade)",
+                    "lectura:diagnostico", true));
 
     @Override
     public List<AgenteRegistrado> agentesActivos() {

@@ -50,6 +50,7 @@ public class DiagnosticoDerService implements DiagnosticoDerUseCase {
     private final PromptModelRegistryPort promptRegistry; // caja 6 · Prompt/Model Registry
     private final AuditLogPort auditLog;                // caja 8 · Audit & Retention
     private final DiagnosticoEventPublisherPort eventPublisher;
+    private final com.voltera.ia.domain.port.out.DiagnosticoRepositoryPort repositorio;
 
     public DiagnosticoDerService(ConocimientoDerPort conocimiento,
                                  HerramientasDerPort herramientas,
@@ -58,7 +59,8 @@ public class DiagnosticoDerService implements DiagnosticoDerUseCase {
                                  ModelGatewayPort modelGateway,
                                  PromptModelRegistryPort promptRegistry,
                                  AuditLogPort auditLog,
-                                 DiagnosticoEventPublisherPort eventPublisher) {
+                                 DiagnosticoEventPublisherPort eventPublisher,
+                                 com.voltera.ia.domain.port.out.DiagnosticoRepositoryPort repositorio) {
         this.conocimiento = conocimiento;
         this.herramientas = herramientas;
         this.agentRegistry = agentRegistry;
@@ -67,6 +69,7 @@ public class DiagnosticoDerService implements DiagnosticoDerUseCase {
         this.promptRegistry = promptRegistry;
         this.auditLog = auditLog;
         this.eventPublisher = eventPublisher;
+        this.repositorio = repositorio;
     }
 
     @Override
@@ -168,6 +171,9 @@ public class DiagnosticoDerService implements DiagnosticoDerUseCase {
 
         // Caja 8 · Audit & Retention: registrar el diagnóstico (quién, qué, con qué prompt/modelo).
         auditLog.registrar(diagnostico);
+
+        // State & Memory: se guarda para que el Assistant y la gobernanza lo recuperen por id.
+        repositorio.guardar(diagnostico);
 
         // EDA best-effort: publica el evento (en la nube cae al publicador de log).
         eventPublisher.publicar(DiagnosticoDerGenerado.desde(diagnostico));

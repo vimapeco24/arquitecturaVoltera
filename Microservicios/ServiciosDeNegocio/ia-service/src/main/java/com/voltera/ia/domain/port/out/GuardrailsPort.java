@@ -19,4 +19,14 @@ public interface GuardrailsPort {
      * inyeccion de prompt o contenido fuera de alcance.
      */
     void validarEntrada(String texto);
+
+    /**
+     * Guardrail de NO PERSUASIÓN del Assistant: devuelve una versión neutral del
+     * texto, eliminando o neutralizando cualquier intento de inducir al firmante
+     * a aprobar (p. ej. "deberías aprobar", "te conviene firmar"). El Assistant
+     * informa de forma neutral las consecuencias de aprobar y de rechazar.
+     */
+    default String neutralizarPersuasion(String texto) {
+        return texto == null ? "" : texto;
+    }
 }

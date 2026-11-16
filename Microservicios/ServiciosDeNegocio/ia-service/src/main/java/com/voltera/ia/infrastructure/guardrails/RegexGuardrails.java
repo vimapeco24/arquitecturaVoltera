@@ -46,4 +46,21 @@ public class RegexGuardrails implements GuardrailsPort {
             }
         }
     }
+
+    // Frases que inducen al firmante a aprobar: el Assistant NO debe persuadir.
+    private static final List<String> FRASES_PERSUASION = List.of(
+            "deberías aprobar", "deberias aprobar", "te conviene aprobar", "te conviene firmar",
+            "lo mejor es aprobar", "recomiendo aprobar", "deberías firmar", "deberias firmar",
+            "tienes que aprobar", "apruébalo", "apruebalo", "firma ya", "no rechaces");
+
+    @Override
+    public String neutralizarPersuasion(String texto) {
+        if (texto == null || texto.isBlank()) return "";
+        String out = texto;
+        for (String frase : FRASES_PERSUASION) {
+            out = out.replaceAll("(?i)" + Pattern.quote(frase),
+                    "[el Assistant no recomienda firmar; la decisión es suya]");
+        }
+        return out;
+    }
 }

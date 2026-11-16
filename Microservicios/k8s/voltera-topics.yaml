@@ -95,6 +95,14 @@ spec:
               # El ia-service publica aqui cada diagnostico de activo DER (severidad,
               # accion propuesta, si exige aprobacion humana). Sin PII.
               crear topic.ia.diagnostico 1
+              # --- Capa GenAI (Modulo 5): topicos del caso DER (documento Final) ---
+              # der.estado    : estado fisico reportado por inversores/baterias/cargadores.
+              # der.alertas   : anomalias detectadas por el Agente Monitor.
+              # der.gobernanza: ciclo multi-firma 3/3 (PropuestaAccionCreada, FirmaRegistrada,
+              #                 FirmaVencida, AccionAprobada/Rechazada/Ejecutada). Sin PII.
+              crear der.estado 1
+              crear der.alertas 1
+              crear der.gobernanza 1
               echo "=== Topics declarados ==="
               rpk topic list --brokers "$BROKER"
           resources:

@@ -1,7 +1,10 @@
 import { Component, ElementRef, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
-import { IaService, DiagnosticoResponse, EstadoIa, AgenteRegistrado, PasoDto } from '../../services/ia.service';
+import {
+  IaService, DiagnosticoResponse, EstadoIa, AgenteRegistrado, PasoDto,
+  PropuestaResponse, RespuestaAsistente, ResultadoEval,
+} from '../../services/ia.service';
 import { ToastService } from '../../core/toast.service';
 import { describeHttpError } from '../../core/http-error';
 
@@ -47,6 +50,18 @@ export class IaComponent implements OnInit, OnDestroy {
   agentes: AgenteRegistrado[] = [];
   diagnostico?: DiagnosticoResponse;
   analizando = false;
+
+  // ── Gobernanza multi-firma 3/3 ──────────────────────────────────────────
+  propuesta?: PropuestaResponse;
+  proponiendo = false;
+  firmando = false;
+  /** Mensaje de conversación: lista de preguntas/respuestas del Assistant. */
+  chat: { rol: 'firmante' | 'assistant'; texto: string }[] = [];
+  audiencia: 'PROSUMIDOR' | 'OPERADOR' = 'PROSUMIDOR';
+  preguntaTexto = '';
+  consultandoAsistente = false;
+  // ── Evals & Tracing (Tema 5) ─────────────────────────────────────────────
+  evals: ResultadoEval[] = [];
 
   /** Panel de resultado, para hacer scroll al arrancar el flujo. */
   @ViewChild('panelResultado') panelResultado?: ElementRef<HTMLElement>;
@@ -116,6 +131,7 @@ export class IaComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.svc.estado().subscribe({ next: (e) => (this.estado = e), error: () => {} });
     this.svc.agentes().subscribe({ next: (a) => (this.agentes = a ?? []), error: () => {} });
+    this.svc.evals().subscribe({ next: (r) => (this.evals = r ?? []), error: () => {} });
     // Si cambia el tipo de activo, el Activo ID autogenerado toma el nuevo prefijo.
     this.form.get('tipoActivo')?.valueChanges.subscribe(() => this.regenerarActivoId());
   }
@@ -137,6 +153,10 @@ export class IaComponent implements OnInit, OnDestroy {
     this.diagnostico = undefined;
     this.pendiente = undefined;
     this.pasoActivo = -1;
+    // Reinicia el flujo de gobernanza y la conversación del Assistant.
+    this.propuesta = undefined;
+    this.chat = [];
+    this.preguntaTexto = '';
     this.flujo = this.guion.map((g) => ({ ...g, estado: 'pendiente' as const }));
 
     // Lleva el panel de resultado a la vista para que SIEMPRE se vea el flujo
@@ -212,6 +232,96 @@ export class IaComponent implements OnInit, OnDestroy {
   private limpiarTimers(): void {
     this.timers.forEach((t) => clearTimeout(t));
     this.timers = [];
+  }
+
+  // ── Gobernanza multi-firma 3/3 ────────────────────────────────────────────
+
+  /** El Agente de Acción crea la propuesta (Firma 1) a partir del diagnóstico. */
+  proponerAccion(): void {
+    if (!this.diagnostico) return;
+    this.proponiendo = true;
+    this.svc.proponerAccion(this.diagnostico.diagnosticoId).subscribe({
+      next: (p) => {
+        this.proponiendo = false;
+        this.propuesta = p;
+        this.toast.success('Propuesta creada', `Firma 1/3 del agente · ${p.firmas}`);
+      },
+      error: (e) => {
+        this.proponiendo = false;
+        this.toast.error('No se pudo crear la propuesta', describeHttpError(e));
+      },
+    });
+  }
+
+  firmar(firmante: 'OPERADOR' | 'PROSUMIDOR'): void {
+    if (!this.propuesta) return;
+    this.firmando = true;
+    const id = this.propuesta.propuestaId;
+    const identidad = firmante === 'OPERADOR' ? 'operador@voltera' : 'prosumidor@casa';
+    const razon = firmante === 'OPERADOR' ? 'Validado técnicamente' : 'Autorizo la intervención sobre mi activo';
+    const call = firmante === 'OPERADOR'
+      ? this.svc.firmarOperador(id, identidad, razon)
+      : this.svc.firmarProsumidor(id, identidad, razon);
+    call.subscribe({
+      next: (p) => {
+        this.firmando = false;
+        this.propuesta = p;
+        if (p.estado === 'EJECUTADA') this.toast.success('Acción ejecutada', '3/3 firmas · comando emitido');
+        else this.toast.success('Firma registrada', `${p.firmas}`);
+      },
+      error: (e) => {
+        this.firmando = false;
+        this.toast.error('No se pudo firmar', describeHttpError(e));
+      },
+    });
+  }
+
+  rechazar(firmante: 'OPERADOR' | 'PROSUMIDOR'): void {
+    if (!this.propuesta) return;
+    this.firmando = true;
+    const id = this.propuesta.propuestaId;
+    const identidad = firmante === 'OPERADOR' ? 'operador@voltera' : 'prosumidor@casa';
+    const razon = 'Rechazado desde la consola de revisión';
+    const call = firmante === 'OPERADOR'
+      ? this.svc.rechazarOperador(id, identidad, razon)
+      : this.svc.rechazarProsumidor(id, identidad, razon);
+    call.subscribe({
+      next: (p) => {
+        this.firmando = false;
+        this.propuesta = p;
+        this.toast.success('Acción rechazada', 'Queda registrada con la razón');
+      },
+      error: (e) => {
+        this.firmando = false;
+        this.toast.error('No se pudo rechazar', describeHttpError(e));
+      },
+    });
+  }
+
+  badgeEstadoPropuesta(e: string): string {
+    if (e === 'EJECUTADA' || e === 'APROBADA') return 'ok';
+    if (e === 'RECHAZADA' || e === 'VENCIDA') return 'err';
+    return 'warn';
+  }
+
+  // ── Assistant (conversación acotada antes de firmar) ───────────────────────
+
+  preguntar(): void {
+    const texto = this.preguntaTexto.trim();
+    if (!texto || !this.diagnostico) return;
+    this.chat.push({ rol: 'firmante', texto });
+    this.preguntaTexto = '';
+    this.consultandoAsistente = true;
+    this.svc.preguntarAsistente(this.diagnostico.diagnosticoId, this.audiencia, texto).subscribe({
+      next: (r: RespuestaAsistente) => {
+        this.consultandoAsistente = false;
+        this.chat.push({ rol: 'assistant', texto: r.respuesta });
+      },
+      error: (e) => {
+        this.consultandoAsistente = false;
+        this.chat.push({ rol: 'assistant', texto: 'No pude responder: ' + describeHttpError(e) });
+      },
+    });
   }
 
   /** Icono de estado para cada nodo de la línea de tiempo. */
