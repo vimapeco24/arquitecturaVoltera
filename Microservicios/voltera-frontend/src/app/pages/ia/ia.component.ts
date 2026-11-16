@@ -441,6 +441,40 @@ export class IaComponent implements OnInit, OnDestroy {
       add('F · Medidor sin señal → DESPACHAR_TECNICO', dmed.accionPropuesta === 'DESPACHAR_TECNICO', `${dmed.accionPropuesta}`);
       add('F · Panel en rango → MONITOREAR sin humano', dMon.accionPropuesta === 'MONITOREAR' && !dMon.requiereAprobacionHumana, `${dMon.accionPropuesta} · humano=${dMon.requiereAprobacionHumana}`);
 
+      // G · Trazabilidad (8 cajas) y cobertura de evidencia
+      const cajas = ['guardrails', 'agent-registry', 'agente-monitor', 'rag', 'mcp', 'agente-diagnosticador', 'agente-accion', 'human-review'];
+      const nodos = d.traza.map((p) => p.nodo);
+      const todas8 = cajas.every((c) => nodos.includes(c));
+      add('G · La traza recorre las 8 cajas de referencia', todas8, `${nodos.length} nodos`);
+      const nrag = d.evidencias.filter((e) => e.fuente.startsWith('RAG:')).length;
+      const nmcp = d.evidencias.filter((e) => e.fuente.startsWith('tool:')).length;
+      add('G · Evidencia RAG + MCP citada', nrag >= 3 && nmcp >= 3, `${nrag} RAG · ${nmcp} MCP`);
+
+      // H · Robustez: validación de entrada y recursos inexistentes
+      let validacionOk = false;
+      try {
+        await firstValueFrom(this.svc.diagnosticarDer({
+          activoId: '', tipoActivo: 'INVERSOR', comunidadId: 'COM', metrica: 'v',
+          valor: 1, umbral: 1, minutosSinSenal: 0, usuario: 'op',
+        } as any));
+      } catch { validacionOk = true; }
+      add('H · Payload inválido rechazado (validación)', validacionOk, validacionOk ? 'HTTP 4xx' : 'no validó');
+      let asistNoExiste = false;
+      try {
+        await firstValueFrom(this.svc.preguntarAsistente('00000000-0000-0000-0000-000000000000', 'PROSUMIDOR', 'hola'));
+      } catch { asistNoExiste = true; }
+      add('H · Assistant sobre diagnóstico inexistente rechazado', asistNoExiste, asistNoExiste ? 'HTTP 4xx' : 'no controlado');
+      // Determinismo del motor local
+      const det1 = await firstValueFrom(this.svc.diagnosticarDer({
+        activoId: 'INV-DET', tipoActivo: 'INVERSOR', comunidadId: 'COM', metrica: 'voltaje',
+        valor: 265, umbral: 240, minutosSinSenal: 0, usuario: 'op',
+      }));
+      const det2 = await firstValueFrom(this.svc.diagnosticarDer({
+        activoId: 'INV-DET', tipoActivo: 'INVERSOR', comunidadId: 'COM', metrica: 'voltaje',
+        valor: 265, umbral: 240, minutosSinSenal: 0, usuario: 'op',
+      }));
+      add('H · Motor local determinista (reproducible)', det1.diagnostico === det2.diagnostico, det1.diagnostico === det2.diagnostico ? 'mismo input → mismo diagnóstico' : 'difieren');
+
       const ok = this.expResultados.filter((x) => x.ok).length;
       const total = this.expResultados.length;
       this.expResumen = `${ok}/${total} criterios superados`;

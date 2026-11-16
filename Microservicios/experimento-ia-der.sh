@@ -20,10 +20,19 @@
 #   E  Guardrails: inyección de prompt rechazada (HTTP 422) + PII enmascarada.
 #   F  Degradación elegante / variedad de activos: medidor sin señal ->
 #      DESPACHAR_TECNICO; panel normal -> MONITOREAR (sin aprobación humana).
+#   G  Trazabilidad y cobertura: las 8 cajas aparecen en la traza; 7 fuentes de
+#      evidencia (3 RAG + 4 MCP); los 5 tipos de activo producen diagnóstico.
+#   H  Robustez: validación de entrada (payload inválido -> 4xx), operaciones
+#      sobre recursos inexistentes (-> 4xx) y determinismo del motor local.
 #
 # USO:
-#   ./experimento-ia-der.sh                       # contra el ia-service público (Render)
+#   ./experimento-ia-der.sh                 # contra el ia-service público (Render)
 #   IA=http://localhost:8104 ./experimento-ia-der.sh
+#   ./experimento-ia-der.sh --con-tests     # además corre JUnit (ia-service) y Hardhat (contrato)
+#
+# SALIDAS:
+#   evidencia-experimento/ia-der-<ts>.json  (evidencia estructurada)
+#   evidencia-experimento/ia-der-<ts>.md    (reporte legible para el profesor)
 #
 # REQUISITOS: bash, curl, python3 (usa el de CommandLineTools si el del sistema
 # está bloqueado por la licencia de Xcode). No requiere Docker ni la LAN.
@@ -32,6 +41,8 @@
 set -uo pipefail
 
 IA="${IA:-https://voltera-ia.onrender.com}"
+CON_TESTS=0
+[ "${1:-}" = "--con-tests" ] && CON_TESTS=1
 
 PY="${PY:-python3}"
 if ! printf '{}' | "$PY" -c 'import sys,json;json.load(sys.stdin)' >/dev/null 2>&1; then
@@ -42,10 +53,13 @@ OUT_DIR="${OUT_DIR:-evidencia-experimento}"
 TS="$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$OUT_DIR"
 EVID="$OUT_DIR/ia-der-$TS.json"
+REPORTE="$OUT_DIR/ia-der-$TS.md"
 
 PASS=0; FAIL=0
-ok()  { echo "   ✓ $1"; PASS=$((PASS+1)); }
-bad() { echo "   ✗ $1"; FAIL=$((FAIL+1)); }
+# Acumula líneas del reporte Markdown (una por criterio).
+REPORT_LINES=""
+ok()  { echo "   ✓ $1"; PASS=$((PASS+1)); REPORT_LINES="$REPORT_LINES| ✓ | $1 |"$'\n'; }
+bad() { echo "   ✗ $1"; FAIL=$((FAIL+1)); REPORT_LINES="$REPORT_LINES| ✗ | $1 |"$'\n'; }
 jqpy(){ "$PY" -c "import sys,json;d=json.load(sys.stdin);print($1)" 2>/dev/null; }
 # POST que devuelve SOLO el código HTTP (para pruebas de rechazo/guardrail).
 http_post(){ curl -s -o /dev/null -w '%{http_code}' --max-time 40 -X POST "$1" -H 'Content-Type: application/json' -d "${2:-}"; }
@@ -186,6 +200,67 @@ REQ_PAN=$(printf '%s' "$PAN" | jqpy "str(d.get('requiereAprobacionHumana')).lowe
 
 # ---------------------------------------------------------------------------
 echo ""
+echo "── EXPERIMENTO G · Trazabilidad (8 cajas) y cobertura de evidencia/activos"
+NODOS=$(printf '%s' "$DIAG" | jqpy "','.join(p['nodo'] for p in d.get('traza',[]))")
+echo "   nodos de la traza: $NODOS"
+for CAJA in guardrails agent-registry agente-monitor rag mcp agente-diagnosticador agente-accion human-review; do
+  echo "$NODOS" | grep -q "$CAJA" || { bad "falta el nodo '$CAJA' en la traza"; MISS=1; }
+done
+[ "${MISS:-0}" = "0" ] && ok "la traza recorre las 8 cajas de la arquitectura de referencia" || true
+NRAG=$(printf '%s' "$DIAG" | jqpy "sum(1 for e in d['evidencias'] if e['fuente'].startswith('RAG:'))")
+NMCP=$(printf '%s' "$DIAG" | jqpy "sum(1 for e in d['evidencias'] if e['fuente'].startswith('tool:'))")
+echo "   evidencia: $NRAG fuentes RAG + $NMCP herramientas MCP"
+[ "${NRAG:-0}" -ge 3 ] && ok "evidencia RAG citada ($NRAG: ficha técnica, fallos conocidos, procedimiento)" || bad "RAG insuficiente ($NRAG)"
+[ "${NMCP:-0}" -ge 3 ] && ok "evidencia MCP citada ($NMCP: telemetría, historial, topología)" || bad "MCP insuficiente ($NMCP)"
+# Cobertura de los 5 tipos de activo (todos deben producir un diagnóstico válido).
+TIPOS_OK=0
+for T in PANEL_SOLAR BATERIA INVERSOR CARGADOR_EV MEDIDOR; do
+  SV=$(curl -s --max-time 40 -X POST "$IA/api/v1/ia/diagnostico/der" -H 'Content-Type: application/json' -d "{\"activoId\":\"COV-$T\",\"tipoActivo\":\"$T\",\"comunidadId\":\"COM\",\"metrica\":\"m\",\"valor\":80,\"umbral\":60,\"minutosSinSenal\":0,\"usuario\":\"op\"}" | jqpy "d.get('severidad','')")
+  [ -n "$SV" ] && TIPOS_OK=$((TIPOS_OK+1))
+done
+[ "$TIPOS_OK" = "5" ] && ok "los 5 tipos de activo producen diagnóstico (PANEL/BATERIA/INVERSOR/CARGADOR_EV/MEDIDOR)" || bad "cobertura de tipos incompleta ($TIPOS_OK/5)"
+
+# ---------------------------------------------------------------------------
+echo ""
+echo "── EXPERIMENTO H · Robustez (validación de entrada, recursos inexistentes, determinismo)"
+HVAL=$(http_post "$IA/api/v1/ia/diagnostico/der" '{"tipoActivo":"INVERSOR","comunidadId":"COM","metrica":"v","valor":1,"umbral":1,"minutosSinSenal":0}')
+[ "$HVAL" -ge 400 ] && [ "$HVAL" -lt 500 ] && ok "payload inválido (sin activoId) RECHAZADO (HTTP $HVAL)" || bad "validación de entrada no controlada (HTTP $HVAL)"
+HNOF=$(http_post "$IA/api/v1/ia/gobernanza/propuestas/00000000-0000-0000-0000-000000000000/firmas/operador" '{"identidad":"x","razon":"y"}')
+[ "$HNOF" -ge 400 ] && [ "$HNOF" -lt 500 ] && ok "firmar una propuesta inexistente RECHAZADO (HTTP $HNOF)" || bad "recurso inexistente no controlado (HTTP $HNOF)"
+HASN=$(http_post "$IA/api/v1/ia/asistente/preguntar" '{"diagnosticoId":"00000000-0000-0000-0000-000000000000","audiencia":"PROSUMIDOR","texto":"hola"}')
+[ "$HASN" -ge 400 ] && [ "$HASN" -lt 500 ] && ok "Assistant sobre diagnóstico inexistente RECHAZADO (HTTP $HASN)" || bad "Assistant sin diagnóstico no controlado (HTTP $HASN)"
+DETB='{"activoId":"INV-DET","tipoActivo":"INVERSOR","comunidadId":"COM","metrica":"voltaje","valor":265,"umbral":240,"minutosSinSenal":0,"usuario":"op"}'
+DET1=$(curl -s --max-time 40 -X POST "$IA/api/v1/ia/diagnostico/der" -H 'Content-Type: application/json' -d "$DETB" | jqpy "d.get('diagnostico','')+'|'+d.get('severidad','')+'|'+d.get('accionPropuesta','')")
+DET2=$(curl -s --max-time 40 -X POST "$IA/api/v1/ia/diagnostico/der" -H 'Content-Type: application/json' -d "$DETB" | jqpy "d.get('diagnostico','')+'|'+d.get('severidad','')+'|'+d.get('accionPropuesta','')")
+[ -n "$DET1" ] && [ "$DET1" = "$DET2" ] && ok "motor local DETERMINISTA (mismo input -> mismo diagnóstico; reproducible/auditable)" || bad "el diagnóstico no es determinista"
+
+# ---------------------------------------------------------------------------
+TEST_JUNIT="(omitido)"; TEST_HARDHAT="(omitido)"
+if [ "$CON_TESTS" = "1" ]; then
+  echo ""
+  echo "── EXPERIMENTO I · Pruebas automatizadas (JUnit + Hardhat)"
+  SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+  if [ -d "$SCRIPT_DIR/ServiciosDeNegocio/ia-service" ]; then
+    if (cd "$SCRIPT_DIR/ServiciosDeNegocio/ia-service" && ./mvnw test >/tmp/junit-ia.log 2>&1); then
+      TEST_JUNIT=$(grep -Eo 'Tests run: [0-9]+, Failures: [0-9]+, Errors: [0-9]+, Skipped: [0-9]+' /tmp/junit-ia.log | tail -1)
+      [ -z "$TEST_JUNIT" ] && TEST_JUNIT="BUILD SUCCESS"
+      ok "ia-service: pruebas JUnit verdes ($TEST_JUNIT)"
+    else
+      TEST_JUNIT="FALLÓ"; bad "ia-service: pruebas JUnit fallaron (ver /tmp/junit-ia.log)"
+    fi
+  else echo "   ⚠ no se encontró ia-service; se omite JUnit"; fi
+  if [ -d "$SCRIPT_DIR/../Blockchain" ]; then
+    if (cd "$SCRIPT_DIR/../Blockchain" && npx hardhat test >/tmp/hardhat.log 2>&1); then
+      TEST_HARDHAT=$(grep -Eo '[0-9]+ passing' /tmp/hardhat.log | tail -1)
+      ok "contrato MultiFirmaAccionDER + suite: Hardhat verde ($TEST_HARDHAT)"
+    else
+      TEST_HARDHAT="FALLÓ"; bad "Hardhat falló (ver /tmp/hardhat.log)"
+    fi
+  else echo "   ⚠ no se encontró Blockchain; se omite Hardhat"; fi
+fi
+
+# ---------------------------------------------------------------------------
+echo ""
 echo "── Resumen"
 echo "   Criterios superados: $PASS · fallidos: $FAIL"
 cat > "$EVID" <<JSON
@@ -208,8 +283,29 @@ cat > "$EVID" <<JSON
   "experimentoD_evals": { "familias": ${TOTAL:-0}, "aptas": ${APTAS:-0}, "acierto_minimo": ${MINAC:-0}, "comandos_inventados": ${INV:-0} },
   "experimentoE_guardrails": { "inyeccion_http": "$HINJ", "pii_enmascarada": "$ENM" },
   "experimentoF_activos": { "medidor_sin_senal": "$ACC_MED", "panel_normal": "$ACC_PAN" },
+  "experimentoG_trazabilidad": { "nodos_traza": "$NODOS", "fuentes_rag": ${NRAG:-0}, "fuentes_mcp": ${NMCP:-0}, "tipos_activo_ok": ${TIPOS_OK:-0} },
+  "experimentoH_robustez": { "payload_invalido_http": "$HVAL", "propuesta_inexistente_http": "$HNOF", "asistente_inexistente_http": "$HASN", "determinista": $([ "$DET1" = "$DET2" ] && echo true || echo false) },
+  "experimentoI_tests": { "junit": "$TEST_JUNIT", "hardhat": "$TEST_HARDHAT" },
   "criterios_ok": $PASS, "criterios_fallidos": $FAIL
 }
 JSON
-echo "   Evidencia: $EVID"
+
+# Reporte Markdown legible (para adjuntar a la entrega).
+cat > "$REPORTE" <<MD
+# Evidencia · Experimento Módulo 5 (Agente DER + gobernanza 3/3)
+
+- **Fecha:** $TS
+- **Servicio:** \`$IA\`
+- **Resultado:** **$PASS/$((PASS+FAIL)) criterios superados** · fallidos: $FAIL
+- **Pruebas automatizadas:** JUnit=$TEST_JUNIT · Hardhat=$TEST_HARDHAT
+
+| Estado | Criterio |
+|:---:|---|
+$REPORT_LINES
+
+> Generado por \`Microservicios/experimento-ia-der.sh\`. Evidencia estructurada: \`$(basename "$EVID")\`.
+MD
+
+echo "   Evidencia JSON: $EVID"
+echo "   Reporte  MD  : $REPORTE"
 [ "$FAIL" -eq 0 ] && { echo "   ✅ TODOS LOS CRITERIOS SUPERADOS"; exit 0; } || { echo "   ⚠ hubo criterios fallidos"; exit 1; }

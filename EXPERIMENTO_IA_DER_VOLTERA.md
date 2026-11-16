@@ -8,7 +8,8 @@
 > (b) por consola con `Microservicios/experimento-ia-der.sh` (guarda evidencia JSON),
 > (c) por los tests automatizados (`ia-service` JUnit + `MultiFirmaAccionDER` Hardhat).
 >
-> **Última corrida real contra el `ia-service` LIVE (Render): 27/27 criterios superados.**
+> **Última corrida real contra el `ia-service` LIVE (Render): 35/35 criterios superados**
+> (37/37 con `--con-tests`, que suma JUnit + Hardhat). Genera evidencia en JSON y reporte en Markdown.
 
 ---
 
@@ -24,7 +25,8 @@ El caso del Grupo 5 tiene afirmaciones fuertes que un evaluador debe poder compr
    cada propuesta lleva trazabilidad on-chain (hash del diagnóstico + versión de prompt/modelo) para
    auditoría regulatoria (CREG).
 
-El experimento aterriza ambas en **6 bloques (A–F) con 27 criterios ✓/✗**.
+El experimento aterriza ambas en **8 bloques (A–H) con 35 criterios ✓/✗**, más un bloque I opcional
+(`--con-tests`) que ejecuta las pruebas automatizadas (JUnit del `ia-service` + Hardhat del contrato).
 
 ---
 
@@ -99,9 +101,40 @@ Resultado: **6/6 familias aptas**, acierto mínimo 0.88, 0 comandos inventados. 
 
 ---
 
+## Experimento G · Trazabilidad y cobertura
+
+| Criterio | Resultado |
+|---|---|
+| La traza del diagnóstico recorre **las 8 cajas** de la arquitectura de referencia (guardrails, agent-registry, agente-monitor, rag, mcp, agente-diagnosticador, agente-accion, human-review) | ✓ |
+| Evidencia citada: **≥ 3 fuentes RAG** (ficha técnica, fallos conocidos, procedimiento) **+ ≥ 3 MCP** (telemetría, historial, topología) | ✓ (3 + 4) |
+| Los **5 tipos de activo** (panel, batería, inversor, cargador EV, medidor) producen diagnóstico | ✓ |
+
+---
+
+## Experimento H · Robustez
+
+| Criterio | Resultado |
+|---|---|
+| Payload inválido (sin `activoId`) → **rechazado (HTTP 4xx)** | ✓ |
+| Firmar una propuesta inexistente → **rechazado (HTTP 4xx)** | ✓ |
+| Assistant sobre un diagnóstico inexistente → **rechazado (HTTP 4xx)** | ✓ |
+| Motor local **determinista**: mismo input → mismo diagnóstico (reproducible/auditable) | ✓ |
+
+---
+
+## Experimento I · Pruebas automatizadas (opcional, `--con-tests`)
+
+| Criterio | Resultado |
+|---|---|
+| `ia-service`: suite JUnit verde (diagnóstico, gobernanza 3/3, Assistant) | ✓ 16 tests |
+| Contrato `MultiFirmaAccionDER` + suite blockchain: Hardhat verde | ✓ 45 passing |
+
+---
+
 ## Evidencia real (contra el `ia-service` LIVE en Render)
 
-Última corrida: **27/27 criterios superados** (`evidencia-experimento/ia-der-*.json`). Resumen:
+Última corrida: **35/35 criterios superados** (37/37 con `--con-tests`). Se generan
+`evidencia-experimento/ia-der-<ts>.json` (estructurada) y `ia-der-<ts>.md` (reporte legible). Resumen:
 
 ```
 Pre 4 agentes · modoDegradado2de3=false
@@ -115,6 +148,9 @@ C   Assistant noPersuasion=true · consecuencias neutrales · prompts por audien
 D   Evals 6/6 aptas · acierto mínimo 0.88 · 0 comandos inventados
 E   inyección de prompt -> HTTP 422 · PII enmascarada
 F   medidor sin señal -> DESPACHAR_TECNICO · panel normal -> MONITOREAR
+G   traza recorre 8 cajas · 3 RAG + 4 MCP · 5 tipos de activo OK
+H   payload inválido/propuesta inexistente/assistant inexistente -> 4xx · motor determinista
+I   (--con-tests) JUnit 16 verdes · Hardhat 45 passing
 ```
 
 ---
@@ -127,9 +163,11 @@ F   medidor sin señal -> DESPACHAR_TECNICO · panel normal -> MONITOREAR
   ```bash
   cd Microservicios
   ./experimento-ia-der.sh                       # contra el ia-service público (Render)
+  ./experimento-ia-der.sh --con-tests           # además corre JUnit + Hardhat y los suma al reporte
   IA=http://localhost:8104 ./experimento-ia-der.sh   # contra un ia-service local
   ```
-  Imprime ✓/✗ por criterio y escribe `evidencia-experimento/ia-der-<ts>.json`.
+  Imprime ✓/✗ por criterio y escribe dos archivos en `evidencia-experimento/`:
+  `ia-der-<ts>.json` (evidencia estructurada) y `ia-der-<ts>.md` (reporte legible para adjuntar).
 - **Tests automatizados:**
   - `ia-service`: `./mvnw test` (16 tests — diagnóstico, gobernanza 3/3, Assistant).
   - Contrato: `cd Blockchain && npx hardhat test` (8 tests de `MultiFirmaAccionDER`, 45 en total).
