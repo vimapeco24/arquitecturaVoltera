@@ -57,6 +57,29 @@ blockchain con aristas MCP Blockchain Gateway → contrato (3/3); tópicos `der.
 
 ---
 
+## 2026-11-16 (cont.) · MÓDULO 5 · Experimento de validación + validación del front en vivo
+
+Pedido: validar el front y dejar el experimento completo para entregar al profesor.
+
+**Validado en vivo (backend `voltera-ia` en Render + front en Vercel):**
+- `GET /api/v1/ia/estado` → 4 agentes + Assistant + 2 MCP + gobernanza 3/3 (`modoDegradado2de3:false`).
+- Flujo 3/3 completo E2E contra Render: diagnóstico (CRÍTICA, COMANDO_FISICO, 7 evidencias, traza 8) →
+  propuesta 1/3 → firma operador 2/3 (no ejecuta) → firma prosumidor 3/3 → **EJECUTADA**.
+- Caso rechazo: con 2/3 el prosumidor rechaza → **RECHAZADA** con razón. Assistant `noPersuasion:true`.
+  Evals 6/6 aptas. Front `/ia` HTTP 200.
+
+**NUEVO experimento del Módulo 5 (equivalente al de la lámina 06 del Módulo 4):**
+- **Doc** `EXPERIMENTO_IA_DER_VOLTERA.md` (raíz): 4 pruebas A–D con hipótesis/métrica/criterio/resultado.
+- **Script** `Microservicios/experimento-ia-der.sh`: corre A–D contra el ia-service y guarda evidencia
+  JSON en `evidencia-experimento/ia-der-<ts>.json`. Corrida real: **16/16 criterios superados**.
+- **Front** `/ia`: botón **"Ejecutar experimento Módulo 5"** que corre A–D desde la consola del profesor
+  y muestra ✓/✗ por criterio con evidencia. `npm run build` OK.
+
+**Diagrama:** sin cambios de topología en esta sub-sesión (solo experimento/validación y UI), así que
+no se tocó el `.drawio`. Regla permanente cumplida.
+
+---
+
 ## ✅ AUDITORÍA DE ENTREGA · carpeta `Blockchain/` (2026-11-03)
 
 Pedido: validar qué más se requiere para que el proyecto Blockchain quede completo y específico para

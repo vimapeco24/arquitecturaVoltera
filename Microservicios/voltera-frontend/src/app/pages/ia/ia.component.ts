@@ -7,6 +7,7 @@ import {
 } from '../../services/ia.service';
 import { ToastService } from '../../core/toast.service';
 import { describeHttpError } from '../../core/http-error';
+import { firstValueFrom } from 'rxjs';
 
 /** Un nodo del pipeline agéntico, con su estado de ejecución para la animación. */
 export interface NodoFlujo {
@@ -62,6 +63,16 @@ export class IaComponent implements OnInit, OnDestroy {
   consultandoAsistente = false;
   // ── Evals & Tracing (Tema 5) ─────────────────────────────────────────────
   evals: ResultadoEval[] = [];
+
+  // ── Experimento de validación del Módulo 5 ────────────────────────────────
+  experimentando = false;
+  expResultados: { nombre: string; ok: boolean; detalle: string }[] = [];
+  expResumen = '';
+
+  /** true si todos los criterios del experimento pasaron. */
+  get expTodosOk(): boolean {
+    return this.expResultados.length > 0 && this.expResultados.every((r) => r.ok);
+  }
 
   /** Panel de resultado, para hacer scroll al arrancar el flujo. */
   @ViewChild('panelResultado') panelResultado?: ElementRef<HTMLElement>;
@@ -322,6 +333,73 @@ export class IaComponent implements OnInit, OnDestroy {
         this.chat.push({ rol: 'assistant', texto: 'No pude responder: ' + describeHttpError(e) });
       },
     });
+  }
+
+  // ── Experimento de validación del Módulo 5 (A–D) ───────────────────────────
+
+  /**
+   * Corre el experimento del Módulo 5 contra el ia-service y muestra ✓/✗ por
+   * criterio: (A) diagnóstico fundamentado, (B1) gobernanza 3/3 camino feliz,
+   * (B2) rechazo del prosumidor, (C) Assistant no persuasivo, (D) Evals.
+   * Es el equivalente de /experimento-validacion para el Módulo 5.
+   */
+  async ejecutarExperimento(): Promise<void> {
+    this.experimentando = true;
+    this.expResultados = [];
+    this.expResumen = '';
+    const add = (nombre: string, ok: boolean, detalle: string) =>
+      this.expResultados.push({ nombre, ok, detalle });
+    try {
+      // A · Diagnóstico agéntico fundamentado
+      const d = await firstValueFrom(this.svc.diagnosticarDer({
+        activoId: 'INV-EXP-' + Date.now(), tipoActivo: 'INVERSOR', comunidadId: 'COM-NORTE',
+        metrica: 'voltaje', valor: 265, umbral: 240, minutosSinSenal: 0,
+        descripcion: 'sobretensión sostenida', usuario: 'andrea.ops',
+      }));
+      add('A · Severidad CRÍTICA e inversor fuera de rango', d.severidad === 'CRITICA', `severidad=${d.severidad}`);
+      add('A · Acción COMANDO_FISICO con aprobación humana', d.accionPropuesta === 'COMANDO_FISICO' && d.requiereAprobacionHumana, `${d.accionPropuesta} · humano=${d.requiereAprobacionHumana}`);
+      add('A · Diagnóstico fundamentado (RAG + MCP)', d.evidencias.length >= 1, `${d.evidencias.length} fuentes citadas`);
+      add('A · Traza multiagente', d.traza.length >= 4, `${d.traza.length} pasos`);
+
+      // B1 · Gobernanza 3/3 camino feliz
+      const p1 = await firstValueFrom(this.svc.proponerAccion(d.diagnosticoId));
+      add('B1 · Propuesta nace con Firma 1 (1/3)', p1.firmas === '1/3', `firmas=${p1.firmas}`);
+      add('B1 · Trazabilidad on-chain (hash + versión prompt)', !!p1.hashDiagnostico && !!p1.versionPrompt, `${p1.versionPrompt}`);
+      const p2 = await firstValueFrom(this.svc.firmarOperador(p1.propuestaId, 'operador@voltera', 'validado'));
+      add('B1 · Con 2/3 NO se ejecuta (sin modo 2/3)', p2.estado === 'PENDIENTE' && p2.firmas === '2/3', `${p2.estado} · ${p2.firmas}`);
+      const p3 = await firstValueFrom(this.svc.firmarProsumidor(p1.propuestaId, 'prosumidor@casa', 'autorizo'));
+      add('B1 · Con 3/3 → EJECUTADA', p3.estado === 'EJECUTADA' && p3.firmas === '3/3', `${p3.estado} · ${p3.firmas}`);
+
+      // B2 · Soberanía del prosumidor (rechazo)
+      const d2 = await firstValueFrom(this.svc.diagnosticarDer({
+        activoId: 'INV-EXP-R-' + Date.now(), tipoActivo: 'INVERSOR', comunidadId: 'COM-SUR',
+        metrica: 'voltaje', valor: 270, umbral: 240, minutosSinSenal: 0, usuario: 'carlos.ops',
+      }));
+      const pr1 = await firstValueFrom(this.svc.proponerAccion(d2.diagnosticoId));
+      await firstValueFrom(this.svc.firmarOperador(pr1.propuestaId, 'operador@voltera', 'ok'));
+      const prRej = await firstValueFrom(this.svc.rechazarProsumidor(pr1.propuestaId, 'prosumidor@casa', 'no autorizo intervención en mi inversor'));
+      add('B2 · El prosumidor rechaza → RECHAZADA', prRej.estado === 'RECHAZADA', `${prRej.estado}`);
+
+      // C · Responsible AI del Assistant (no persuasión)
+      const r = await firstValueFrom(this.svc.preguntarAsistente(d.diagnosticoId, 'PROSUMIDOR', '¿qué pasa si no apruebo?'));
+      const resp = (r.respuesta || '').toLowerCase();
+      add('C · Assistant no persuade (neutral)', r.noPersuasion && resp.includes('si apruebas') && resp.includes('si rechazas'), `noPersuasion=${r.noPersuasion}`);
+
+      // D · Evals & Tracing
+      const ev = await firstValueFrom(this.svc.evals());
+      const aptas = ev.filter((x) => x.apta).length;
+      add('D · Evals: todas las versiones aptas', ev.length >= 4 && aptas === ev.length, `${aptas}/${ev.length} aptas`);
+
+      const ok = this.expResultados.filter((x) => x.ok).length;
+      const total = this.expResultados.length;
+      this.expResumen = `${ok}/${total} criterios superados`;
+      if (ok === total) this.toast.success('Experimento Módulo 5', this.expResumen);
+      else this.toast.error('Experimento Módulo 5', this.expResumen);
+    } catch (e) {
+      this.toast.error('Error en el experimento', describeHttpError(e));
+    } finally {
+      this.experimentando = false;
+    }
   }
 
   /** Icono de estado para cada nodo de la línea de tiempo. */
