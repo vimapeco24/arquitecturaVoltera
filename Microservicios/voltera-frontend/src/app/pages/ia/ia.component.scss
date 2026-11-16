@@ -246,3 +246,9 @@
 .exp-list .exp-nombre { flex: 1 1 auto; }
 .exp-list .exp-detalle { font-size: 11px; color: var(--v-muted); }
 .exp-resumen { margin-top: 10px; }
+
+/* ---------- Aviso de cold start (Render free) ---------- */
+.cold-start {
+  margin: 6px 0 0; padding: 8px 12px; border-radius: 8px; font-size: 12.5px;
+  background: rgba(214,158,46,0.12); color: #9a6a00; border: 1px solid rgba(214,158,46,0.35);
+}

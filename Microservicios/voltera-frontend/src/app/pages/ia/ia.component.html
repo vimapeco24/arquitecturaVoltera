@@ -104,6 +104,7 @@
           <span class="runner-title">Ejecutando el flujo agéntico…</span>
           <span class="runner-count">{{ pasoActivo + 1 }} / {{ flujo.length }}</span>
         </div>
+        <p class="cold-start" *ngIf="avisoColdStart">⏳ {{ avisoColdStart }}</p>
         <ol class="runline">
           <li *ngFor="let n of flujo; let i = index"
               [class.pendiente]="n.estado === 'pendiente'"

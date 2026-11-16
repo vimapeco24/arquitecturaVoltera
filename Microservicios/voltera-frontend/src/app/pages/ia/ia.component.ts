@@ -88,6 +88,10 @@ export class IaComponent implements OnInit, OnDestroy {
   /** respuesta real retenida hasta que la animación termina de revelar el flujo. */
   private pendiente?: DiagnosticoResponse;
   private timers: ReturnType<typeof setTimeout>[] = [];
+  /** Intentos de revelado mientras se espera la respuesta (cold start de Render). */
+  private esperas = 0;
+  /** Mensaje visible cuando el servicio está "despertando" (Render free). */
+  avisoColdStart = '';
 
   /** Guion canónico de los 8 nodos del flujo (orden y etiqueta estables para la UI). */
   private readonly guion: Omit<NodoFlujo, 'estado' | 'detalle'>[] = [
@@ -140,6 +144,9 @@ export class IaComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    // Pre-calienta el ia-service al entrar (Render free "duerme"): así el primer
+    // diagnóstico no choca con el cold start de 30-60 s. Estas llamadas también
+    // cargan el estado, el catálogo A2A y los Evals.
     this.svc.estado().subscribe({ next: (e) => (this.estado = e), error: () => {} });
     this.svc.agentes().subscribe({ next: (a) => (this.agentes = a ?? []), error: () => {} });
     this.svc.evals().subscribe({ next: (r) => (this.evals = r ?? []), error: () => {} });
@@ -164,6 +171,8 @@ export class IaComponent implements OnInit, OnDestroy {
     this.diagnostico = undefined;
     this.pendiente = undefined;
     this.pasoActivo = -1;
+    this.esperas = 0;
+    this.avisoColdStart = '';
     // Reinicia el flujo de gobernanza y la conversación del Assistant.
     this.propuesta = undefined;
     this.chat = [];
@@ -231,13 +240,30 @@ export class IaComponent implements OnInit, OnDestroy {
     if (this.pendiente) {
       this.reproduciendo = false;
       this.resultadoVisible = true;
+      this.avisoColdStart = '';
       this.diagnostico = this.pendiente;
       const d = this.pendiente;
       this.toast.success('Diagnóstico generado', `${d.severidad} · ${this.etiquetaAccion(d.accionPropuesta)}`);
-    } else {
-      // La red aún no respondió (p.ej. arranque en frío de Render): reintenta pronto.
-      this.timers.push(setTimeout(() => this.finalizarCuandoListo(), 400));
+      return;
     }
+    // La red aún no respondió. En Render free el 1er diagnóstico tras inactividad
+    // tarda 30-60 s (cold start): se muestra un aviso y se espera hasta un máximo
+    // de ~75 s (≈190 reintentos de 400 ms) antes de rendirse con un mensaje claro.
+    this.esperas++;
+    if (this.esperas === 5) {
+      this.avisoColdStart = 'El servicio estaba inactivo (Render free) y está despertando; '
+        + 'el primer diagnóstico puede tardar hasta ~60 s. Reintenta si no responde.';
+    }
+    if (this.esperas > 190) {
+      this.reproduciendo = false;
+      this.pasoActivo = -1;
+      this.flujo = [];
+      this.avisoColdStart = '';
+      this.toast.error('El agente no respondió a tiempo',
+        'El servicio puede estar despertando (Render free). Espera unos segundos y vuelve a intentar.');
+      return;
+    }
+    this.timers.push(setTimeout(() => this.finalizarCuandoListo(), 400));
   }
 
   private limpiarTimers(): void {
