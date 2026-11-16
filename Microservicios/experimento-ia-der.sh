@@ -43,6 +43,9 @@ set -uo pipefail
 IA="${IA:-https://voltera-ia.onrender.com}"
 CON_TESTS=0
 [ "${1:-}" = "--con-tests" ] && CON_TESTS=1
+# Tamaños de las pruebas de rendimiento y concurrencia (configurables por env).
+N_PERF="${N_PERF:-10}"
+N_CONC="${N_CONC:-5}"
 
 PY="${PY:-python3}"
 if ! printf '{}' | "$PY" -c 'import sys,json;json.load(sys.stdin)' >/dev/null 2>&1; then
@@ -235,6 +238,61 @@ DET2=$(curl -s --max-time 40 -X POST "$IA/api/v1/ia/diagnostico/der" -H 'Content
 [ -n "$DET1" ] && [ "$DET1" = "$DET2" ] && ok "motor local DETERMINISTA (mismo input -> mismo diagnóstico; reproducible/auditable)" || bad "el diagnóstico no es determinista"
 
 # ---------------------------------------------------------------------------
+echo ""
+echo "── EXPERIMENTO J · Rendimiento (latencia p50/p95 de $N_PERF diagnósticos)"
+PERF_FILE="$(mktemp)"
+for i in $(seq 1 "$N_PERF"); do
+  curl -s -o /dev/null -w "%{time_total}\n" --max-time 30 -X POST "$IA/api/v1/ia/diagnostico/der" -H 'Content-Type: application/json' \
+    -d "{\"activoId\":\"PERF-$i\",\"tipoActivo\":\"INVERSOR\",\"comunidadId\":\"COM\",\"metrica\":\"voltaje\",\"valor\":265,\"umbral\":240,\"minutosSinSenal\":0,\"usuario\":\"op\"}" >> "$PERF_FILE"
+done
+read -r P50 P95 PAVG PMAX < <("$PY" - "$PERF_FILE" <<'PYEOF'
+import sys
+t=sorted(float(x)*1000 for x in open(sys.argv[1]) if x.strip())
+n=len(t) or 1
+p=lambda q:t[min(len(t)-1,int(q*len(t)))] if t else 0
+print(f"{p(.5):.0f} {p(.95):.0f} {sum(t)/n:.0f} {t[-1] if t else 0:.0f}")
+PYEOF
+)
+rm -f "$PERF_FILE"
+echo "   latencia: p50=${P50}ms p95=${P95}ms avg=${PAVG}ms max=${PMAX}ms"
+[ "${P50:-99999}" -le 2000 ] && ok "latencia p50 <= 2 s (p50=${P50}ms · motor local)" || bad "p50 alto (${P50}ms; posible cold start de Render)"
+[ "${P95:-99999}" -le 5000 ] && ok "latencia p95 <= 5 s (p95=${P95}ms)" || bad "p95 alto (${P95}ms)"
+
+echo ""
+echo "── EXPERIMENTO K · A/B de versiones de prompt (Tema 5 · elegir la apta con mejor acierto)"
+EVALS_K=$(curl -s --max-time 40 "$IA/api/v1/ia/evals")
+AB=$("$PY" - <<PYEOF
+import json
+d=json.loads('''$EVALS_K''')
+# Compara las dos familias del Assistant (A/B permitido en el documento).
+fam={x['agente']:x for x in d}
+a=fam.get('asistente-prosumidor'); b=fam.get('asistente-operador')
+if a and b:
+    ganador=max([a,b],key=lambda x:(x['apta'],x['acierto']))
+    print(f"{a['version']}:{a['acierto']:.2f} vs {b['version']}:{b['acierto']:.2f} -> gana {ganador['version']} apta={ganador['apta']}")
+else:
+    print("NA")
+PYEOF
+)
+echo "   A/B Assistant: $AB"
+[ "$AB" != "NA" ] && echo "$AB" | grep -q "apta=True" && ok "A/B de prompts: se elige una versión APTA por mejor acierto ($AB)" || bad "no se pudo decidir el A/B ($AB)"
+
+echo ""
+echo "── EXPERIMENTO L · Concurrencia (N diagnósticos en paralelo, sin corromper estado)"
+CC_DIR="$(mktemp -d)"
+for i in $(seq 1 "$N_CONC"); do
+  ( curl -s --max-time 30 -X POST "$IA/api/v1/ia/diagnostico/der" -H 'Content-Type: application/json' \
+      -d "{\"activoId\":\"CC-$i\",\"tipoActivo\":\"INVERSOR\",\"comunidadId\":\"COM\",\"metrica\":\"voltaje\",\"valor\":265,\"umbral\":240,\"minutosSinSenal\":0,\"usuario\":\"op\"}" \
+      | jqpy "d.get('activoId','')+'|'+d.get('diagnosticoId','')" > "$CC_DIR/$i.txt" ) &
+done
+wait
+CC_OK=$(cat "$CC_DIR"/*.txt | grep -c "^CC-")
+CC_UNIQ=$(cat "$CC_DIR"/*.txt | cut -d'|' -f2 | sort -u | grep -c .)
+rm -rf "$CC_DIR"
+echo "   respuestas: $CC_OK/$N_CONC · diagnosticoId únicos: $CC_UNIQ"
+[ "$CC_OK" = "$N_CONC" ] && [ "$CC_UNIQ" = "$N_CONC" ] && ok "$N_CONC diagnósticos en paralelo con id único cada uno (sin corrupción de estado)" || bad "concurrencia con problemas ($CC_OK ok, $CC_UNIQ únicos)"
+
+# ---------------------------------------------------------------------------
 TEST_JUNIT="(omitido)"; TEST_HARDHAT="(omitido)"
 if [ "$CON_TESTS" = "1" ]; then
   echo ""
@@ -285,6 +343,9 @@ cat > "$EVID" <<JSON
   "experimentoF_activos": { "medidor_sin_senal": "$ACC_MED", "panel_normal": "$ACC_PAN" },
   "experimentoG_trazabilidad": { "nodos_traza": "$NODOS", "fuentes_rag": ${NRAG:-0}, "fuentes_mcp": ${NMCP:-0}, "tipos_activo_ok": ${TIPOS_OK:-0} },
   "experimentoH_robustez": { "payload_invalido_http": "$HVAL", "propuesta_inexistente_http": "$HNOF", "asistente_inexistente_http": "$HASN", "determinista": $([ "$DET1" = "$DET2" ] && echo true || echo false) },
+  "experimentoJ_rendimiento": { "n": $N_PERF, "p50_ms": ${P50:-0}, "p95_ms": ${P95:-0}, "avg_ms": ${PAVG:-0}, "max_ms": ${PMAX:-0} },
+  "experimentoK_ab_prompts": "$AB",
+  "experimentoL_concurrencia": { "n": $N_CONC, "respuestas_ok": ${CC_OK:-0}, "ids_unicos": ${CC_UNIQ:-0} },
   "experimentoI_tests": { "junit": "$TEST_JUNIT", "hardhat": "$TEST_HARDHAT" },
   "criterios_ok": $PASS, "criterios_fallidos": $FAIL
 }
@@ -303,9 +364,41 @@ cat > "$REPORTE" <<MD
 |:---:|---|
 $REPORT_LINES
 
+**Rendimiento (J):** p50=${P50:-0}ms · p95=${P95:-0}ms · avg=${PAVG:-0}ms · max=${PMAX:-0}ms (n=$N_PERF).
+**A/B de prompts (K):** $AB.
+**Concurrencia (L):** ${CC_OK:-0}/$N_CONC respuestas, ${CC_UNIQ:-0} ids únicos.
+
 > Generado por \`Microservicios/experimento-ia-der.sh\`. Evidencia estructurada: \`$(basename "$EVID")\`.
 MD
 
+# Reporte HTML (para abrir en el navegador durante la sustentación).
+REPORTE_HTML="$OUT_DIR/ia-der-$TS.html"
+HTML_ROWS=$(printf '%s' "$REPORT_LINES" | sed -E 's/^\| (.) \| (.*) \|$/<tr class="\1"><td>\1<\/td><td>\2<\/td><\/tr>/' | sed 's/class="✓"/class="ok"/;s/class="✗"/class="bad"/')
+cat > "$REPORTE_HTML" <<HTML
+<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Experimento Módulo 5 · Voltera</title>
+<style>
+ body{font-family:system-ui,Segoe UI,Arial,sans-serif;max-width:900px;margin:30px auto;padding:0 16px;color:#1a1a1a}
+ h1{color:#6A3FA0} .meta{color:#555;font-size:14px} table{width:100%;border-collapse:collapse;margin-top:16px}
+ th,td{text-align:left;padding:8px 10px;border-bottom:1px solid #eee;font-size:14px}
+ tr.ok td:first-child{color:#2e9e5b;font-weight:800} tr.bad td:first-child{color:#d9534f;font-weight:800}
+ .badge{display:inline-block;padding:4px 12px;border-radius:999px;color:#fff;font-weight:700}
+ .b-ok{background:#2e9e5b} .b-bad{background:#d9534f} .m{color:#444;font-size:13px;margin-top:14px}
+</style></head><body>
+<h1>Experimento de validación · Módulo 5 (Agente DER + gobernanza 3/3)</h1>
+<p class="meta">Fecha: $TS · Servicio: <code>$IA</code></p>
+<p><span class="badge $([ "$FAIL" -eq 0 ] && echo b-ok || echo b-bad)">$PASS/$((PASS+FAIL)) criterios superados · fallidos: $FAIL</span></p>
+<table><thead><tr><th>Estado</th><th>Criterio</th></tr></thead><tbody>
+$HTML_ROWS
+</tbody></table>
+<p class="m"><b>Rendimiento (J):</b> p50=${P50:-0}ms · p95=${P95:-0}ms · avg=${PAVG:-0}ms · max=${PMAX:-0}ms (n=$N_PERF)<br>
+<b>A/B de prompts (K):</b> $AB<br>
+<b>Concurrencia (L):</b> ${CC_OK:-0}/$N_CONC respuestas · ${CC_UNIQ:-0} ids únicos<br>
+<b>Pruebas automatizadas (I):</b> JUnit=$TEST_JUNIT · Hardhat=$TEST_HARDHAT</p>
+<p class="m">Generado por <code>Microservicios/experimento-ia-der.sh</code>.</p>
+</body></html>
+HTML
+
 echo "   Evidencia JSON: $EVID"
 echo "   Reporte  MD  : $REPORTE"
+echo "   Reporte HTML : $REPORTE_HTML"
 [ "$FAIL" -eq 0 ] && { echo "   ✅ TODOS LOS CRITERIOS SUPERADOS"; exit 0; } || { echo "   ⚠ hubo criterios fallidos"; exit 1; }

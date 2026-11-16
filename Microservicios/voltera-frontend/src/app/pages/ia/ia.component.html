@@ -304,11 +304,10 @@
       </button>
     </div>
     <p class="sub">
-      Valida en vivo el caso del documento Final en 8 bloques: (A) diagnóstico fundamentado RAG+MCP,
-      (B) gobernanza <strong>3/3</strong> — camino feliz, rechazo del prosumidor, doble firma y
-      propuesta sin acción —, (C) Assistant que no persuade y por audiencia, (D) compuerta de Evals,
-      (E) Guardrails (inyección + PII), (F) variedad de activos / degradación, (G) trazabilidad de las
-      8 cajas y (H) robustez (validación, recursos inexistentes, determinismo).
+      Valida en vivo el caso del documento Final en bloques A–L: (A) diagnóstico fundamentado RAG+MCP,
+      (B) gobernanza <strong>3/3</strong>, (C) Assistant sin persuadir y por audiencia, (D) Evals,
+      (E) Guardrails, (F) variedad de activos, (G) trazabilidad de las 8 cajas, (H) robustez/determinismo,
+      (J) rendimiento p50/p95, (K) A/B de prompts y (L) concurrencia.
     </p>
     <ul class="exp-list" *ngIf="expResultados.length">
       <li *ngFor="let r of expResultados" [class.ok]="r.ok" [class.bad]="!r.ok">

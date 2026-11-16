@@ -475,6 +475,45 @@ export class IaComponent implements OnInit, OnDestroy {
       }));
       add('H · Motor local determinista (reproducible)', det1.diagnostico === det2.diagnostico, det1.diagnostico === det2.diagnostico ? 'mismo input → mismo diagnóstico' : 'difieren');
 
+      // J · Rendimiento: latencia de N diagnósticos
+      const N = 8;
+      const tiempos: number[] = [];
+      for (let i = 0; i < N; i++) {
+        const t0 = performance.now();
+        await firstValueFrom(this.svc.diagnosticarDer({
+          activoId: 'PERF-' + i, tipoActivo: 'INVERSOR', comunidadId: 'COM', metrica: 'voltaje',
+          valor: 265, umbral: 240, minutosSinSenal: 0, usuario: 'op',
+        }));
+        tiempos.push(performance.now() - t0);
+      }
+      tiempos.sort((a, b) => a - b);
+      const p50 = Math.round(tiempos[Math.floor(0.5 * N)]);
+      const p95 = Math.round(tiempos[Math.min(N - 1, Math.floor(0.95 * N))]);
+      add('J · Rendimiento: p50 ≤ 2 s', p50 <= 2000, `p50=${p50}ms · p95=${p95}ms (n=${N})`);
+
+      // K · A/B de versiones de prompt (elige la apta con mejor acierto)
+      const evAB = await firstValueFrom(this.svc.evals());
+      const a = evAB.find((x) => x.agente === 'asistente-prosumidor');
+      const b = evAB.find((x) => x.agente === 'asistente-operador');
+      let abOk = false; let abTxt = 'NA';
+      if (a && b) {
+        const gana = [a, b].sort((x, y) => (Number(y.apta) - Number(x.apta)) || (y.acierto - x.acierto))[0];
+        abOk = gana.apta;
+        abTxt = `${a.version}:${a.acierto} vs ${b.version}:${b.acierto} → gana ${gana.version}`;
+      }
+      add('K · A/B de prompts: se elige versión APTA por acierto', abOk, abTxt);
+
+      // L · Concurrencia: N diagnósticos en paralelo con id único
+      const M = 5;
+      const concurrentes = await Promise.all(
+        Array.from({ length: M }, (_, i) => firstValueFrom(this.svc.diagnosticarDer({
+          activoId: 'CC-' + i, tipoActivo: 'INVERSOR', comunidadId: 'COM', metrica: 'voltaje',
+          valor: 265, umbral: 240, minutosSinSenal: 0, usuario: 'op',
+        }))),
+      );
+      const idsUnicos = new Set(concurrentes.map((x) => x.diagnosticoId)).size;
+      add('L · Concurrencia: N en paralelo con id único', concurrentes.length === M && idsUnicos === M, `${concurrentes.length} respuestas · ${idsUnicos} ids únicos`);
+
       const ok = this.expResultados.filter((x) => x.ok).length;
       const total = this.expResultados.length;
       this.expResumen = `${ok}/${total} criterios superados`;

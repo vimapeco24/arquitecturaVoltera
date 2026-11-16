@@ -25,8 +25,9 @@ El caso del Grupo 5 tiene afirmaciones fuertes que un evaluador debe poder compr
    cada propuesta lleva trazabilidad on-chain (hash del diagnóstico + versión de prompt/modelo) para
    auditoría regulatoria (CREG).
 
-El experimento aterriza ambas en **8 bloques (A–H) con 35 criterios ✓/✗**, más un bloque I opcional
+El experimento aterriza ambas en **11 bloques (A–L) con ~39 criterios ✓/✗**, más un bloque I opcional
 (`--con-tests`) que ejecuta las pruebas automatizadas (JUnit del `ia-service` + Hardhat del contrato).
+Genera tres salidas: **JSON** (estructurada), **Markdown** (reporte) y **HTML** (para proyectar).
 
 ---
 
@@ -131,10 +132,33 @@ Resultado: **6/6 familias aptas**, acierto mínimo 0.88, 0 comandos inventados. 
 
 ---
 
+## Experimento J · Rendimiento (latencia)
+
+Se miden N diagnósticos (por defecto 10; `N_PERF` configurable) y se reporta la distribución.
+Criterios: **p50 ≤ 2 s** y **p95 ≤ 5 s** (motor local). Corrida real: **p50 ≈ 357 ms, p95 ≈ 446 ms**. ✓✓
+
+---
+
+## Experimento K · A/B de versiones de prompt (Tema 5)
+
+Compara las dos familias del Assistant (A/B permitido en el documento) con los datos de Evals y
+**elige la versión APTA con mejor acierto**. Resultado: `asistente-operador@v2` (0.94) sobre
+`asistente-prosumidor@v2` (0.93), ambas aptas. ✓
+
+---
+
+## Experimento L · Concurrencia
+
+Lanza N diagnósticos **en paralelo** (por defecto 5; `N_CONC` configurable) y verifica que todos
+responden y que cada uno recibe un `diagnosticoId` **único** (sin corrupción de estado). ✓
+
+---
+
 ## Evidencia real (contra el `ia-service` LIVE en Render)
 
-Última corrida: **35/35 criterios superados** (37/37 con `--con-tests`). Se generan
-`evidencia-experimento/ia-der-<ts>.json` (estructurada) y `ia-der-<ts>.md` (reporte legible). Resumen:
+Última corrida: **39/39 criterios superados** (más JUnit + Hardhat con `--con-tests`). Se generan tres
+archivos en `evidencia-experimento/`: `ia-der-<ts>.json` (estructurada), `ia-der-<ts>.md` (reporte) y
+`ia-der-<ts>.html` (para proyectar en la sustentación). Resumen:
 
 ```
 Pre 4 agentes · modoDegradado2de3=false
@@ -150,6 +174,9 @@ E   inyección de prompt -> HTTP 422 · PII enmascarada
 F   medidor sin señal -> DESPACHAR_TECNICO · panel normal -> MONITOREAR
 G   traza recorre 8 cajas · 3 RAG + 4 MCP · 5 tipos de activo OK
 H   payload inválido/propuesta inexistente/assistant inexistente -> 4xx · motor determinista
+J   latencia p50≈357ms · p95≈446ms (n=10)
+K   A/B Assistant -> gana asistente-operador@v2 (0.94), apta
+L   5 diagnósticos en paralelo · 5 ids únicos (sin corrupción de estado)
 I   (--con-tests) JUnit 16 verdes · Hardhat 45 passing
 ```
 
