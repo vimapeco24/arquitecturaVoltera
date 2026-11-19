@@ -1155,3 +1155,7 @@ Ninguno se escribió en archivos ni en `.git/config` (verificado: `origin` queda
 ## Actualizacion: pagos-service con Outbox (item 6)
 - pagos-service publica `PagoConfirmado` (Outbox + OutboxRelay) a `topic.cobros.pago-confirmado` (consumidor: cobros-service). Flag `pagos.kafka.enabled` (env `PAGOS_KAFKA_ENABLED`).
 - `Modificados/Voltera_Arquitectura_Completa.drawio`: etiqueta del nodo `ms-pagos` actualizada para reflejar el Outbox. XML validado.
+
+## Actualizacion: liquidacion-p2p-service con Outbox (item 7)
+- liquidacion-p2p ya no publica directo: `OutboxLiquidacionEventPublisher` escribe `LiquidacionCalculada` en `InMemoryOutbox` y `OutboxRelay` lo envía a `topic.facturacion.liquidacion`. Flag `voltera.kafka.enabled` (env `KAFKA_ENABLED`, default false => publisher no-op, sin outbox/relay/productor).
+- `Modificados/Voltera_Arquitectura_Completa.drawio`: etiqueta del nodo `ms-p2p` actualizada. XML validado.

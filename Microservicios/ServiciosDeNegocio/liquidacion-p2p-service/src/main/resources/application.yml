@@ -29,6 +29,8 @@ voltera:
   # (donde existe el broker Redpanda). En Render se deja en false (broker LAN).
   kafka:
     enabled: ${KAFKA_ENABLED:false}
+  outbox:
+    relay-interval-ms: ${OUTBOX_RELAY_INTERVAL_MS:3000}
   eventos:
     topic-liquidacion: ${VOLTERA_TOPIC_LIQUIDACION:topic.facturacion.liquidacion}
 

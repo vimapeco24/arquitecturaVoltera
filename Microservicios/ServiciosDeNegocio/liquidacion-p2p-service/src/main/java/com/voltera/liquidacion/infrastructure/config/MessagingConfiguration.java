@@ -1,7 +1,12 @@
 package com.voltera.liquidacion.infrastructure.config;
 
 import com.voltera.liquidacion.domain.port.out.LiquidacionEventPublisherPort;
-import com.voltera.liquidacion.infrastructure.messaging.KafkaLiquidacionEventPublisher;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.voltera.liquidacion.application.OutboxLiquidacionEventPublisher;
+import com.voltera.liquidacion.domain.port.out.OutboxPort;
+import com.voltera.liquidacion.domain.port.out.SerializadorEventosPort;
+import com.voltera.liquidacion.infrastructure.messaging.JacksonSerializadorEventos;
 import com.voltera.liquidacion.infrastructure.messaging.NoopLiquidacionEventPublisher;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
@@ -14,6 +19,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -25,9 +31,11 @@ import java.util.Map;
  * (anclaje solo por REST). Si {@code voltera.kafka.enabled=true}, se crea el
  * productor Kafka y el publisher que emite a 'topic.facturacion.liquidacion',
  * cerrando la orquestación por eventos con el blockchain-gateway (que ya
- * consume ese topic).</p>
+ * consume ese topic). La publicación usa el patrón Outbox: el servicio registra
+ * el evento en el outbox y {@code OutboxRelay} lo envía al broker.</p>
  */
 @Configuration
+@EnableScheduling
 public class MessagingConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(MessagingConfiguration.class);
@@ -60,9 +68,16 @@ public class MessagingConfiguration {
 
     @Bean
     @ConditionalOnProperty(name = "voltera.kafka.enabled", havingValue = "true")
-    public LiquidacionEventPublisherPort kafkaLiquidacionEventPublisher(KafkaTemplate<String, String> liquidacionKafkaTemplate) {
-        log.info("EDA habilitado: LiquidacionCalculada se publicará en el topic '{}'.", topicLiquidacion);
-        return new KafkaLiquidacionEventPublisher(liquidacionKafkaTemplate, topicLiquidacion);
+    public SerializadorEventosPort serializadorEventos() {
+        return new JacksonSerializadorEventos(new ObjectMapper().registerModule(new JavaTimeModule()));
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "voltera.kafka.enabled", havingValue = "true")
+    public LiquidacionEventPublisherPort outboxLiquidacionEventPublisher(OutboxPort outbox,
+                                                                         SerializadorEventosPort serializador) {
+        log.info("EDA habilitado: LiquidacionCalculada se registra en el outbox y se publica en el topic '{}'.", topicLiquidacion);
+        return new OutboxLiquidacionEventPublisher(outbox, serializador);
     }
 
     // ---------- Modo por defecto (sin Kafka): no-op ----------
