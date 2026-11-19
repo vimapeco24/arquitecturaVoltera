@@ -47,6 +47,7 @@ public final class PropuestaAccion {
     private String resultadoEjecucion;
     private final Map<Firmante, String> txPorFirmante = new EnumMap<>(Firmante.class);
     private String txEjecucion;
+    private final Map<Firmante, FirmaDigital> firmasDigitales = new EnumMap<>(Firmante.class);
 
     private PropuestaAccion(UUID diagnosticoId, String activoId, String comunidadId,
                             TipoAccion tipoAccion, String comando, String parametros,
@@ -141,6 +142,39 @@ public final class PropuestaAccion {
             return firmas.containsKey(Firmante.PROSUMIDOR) ? null : Firmante.PROSUMIDOR;
         }
         return Firmante.OPERADOR;
+    }
+
+    /**
+     * Mensaje canónico que firma cada rol (EIP-191). Incluye la decisión y los datos que
+     * no deben poder cambiarse después: activo, comando, hash del diagnóstico y vigencia.
+     */
+    public String mensajeParaFirma(Firmante rol, boolean aprueba) {
+        return "Voltera · MultiFirmaAccionDER\n"
+                + "Propuesta: " + propuestaId + "\n"
+                + "Rol: " + rol + "\n"
+                + "Decision: " + (aprueba ? "APRUEBA" : "RECHAZA") + "\n"
+                + "Activo: " + activoId + "\n"
+                + "Comando: " + comando + "\n"
+                + "Hash diagnostico: " + hashDiagnostico + "\n"
+                + "Vence: " + venceEn;
+    }
+
+    /** Segregación de funciones: una misma dirección no puede firmar dos roles de la propuesta. */
+    public void validarDireccionUnica(Firmante rol, String direccion) {
+        for (FirmaDigital fd : firmasDigitales.values()) {
+            if (fd.rol() != rol && fd.direccion().equalsIgnoreCase(direccion)) {
+                throw new IllegalStateException("La dirección " + direccion + " ya firmó como " + fd.rol()
+                        + "; cada rol debe firmar con una cuenta distinta.");
+            }
+        }
+    }
+
+    public void registrarFirmaDigital(FirmaDigital fd) {
+        firmasDigitales.put(fd.rol(), fd);
+    }
+
+    public List<FirmaDigital> firmasDigitales() {
+        return new ArrayList<>(firmasDigitales.values());
     }
 
     /** Asocia a la firma de un firmante la referencia de transacción (txHash o demo) devuelta por el gateway. */

@@ -4,6 +4,7 @@ import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import {
   IaService, PropuestaResponse, EstadoAprobacionesDto, AuditoriaPropuestaDto, MetricasGobernanzaDto,
+  VerificacionFirmaDto, NotificacionDto,
 } from '../../services/ia.service';
 import { ToastService } from '../../core/toast.service';
 import { describeHttpError } from '../../core/http-error';
@@ -41,6 +42,16 @@ export class GobernanzaOnchainComponent implements OnInit {
   cargando = false;
   ocupado = false;
   readonly circ = 2 * Math.PI * 52;
+  verificaciones: VerificacionFirmaDto[] = [];
+  bandeja: NotificacionDto[] = [];
+  readonly rolesBandeja = ['TODOS', 'OPERADOR', 'PROSUMIDOR'];
+  rolBandeja = 'TODOS';
+  billetera = '';
+
+  /** true si el navegador tiene una billetera EIP-1193 (MetaMask). */
+  get hayBilletera(): boolean {
+    return typeof window !== 'undefined' && !!(window as any).ethereum;
+  }
 
   /** Nodos de la máquina de estados del contrato MultiFirmaAccionDER. */
   readonly estados = [
@@ -51,6 +62,7 @@ export class GobernanzaOnchainComponent implements OnInit {
 
   ngOnInit(): void {
     this.recargar();
+    this.cargarBandeja();
     this.http.get<EvidenciaOnChain>('assets/onchain-evidencia.json').subscribe({
       next: (e) => (this.evidencia = e), error: () => {},
     });
@@ -76,12 +88,54 @@ export class GobernanzaOnchainComponent implements OnInit {
       error: (e) => { this.cargando = false; this.toast.error('No se pudo cargar', describeHttpError(e)); },
     });
     this.svc.metricasGobernanza().subscribe({ next: (m) => (this.metricas = m), error: () => (this.metricas = undefined) });
+    this.cargarBandeja();
+  }
+
+  cargarBandeja(): void {
+    const dest = this.rolBandeja === 'TODOS' ? undefined : this.rolBandeja;
+    this.svc.notificaciones(dest).subscribe({ next: (n) => (this.bandeja = (n ?? []).slice(0, 30)), error: () => (this.bandeja = []) });
+  }
+
+  leer(id: string): void {
+    this.svc.marcarLeida(id).subscribe({ next: () => this.cargarBandeja(), error: () => {} });
+  }
+
+  verif(rol: string): VerificacionFirmaDto | undefined {
+    return this.verificaciones.find((v) => v.rol === rol);
+  }
+
+  /** Firma con la billetera del navegador (EIP-191 personal_sign) y la envía para verificación. */
+  async firmarConBilletera(rol: 'OPERADOR' | 'PROSUMIDOR', aprueba: boolean): Promise<void> {
+    if (!this.seleccionada || !this.hayBilletera) return;
+    const eth = (window as any).ethereum;
+    this.ocupado = true;
+    try {
+      const cuentas: string[] = await eth.request({ method: 'eth_requestAccounts' });
+      const cuenta = cuentas[0];
+      this.billetera = cuenta;
+      const id = this.seleccionada.propuestaId;
+      const { mensaje } = await firstValueFrom(this.svc.mensajeFirma(id, rol, aprueba ? 'APRUEBA' : 'RECHAZA'));
+      const hex = '0x' + Array.from(new TextEncoder().encode(mensaje)).map((b) => b.toString(16).padStart(2, '0')).join('');
+      const firma: string = await eth.request({ method: 'personal_sign', params: [hex, cuenta] });
+      const ident = (rol === 'OPERADOR' ? 'operador' : 'prosumidor') + ':' + cuenta;
+      const r = aprueba
+        ? await firstValueFrom(rol === 'OPERADOR' ? this.svc.firmarOperador(id, ident, 'firmado con billetera', cuenta, firma)
+                                                  : this.svc.firmarProsumidor(id, ident, 'firmado con billetera', cuenta, firma))
+        : await firstValueFrom(rol === 'OPERADOR' ? this.svc.rechazarOperador(id, ident, 'rechazo firmado con billetera', cuenta, firma)
+                                                  : this.svc.rechazarProsumidor(id, ident, 'rechazo firmado con billetera', cuenta, firma));
+      this.toast.success('Firma de billetera verificada', `${r.firmas} · ${r.estado}`);
+      this.seleccionada = r;
+      this.recargar();
+    } catch (e: any) {
+      this.toast.error('No se pudo firmar con la billetera', e?.message ?? describeHttpError(e));
+    } finally { this.ocupado = false; }
   }
 
   seleccionar(p: PropuestaResponse): void {
     this.seleccionada = p;
-    this.aprob = undefined; this.audit = undefined;
+    this.aprob = undefined; this.audit = undefined; this.verificaciones = [];
     this.svc.aprobaciones(p.propuestaId).subscribe({ next: (a) => (this.aprob = a), error: () => {} });
+    this.svc.verificarFirmas(p.propuestaId).subscribe({ next: (v) => (this.verificaciones = v ?? []), error: () => {} });
     this.svc.auditoria(p.propuestaId).subscribe({ next: (a) => (this.audit = a), error: () => {} });
   }
 
@@ -157,6 +211,6 @@ export class GobernanzaOnchainComponent implements OnInit {
   icono(t: string): string {
     return t.startsWith('RECHAZO') ? '✘' : t === 'EJECUTADA' ? '⚡' : t === 'APROBADA_3_DE_3' ? '✅' : t === 'VENCIDA' ? '⌛' : t === 'PROPUESTA_CREADA' ? '📝' : '✍';
   }
-  corto(h: string | null | undefined, n = 10): string { return h ? h.slice(0, n) + '…' + h.slice(-6) : ''; }
+  corto(h: string | null | undefined, n = 10): string { return h ? (h.length <= n + 6 ? h : h.slice(0, n) + '…' + h.slice(-6)) : ''; }
   copiar(t: string): void { navigator.clipboard?.writeText(t); this.toast.success('Copiado', this.corto(t, 14)); }
 }

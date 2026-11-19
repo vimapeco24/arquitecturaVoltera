@@ -8,7 +8,7 @@
 > (b) por consola con `Microservicios/experimento-ia-der.sh` (guarda evidencia JSON),
 > (c) por los tests automatizados (`ia-service` JUnit + `MultiFirmaAccionDER` Hardhat).
 >
-> **Última corrida: 46/46 criterios superados** (ia-service local con los endpoints nuevos; Render 44/44 antes de redesplegar B7)
+> **Última corrida: 54/54 criterios superados** (incluye el bloque N de integraciones reales) · antes: 46/46 (ia-service local con los endpoints nuevos; Render 44/44 antes de redesplegar B7)
 > (incluye el bloque M on-chain; con `--con-tests` suma además JUnit + Hardhat). Genera evidencia en JSON, Markdown y HTML.
 > El front `/ia` ejecuta los bloques P, A–L (con B5/B6) agrupados por bloque, con barra de progreso y descarga de evidencia JSON.
 
@@ -159,6 +159,23 @@ responden y que cada uno recibe un `diagnosticoId` **único** (sin corrupción d
 
 ---
 
+## Experimento N · Integraciones reales (RAG BM25, Evals en vivo, firmas ECDSA, notificaciones)
+
+| Criterio | Cómo se mide | Resultado local |
+|---|---|---|
+| RAG recupera el documento correcto | `GET /ia/conocimiento/buscar?q=inversor sobretensión sostenida&tipoActivo=INVERSOR` → primer resultado `inversor-fallos` | ✓ (BM25 5,31) |
+| El diagnóstico cita corpus | cada evidencia `RAG:*` trae documento, sección y puntaje BM25 | ✓ 3 fragmentos |
+| Evals en vivo | `GET /ia/evals/reporte`: 29 casos etiquetados ejecutados contra el flujo, 6 familias aptas | ✓ |
+| Evals discrimina | el reporte marca 2 fallos reales (SoH de batería: el motor compara valor > umbral) | ✓ |
+| Firmas ECDSA | `GET .../firmas/verificacion`: 3 firmas EIP-191 válidas con `ecrecover`, 3 cuentas distintas | ✓ |
+| Firma falsa | firma de billetera que no corresponde a la dirección → HTTP 400 | ✓ |
+| Notificaciones | `GET /ia/notificaciones?propuestaId=`: operador (1/3) → prosumidor (2/3) → desenlace | ✓ |
+| Capacidades | `GET /ia/capacidades`: estado calculado en vivo (6 operativas, 4 con respaldo local, 1 pendiente) | ✓ |
+
+Estados de `/ia/capacidades`: **OPERATIVO** (funciona de punta a punta), **LOCAL** (funciona con respaldo local porque falta un recurso externo) y **PENDIENTE** (requiere acción externa). Hoy PENDIENTE solo el despliegue de `MultiFirmaAccionDER` en Amoy (falta POL de prueba).
+
+---
+
 ## Experimento M · Gobernanza 3/3 ON-CHAIN (contrato `MultiFirmaAccionDER`, red local Hardhat)
 
 Responde a «¿cómo vemos el blockchain con las múltiples aprobaciones?» con **transacciones EVM reales**, sin gas
@@ -189,9 +206,9 @@ Cuando el contrato se despliegue en Amoy, los mismos pasos darán hashes verific
 Endpoint de lectura: `GET /api/v1/ia/gobernanza/propuestas/{id}/aprobaciones` (ia-service, :8104).
 Devuelve firmantes requeridos, quién firmó (marca de tiempo, `txHash`, `explorerUrl` si es un hash real),
 quién falta, `estado` (PENDIENTE / APROBADA / EJECUTADA / RECHAZADA / VENCIDA), `progreso` (X/3) y `modo`
-(`ON_CHAIN` o `SIMULADO`). El ia-service consulta al blockchain-gateway
+(`ON_CHAIN` o `OFF_CHAIN`). El ia-service consulta al blockchain-gateway
 `GET /api/v1/gobernanza/propuestas/{id}/estado`, que lee el contrato `MultiFirmaAccionDER` solo si están
-definidas `VOLTERA_BLOCKCHAIN_RPC_URL` y `VOLTERA_BLOCKCHAIN_GOBERNANZA_ADDRESS`; si no, responde `SIMULADO`.
+definidas `VOLTERA_BLOCKCHAIN_RPC_URL` y `VOLTERA_BLOCKCHAIN_GOBERNANZA_ADDRESS`; si no, responde `OFF_CHAIN`.
 El id on-chain es `keccak256(UTF-8 del UUID)`.
 
 ```bash
@@ -208,7 +225,7 @@ curl -s http://localhost:8101/api/v1/gobernanza/propuestas/$P/estado
 
 - **Front:** `/ia` → crear propuesta y firmar; el panel «Aprobaciones múltiples» muestra cada firmante, estado, X de 3, etiqueta On-chain/Simulado y el enlace `tx` al explorador.
 - **Consola profesional:** `/gobernanza` en el front (máquina de estados, firmantes, auditoría y tabla de transacciones EVM con gas).
-- **Polygonscan:** con contrato desplegado, `https://amoy.polygonscan.com/tx/<txHash>` (o `/address/<contrato>#events`). Hoy el contrato **no está desplegado en Amoy (falta gas)**, por eso el modo es `SIMULADO` y las referencias `demo:` no existen en el explorador.
+- **Polygonscan:** con contrato desplegado, `https://amoy.polygonscan.com/tx/<txHash>` (o `/address/<contrato>#events`). Hoy el contrato **no está desplegado en Amoy (falta gas)**, por eso el modo es `OFF_CHAIN` y las referencias `demo:` no existen en el explorador.
 - **Script:** el bloque B6 de `experimento-ia-der.sh` verifica este endpoint.
 
 ## Evidencia real (contra el `ia-service` LIVE en Render)

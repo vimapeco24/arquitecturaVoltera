@@ -1,5 +1,6 @@
 package com.voltera.ia.infrastructure.rest;
 
+import com.voltera.ia.domain.model.evals.ReporteEvals;
 import com.voltera.ia.domain.model.evals.ResultadoEval;
 import com.voltera.ia.domain.port.in.EvalsUseCase;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +30,13 @@ public class EvalsController {
     @GetMapping
     public ResponseEntity<List<ResultadoEval>> evaluarActivas() {
         return ResponseEntity.ok(evals.evaluarActivas());
+    }
+
+    /** Corrida real del dataset: métricas por familia y resultado caso a caso. */
+    @GetMapping("/reporte")
+    public ResponseEntity<ReporteEvals> reporte(
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "false") boolean forzar) {
+        return ResponseEntity.ok(evals.ejecutar(forzar));
     }
 
     @GetMapping("/{agente}")

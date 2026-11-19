@@ -79,12 +79,14 @@ public class BeanConfiguration {
             NotificadorPort notificador,
             PropuestaRepositoryPort propuestaRepositorio,
             GobernanzaEventPublisherPort gobernanzaEventPublisher,
+            com.voltera.ia.domain.port.out.FirmaCriptograficaPort firmas,
             @Value("${ia.gobernanza.ttl-critica-min:30}") long ttlCriticaMin,
             @Value("${ia.gobernanza.ttl-normal-min:240}") long ttlNormalMin,
             @Value("${ia.gobernanza.explorer-base:https://amoy.polygonscan.com}") String explorerBase) {
         return new GobernanzaAccionService(
                 gateway, notificador, propuestaRepositorio, gobernanzaEventPublisher,
-                Duration.ofMinutes(ttlCriticaMin), Duration.ofMinutes(ttlNormalMin), explorerBase);
+                Duration.ofMinutes(ttlCriticaMin), Duration.ofMinutes(ttlNormalMin), explorerBase)
+                .conFirmas(firmas);
     }
 
     /**
@@ -101,7 +103,22 @@ public class BeanConfiguration {
 
     /** Evals & Tracing (Tema 5): compuerta de calidad de cada versión de prompt. */
     @Bean
-    public EvalsService evalsService(PromptModelRegistryPort promptRegistry) {
-        return new EvalsService(promptRegistry);
+    public EvalsService evalsService(
+            PromptModelRegistryPort promptRegistry,
+            ConocimientoDerPort conocimientoDer,
+            HerramientasDerPort herramientasDer,
+            AgentRegistryPort agentRegistry,
+            GuardrailsPort guardrails,
+            ModelGatewayPort modelGateway,
+            com.voltera.ia.infrastructure.evals.DatasetEvalsLoader dataset) {
+        // Instancias aisladas: las corridas de Evals no tocan diagnósticos, propuestas ni eventos de producción.
+        var repoEvals = new com.voltera.ia.infrastructure.persistence.InMemoryDiagnosticoRepository();
+        var diagnosticadorEvals = new DiagnosticoDerService(
+                conocimientoDer, herramientasDer, agentRegistry, guardrails, modelGateway, promptRegistry,
+                d -> { }, e -> true, repoEvals);
+        var asistenteEvals = new AsistenteService(repoEvals, guardrails, promptRegistry);
+        return new EvalsService(promptRegistry, diagnosticadorEvals, asistenteEvals,
+                com.voltera.ia.infrastructure.persistence.InMemoryPropuestaRepository::new,
+                dataset.casos(), dataset.nombre());
     }
 }

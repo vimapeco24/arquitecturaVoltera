@@ -29,10 +29,10 @@ class McpBlockchainGatewayAdapterTest {
 
     @Test
     void respuestaSimuladaOSinModoSeTrataComoSimulada() {
-        var l = McpBlockchainGatewayAdapter.parsearLectura(Map.of("modo", "SIMULADO", "mensaje", "sin contrato"));
+        var l = McpBlockchainGatewayAdapter.parsearLectura(Map.of("modo", "OFF_CHAIN", "mensaje", "sin contrato"));
         assertFalse(l.esOnChain());
         assertEquals("sin contrato", l.mensaje());
         assertFalse(McpBlockchainGatewayAdapter.parsearLectura(Map.of()).esOnChain());
-        assertEquals(LecturaOnChain.SIMULADO, McpBlockchainGatewayAdapter.parsearLectura(Map.of("modo", "X")).modo());
+        assertEquals(LecturaOnChain.OFF_CHAIN, McpBlockchainGatewayAdapter.parsearLectura(Map.of("modo", "X")).modo());
     }
 }

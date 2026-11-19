@@ -34,7 +34,7 @@ import java.util.UUID;
  *   <li>POST .../vencidas — caduca las propuestas cuyo TTL expiró.</li>
  *   <li>GET  .../propuestas[/{id}] — estado del ciclo (0/3 → 3/3).</li>
  *   <li>GET  .../propuestas/{id}/aprobaciones — firmantes requeridos, quién firmó
- *       (tx + enlace al explorador), quién falta, estado global y modo ON_CHAIN/SIMULADO.</li>
+ *       (tx + enlace al explorador), quién falta, estado global y modo ON_CHAIN/OFF_CHAIN.</li>
  *   <li>GET  .../propuestas/{id}/auditoria — línea de tiempo de auditoría (CREG).</li>
  *   <li>GET  .../metricas — indicadores agregados (estados, tasas, ejecutadasSin3de3 = 0).</li>
  * </ul>
@@ -119,13 +119,34 @@ public class GobernanzaController {
         return ResponseEntity.ok(MetricasGobernanza.desde(gobernanza.listar()));
     }
 
+    /** Mensaje canónico a firmar con la billetera (personal_sign) para aprobar o rechazar. */
+    @GetMapping("/propuestas/{id}/mensaje-firma")
+    public ResponseEntity<java.util.Map<String, String>> mensajeFirma(@PathVariable String id,
+            @org.springframework.web.bind.annotation.RequestParam String rol,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "APRUEBA") String decision) {
+        Firmante f = Firmante.valueOf(rol.toUpperCase());
+        return gobernanza.mensajeFirma(UUID.fromString(id), f, !"RECHAZA".equalsIgnoreCase(decision))
+                .map(m -> ResponseEntity.ok(java.util.Map.of("mensaje", m, "rol", f.name(), "estandar", "EIP-191 personal_sign")))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    /** Verificación criptográfica (ecrecover) de las firmas de la propuesta. */
+    @GetMapping("/propuestas/{id}/firmas/verificacion")
+    public ResponseEntity<List<com.voltera.ia.domain.model.gobernanza.VerificacionFirma>> verificacion(@PathVariable String id) {
+        return gobernanza.verificarFirmas(UUID.fromString(id))
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     private ResponseEntity<PropuestaResponse> aprobar(String id, Firmante f, FirmaRequest req) {
-        PropuestaAccion p = gobernanza.aprobar(UUID.fromString(id), f, req.identidad(), req.razon());
+        PropuestaAccion p = gobernanza.aprobar(UUID.fromString(id), f, req.identidad(), req.razon(),
+                req.direccion(), req.firma());
         return ResponseEntity.ok(PropuestaResponse.desde(p));
     }
 
     private ResponseEntity<PropuestaResponse> rechazar(String id, Firmante f, FirmaRequest req) {
-        PropuestaAccion p = gobernanza.rechazar(UUID.fromString(id), f, req.identidad(), req.razon());
+        PropuestaAccion p = gobernanza.rechazar(UUID.fromString(id), f, req.identidad(), req.razon(),
+                req.direccion(), req.firma());
         return ResponseEntity.ok(PropuestaResponse.desde(p));
     }
 }

@@ -76,3 +76,13 @@ details { margin-top: 6px; font-size: 13px; } summary { cursor: pointer; color: 
 .ayuda summary { cursor: pointer; font-weight: 700; color: var(--v-accent); }
 .ayuda ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; } .ayuda b { color: var(--v-text); }
 h4 + .mut { margin: -6px 0 12px; line-height: 1.5; }
+
+.addr { font-size: 12px; }
+.vchip { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; margin-top: 2px; width: fit-content; }
+.vchip.ok { color: var(--v-primary); background: rgba(34,201,138,.12); } .vchip.bad { color: var(--v-danger); background: rgba(248,113,113,.12); }
+.msg { white-space: pre-wrap; font-size: 11.5px; background: var(--v-bg-2); padding: 10px 12px; border-radius: 8px; color: var(--v-text-soft); margin-top: 8px; }
+.notifs { list-style: none; padding: 0; margin: 10px 0 0; display: flex; flex-direction: column; gap: 8px; }
+.notifs li { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 10px; background: var(--v-surface-2); border: 1px solid var(--v-border); font-size: 12.5px; }
+.notifs li.leida { opacity: .55; } .notifs li.urg { border-color: var(--v-danger); }
+.n-ic { font-size: 18px; } .n-b { flex: 1; min-width: 0; }
+.evid { margin-bottom: 18px; }

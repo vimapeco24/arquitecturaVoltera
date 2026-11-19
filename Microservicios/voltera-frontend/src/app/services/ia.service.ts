@@ -122,7 +122,7 @@ export interface FirmanteEstadoDto {
   firmadoEn: string | null;
   txHash: string | null;
   explorerUrl: string | null;
-  modo: 'ON_CHAIN' | 'SIMULADO' | null;
+  modo: 'ON_CHAIN' | 'OFF_CHAIN' | null;
 }
 /** Vista de lectura de las aprobaciones múltiples (GET .../aprobaciones). */
 export interface EstadoAprobacionesDto {
@@ -134,7 +134,7 @@ export interface EstadoAprobacionesDto {
   firmasRequeridas: number;
   firmasAprobadas: number;
   progreso: string;
-  modo: 'ON_CHAIN' | 'SIMULADO';
+  modo: 'ON_CHAIN' | 'OFF_CHAIN';
   red: string | null;
   contrato: string | null;
   explorerBase: string | null;
@@ -203,6 +203,78 @@ export interface MetricasGobernanzaDto {
   promedioFirmas: number;
 }
 
+/** Verificación ecrecover de una firma ECDSA (EIP-191). */
+export interface VerificacionFirmaDto {
+  rol: 'AGENTE_IA' | 'OPERADOR' | 'PROSUMIDOR';
+  direccion: string;
+  direccionRecuperada: string | null;
+  firma: string;
+  metodo: 'CUSTODIA' | 'BILLETERA';
+  mensaje: string;
+  valida: boolean;
+  firmadoEn: string;
+  detalle: string;
+}
+/** Aviso de la bandeja del Agente Notificador. */
+export interface NotificacionDto {
+  id: string;
+  instante: string;
+  destinatario: 'OPERADOR' | 'PROSUMIDOR' | 'TODOS';
+  tipo: 'FIRMA_PENDIENTE' | 'ESCALACION' | 'DESENLACE';
+  propuestaId: string;
+  activoId: string;
+  estado: string;
+  firmas: string;
+  mensaje: string;
+  urgente: boolean;
+  leida: boolean;
+  webhook: string;
+}
+/** Capacidad del módulo con su estado calculado en el backend. */
+export interface CapacidadDto {
+  clave: string;
+  componente: string;
+  estado: 'OPERATIVO' | 'LOCAL' | 'PENDIENTE';
+  detalle: string;
+  evidencia: string;
+  requiere: string;
+}
+export interface CapacidadesDto {
+  calculadoEn: string;
+  resumen: Record<string, number>;
+  capacidades: CapacidadDto[];
+  direccionesFirmantes: Record<string, string>;
+}
+/** Resultado de un caso del dataset de Evals. */
+export interface CasoEvalDto {
+  id: string; descripcion: string; tipoActivo: string; metrica: string; valor: string; umbral: string;
+  minutosSinSenal: number; severidadEsperada: string; severidadObtenida: string;
+  accionEsperada: string; accionObtenida: string; humanoEsperado: boolean; humanoObtenido: boolean;
+  severidadOk: boolean; accionOk: boolean; citasOk: boolean; fuentesRag: number; fuentesMcp: number;
+  ms: number; nota: string;
+}
+export interface ReporteEvalsDto {
+  ejecutadoEn: string;
+  duracionMs: number;
+  dataset: string;
+  totalCasos: number;
+  familias: ResultadoEval[];
+  casos: CasoEvalDto[];
+}
+/** Fragmento recuperado por el RAG BM25. */
+export interface ResultadoRagDto {
+  docId: string; titulo: string; categoria: string; seccion: string; texto: string;
+  fuente: string; score: number; terminos: string[];
+}
+export interface DocumentoRagDto {
+  id: string; titulo: string; categoria: string; activos: string[]; fuente: string; secciones: number;
+}
+export interface CorpusRagDto {
+  algoritmo: string;
+  documentos: DocumentoRagDto[];
+  fragmentos: number;
+}
+
 /** Resultado de Evals por versión de prompt (Tema 5). */
 export interface ResultadoEval {
   agente: string;
@@ -267,30 +339,30 @@ export class IaService {
   }
 
   /** Firma 2: el operador valida técnicamente (aprueba). */
-  firmarOperador(propuestaId: string, identidad: string, razon: string): Observable<PropuestaResponse> {
+  firmarOperador(propuestaId: string, identidad: string, razon: string, direccion?: string, firma?: string): Observable<PropuestaResponse> {
     return this.http.post<PropuestaResponse>(
-      this.url(`api/v1/ia/gobernanza/propuestas/${propuestaId}/firmas/operador`), { identidad, razon });
+      this.url(`api/v1/ia/gobernanza/propuestas/${propuestaId}/firmas/operador`), { identidad, razon, direccion, firma });
   }
 
   /** Firma 3: el prosumidor consiente (aprueba). */
-  firmarProsumidor(propuestaId: string, identidad: string, razon: string): Observable<PropuestaResponse> {
+  firmarProsumidor(propuestaId: string, identidad: string, razon: string, direccion?: string, firma?: string): Observable<PropuestaResponse> {
     return this.http.post<PropuestaResponse>(
-      this.url(`api/v1/ia/gobernanza/propuestas/${propuestaId}/firmas/prosumidor`), { identidad, razon });
+      this.url(`api/v1/ia/gobernanza/propuestas/${propuestaId}/firmas/prosumidor`), { identidad, razon, direccion, firma });
   }
 
   /** Rechazo del operador (razón obligatoria). */
-  rechazarOperador(propuestaId: string, identidad: string, razon: string): Observable<PropuestaResponse> {
+  rechazarOperador(propuestaId: string, identidad: string, razon: string, direccion?: string, firma?: string): Observable<PropuestaResponse> {
     return this.http.post<PropuestaResponse>(
-      this.url(`api/v1/ia/gobernanza/propuestas/${propuestaId}/rechazos/operador`), { identidad, razon });
+      this.url(`api/v1/ia/gobernanza/propuestas/${propuestaId}/rechazos/operador`), { identidad, razon, direccion, firma });
   }
 
   /** Rechazo del prosumidor (razón obligatoria). */
-  rechazarProsumidor(propuestaId: string, identidad: string, razon: string): Observable<PropuestaResponse> {
+  rechazarProsumidor(propuestaId: string, identidad: string, razon: string, direccion?: string, firma?: string): Observable<PropuestaResponse> {
     return this.http.post<PropuestaResponse>(
-      this.url(`api/v1/ia/gobernanza/propuestas/${propuestaId}/rechazos/prosumidor`), { identidad, razon });
+      this.url(`api/v1/ia/gobernanza/propuestas/${propuestaId}/rechazos/prosumidor`), { identidad, razon, direccion, firma });
   }
 
-  /** Aprobaciones múltiples: firmantes, firmas con tx/explorador, faltantes y modo On-chain/Simulado. */
+  /** Aprobaciones múltiples: firmantes, firmas con tx/explorador, faltantes y modo ON_CHAIN / OFF_CHAIN. */
   aprobaciones(propuestaId: string): Observable<EstadoAprobacionesDto> {
     return this.http.get<EstadoAprobacionesDto>(
       this.url(`api/v1/ia/gobernanza/propuestas/${propuestaId}/aprobaciones`));
@@ -329,5 +401,48 @@ export class IaService {
 
   evals(): Observable<ResultadoEval[]> {
     return this.http.get<ResultadoEval[]>(this.url('api/v1/ia/evals'));
+  }
+
+  // ── Integraciones reales: firmas ECDSA, notificaciones, RAG, Evals y capacidades ──
+
+  /** Verificación ecrecover de las firmas de la propuesta. */
+  verificarFirmas(propuestaId: string): Observable<VerificacionFirmaDto[]> {
+    return this.http.get<VerificacionFirmaDto[]>(
+      this.url(`api/v1/ia/gobernanza/propuestas/${propuestaId}/firmas/verificacion`));
+  }
+
+  /** Mensaje canónico que el rol firma con su billetera (personal_sign). */
+  mensajeFirma(propuestaId: string, rol: string, decision: 'APRUEBA' | 'RECHAZA'): Observable<{ mensaje: string; rol: string; estandar: string }> {
+    return this.http.get<{ mensaje: string; rol: string; estandar: string }>(
+      this.url(`api/v1/ia/gobernanza/propuestas/${propuestaId}/mensaje-firma?rol=${rol}&decision=${decision}`));
+  }
+
+  notificaciones(destinatario?: string, propuestaId?: string): Observable<NotificacionDto[]> {
+    const q: string[] = [];
+    if (destinatario) q.push('destinatario=' + encodeURIComponent(destinatario));
+    if (propuestaId) q.push('propuestaId=' + encodeURIComponent(propuestaId));
+    return this.http.get<NotificacionDto[]>(this.url('api/v1/ia/notificaciones' + (q.length ? '?' + q.join('&') : '')));
+  }
+
+  marcarLeida(id: string): Observable<NotificacionDto> {
+    return this.http.post<NotificacionDto>(this.url(`api/v1/ia/notificaciones/${id}/leida`), {});
+  }
+
+  capacidades(): Observable<CapacidadesDto> {
+    return this.http.get<CapacidadesDto>(this.url('api/v1/ia/capacidades'));
+  }
+
+  evalsReporte(forzar = false): Observable<ReporteEvalsDto> {
+    return this.http.get<ReporteEvalsDto>(this.url('api/v1/ia/evals/reporte' + (forzar ? '?forzar=true' : '')));
+  }
+
+  corpusRag(): Observable<CorpusRagDto> {
+    return this.http.get<CorpusRagDto>(this.url('api/v1/ia/conocimiento/documentos'));
+  }
+
+  buscarRag(q: string, tipoActivo?: string, k = 5): Observable<ResultadoRagDto[]> {
+    let u = `api/v1/ia/conocimiento/buscar?q=${encodeURIComponent(q)}&k=${k}`;
+    if (tipoActivo) u += '&tipoActivo=' + encodeURIComponent(tipoActivo);
+    return this.http.get<ResultadoRagDto[]>(this.url(u));
   }
 }

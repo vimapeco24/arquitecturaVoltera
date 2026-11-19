@@ -63,6 +63,16 @@ ia:
     # ejecuta (fail-closed). No existe modo degradado 2/3.
     ttl-critica-min: ${IA_GOBERNANZA_TTL_CRITICA_MIN:30}
     ttl-normal-min: ${IA_GOBERNANZA_TTL_NORMAL_MIN:240}
+  firmas:
+    # Claves ECDSA secp256k1 de cada rol (hex 0x…). SECRETOS: solo por variable de
+    # entorno. Si faltan, se generan al arrancar (claves efímeras) y se registran
+    # solo las direcciones.
+    clave-agente: ${IA_FIRMA_KEY_AGENTE_IA:}
+    clave-operador: ${IA_FIRMA_KEY_OPERADOR:}
+    clave-prosumidor: ${IA_FIRMA_KEY_PROSUMIDOR:}
+  notificaciones:
+    # Webhook opcional (Slack/Discord/Teams compatible: POST JSON {"text": ...}).
+    webhook-url: ${IA_NOTIF_WEBHOOK_URL:}
     # Explorador para los enlaces de tx de cada firma (Polygon Amoy).
     explorer-base: ${IA_GOBERNANZA_EXPLORER:https://amoy.polygonscan.com}
   tools:

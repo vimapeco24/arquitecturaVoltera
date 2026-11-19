@@ -18,7 +18,7 @@ public record AuditoriaPropuesta(
         String versionModelo,
         List<Evento> eventos
 ) {
-    /** Hito de la auditoría. {@code tx} puede ser un hash real o una referencia {@code demo:}. */
+    /** Hito de la auditoría. {@code tx} puede ser un hash real o una referencia {@code offchain:}. */
     public record Evento(Instant instante, String tipo, String actor, String detalle, String tx) {}
 
     public static AuditoriaPropuesta desde(PropuestaAccion p) {

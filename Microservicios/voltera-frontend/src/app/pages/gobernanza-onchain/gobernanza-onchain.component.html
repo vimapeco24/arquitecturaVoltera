@@ -1,10 +1,11 @@
 <header class="gh">
   <div>
-    <h2>⛓ Gobernanza on-chain · multi-firma 3/3</h2>
+    <h2>⛓ Gobernanza multi-firma 3/3</h2>
     <p>Contrato <code>MultiFirmaAccionDER</code> · ninguna acción física se ejecuta sin las firmas del agente IA, el operador y el prosumidor.</p>
   </div>
   <div class="gh-actions">
-    <span class="v-badge" [ngClass]="aprob?.modo === 'ON_CHAIN' ? 'ok' : 'warn'">{{ aprob?.modo === 'ON_CHAIN' ? 'On-chain' : 'Modo simulado' }}</span>
+    <span class="v-badge" [ngClass]="aprob?.modo === 'ON_CHAIN' ? 'ok' : 'info'">{{ aprob?.modo === 'ON_CHAIN' ? 'On-chain · Amoy' : 'Off-chain · firmas ECDSA' }}</span>
+    <span class="v-badge" [ngClass]="billetera ? 'ok' : 'info'">{{ billetera ? '🦊 ' + corto(billetera, 6) : (hayBilletera ? '🦊 MetaMask disponible' : 'Sin billetera') }}</span>
     <button class="v-btn" (click)="recargar()" [disabled]="cargando">↻ Actualizar</button>
     <button class="v-btn" (click)="crearDemo()" [disabled]="ocupado">＋ Nueva propuesta</button>
     <button class="v-btn primary" (click)="demoGuiada()" [disabled]="ocupado">▶ Demo guiada 1/3 → 3/3</button>
@@ -18,8 +19,11 @@
     <li><b>Lista de propuestas:</b> cada propuesta es una acción física sugerida por el agente (por ejemplo, reiniciar un inversor). La barra indica cuántas de las 3 firmas lleva.</li>
     <li><b>Máquina de estados:</b> ciclo del contrato. PENDIENTE → APROBADA (3/3) → EJECUTADA. Un rechazo lleva a RECHAZADA y un TTL vencido a VENCIDA; desde ambos no se ejecuta.</li>
     <li><b>Firmantes:</b> agente IA (firma al proponer), operador (valida técnicamente) y prosumidor (dueño del activo, consiente). Cada uno firma una sola vez.</li>
-    <li><b>Modo SIMULADO / ON_CHAIN:</b> hoy el contrato no está desplegado en Amoy, así que las referencias <code>demo:</code> no existen en un explorador. Las firmas de esta consola usan identidades de demostración, no billeteras.</li>
-    <li><b>Evidencia on-chain:</b> transacciones reales del contrato en una red local de Hardhat (sin gas real). Muestran el comportamiento exacto que tendrá en Amoy.</li>
+    <li><b>Firmas criptográficas:</b> cada rol firma con ECDSA secp256k1 el mensaje canónico de la propuesta (EIP-191). El panel «Verificación criptográfica» recalcula el mensaje y recupera la dirección con <code>ecrecover</code>: si alguien cambiara el comando o el hash, la firma dejaría de validar.</li>
+    <li><b>Firmar con tu billetera:</b> con MetaMask instalado, «🦊 Firmar con billetera» pide tu firma <code>personal_sign</code>; el backend la verifica y la registra como BILLETERA. Una misma cuenta no puede firmar dos roles.</li>
+    <li><b>ON_CHAIN / OFF_CHAIN:</b> ON_CHAIN cuando el estado se lee del contrato <code>MultiFirmaAccionDER</code> en Amoy. Mientras el contrato no esté desplegado (falta gas de prueba), el registro es OFF_CHAIN: las firmas son reales y verificables, pero no hay transacción en el explorador.</li>
+    <li><b>Bandeja de notificaciones:</b> avisos que el Agente Notificador entrega a cada rol en cada etapa.</li>
+    <li><b>Evidencia EVM:</b> transacciones del mismo contrato ejecutadas en una red EVM local (Hardhat), con gas y eventos reales.</li>
   </ul>
 </details>
 
@@ -38,7 +42,7 @@
     <div class="chips">
       <button *ngFor="let f of filtros" class="chipf" [class.on]="filtro === f" (click)="filtro = f">{{ f }}</button>
     </div>
-    <div class="empty" *ngIf="!visibles.length">Sin propuestas. Crea una con «Nueva propuesta demo».</div>
+    <div class="empty" *ngIf="!visibles.length">Sin propuestas. Crea una con «Nueva propuesta» o «Demo guiada».</div>
     <button class="item" *ngFor="let p of visibles" [class.sel]="seleccionada?.propuestaId === p.propuestaId" (click)="seleccionar(p)">
       <div class="item-top"><strong>{{ p.activoId }}</strong><span class="v-badge mini" [ngClass]="chip(p.estado)">{{ p.estado }}</span></div>
       <div class="item-sub">{{ p.comando }}</div>
@@ -92,23 +96,51 @@
               <span class="mut" *ngIf="f.firmadoEn">{{ f.firmadoEn | date:'dd/MM HH:mm:ss' }}</span>
               <a *ngIf="f.txHash && f.explorerUrl" [href]="f.explorerUrl" target="_blank" rel="noopener">tx {{ corto(f.txHash) }} ↗</a>
               <button *ngIf="f.txHash && !f.explorerUrl" class="lnk" (click)="copiar(f.txHash)">ref {{ corto(f.txHash, 16) }} ⧉</button>
+              <ng-container *ngIf="verif(f.firmante) as v">
+                <span class="addr">{{ v.metodo === 'BILLETERA' ? '🦊' : '🔐' }} <button class="lnk" (click)="copiar(v.direccion)">{{ corto(v.direccion, 8) }} ⧉</button></span>
+                <span class="vchip" [class.ok]="v.valida" [class.bad]="!v.valida">{{ v.valida ? '✔ ecrecover válido' : '✘ firma inválida' }}</span>
+              </ng-container>
             </div>
             <span class="tick">{{ f.estado === 'FIRMO' ? '✔' : f.estado === 'RECHAZO' ? '✘' : '⏳' }}</span>
           </div>
         </div>
       </div>
-      <p class="note" *ngIf="aprob?.modo === 'SIMULADO'">Modo simulado: las referencias <code>demo:</code> no existen en el explorador. Con el contrato desplegado en Amoy se muestran hashes verificables.</p>
+      <p class="note" *ngIf="aprob?.modo === 'OFF_CHAIN'">Registro off-chain: las firmas ECDSA son verificables abajo; las referencias <code>offchain:</code> no son transacciones del explorador. Con <code>MultiFirmaAccionDER</code> desplegado en Amoy aparecen los enlaces a Polygonscan.</p>
 
       <div class="acts" *ngIf="s.estado === 'PENDIENTE'">
         <ng-container *ngIf="s.siguienteFirmante === 'OPERADOR'">
           <button class="v-btn primary" (click)="firmar('OPERADOR', true)" [disabled]="ocupado">🛠 Firmar como operador</button>
+          <button class="v-btn" *ngIf="hayBilletera" (click)="firmarConBilletera('OPERADOR', true)" [disabled]="ocupado">🦊 Firmar con billetera</button>
           <button class="v-btn ghost" (click)="firmar('OPERADOR', false)" [disabled]="ocupado">Rechazar</button>
         </ng-container>
         <ng-container *ngIf="s.siguienteFirmante === 'PROSUMIDOR'">
           <button class="v-btn primary" (click)="firmar('PROSUMIDOR', true)" [disabled]="ocupado">🏠 Firmar como prosumidor</button>
+          <button class="v-btn" *ngIf="hayBilletera" (click)="firmarConBilletera('PROSUMIDOR', true)" [disabled]="ocupado">🦊 Firmar con billetera</button>
           <button class="v-btn ghost" (click)="firmar('PROSUMIDOR', false)" [disabled]="ocupado">Rechazar</button>
         </ng-container>
       </div>
+    </section>
+
+
+    <section class="v-card" *ngIf="verificaciones.length">
+      <h4>🔐 Verificación criptográfica de las firmas (ECDSA · EIP-191)</h4>
+      <p class="mut">El backend reconstruye el mensaje canónico con los datos actuales de la propuesta y recupera la dirección firmante con <code>ecrecover</code>. «Válida» exige que la dirección recuperada sea la del firmante y que el mensaje no haya cambiado.</p>
+      <div class="tblw"><table>
+        <thead><tr><th>Rol</th><th>Método</th><th>Dirección</th><th>Recuperada (ecrecover)</th><th>Firma</th><th>Resultado</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let v of verificaciones">
+            <td>{{ avatar(v.rol) }} {{ rolTxt(v.rol) }}</td>
+            <td><span class="v-badge mini" [ngClass]="v.metodo === 'BILLETERA' ? 'ok' : 'info'">{{ v.metodo === 'BILLETERA' ? 'Billetera' : 'Clave custodiada' }}</span></td>
+            <td><button class="lnk" (click)="copiar(v.direccion)">{{ corto(v.direccion, 10) }} ⧉</button></td>
+            <td><code>{{ corto(v.direccionRecuperada, 10) }}</code></td>
+            <td><button class="lnk" (click)="copiar(v.firma)">{{ corto(v.firma, 12) }} ⧉</button></td>
+            <td><span class="vchip" [class.ok]="v.valida" [class.bad]="!v.valida">{{ v.valida ? '✔ válida' : '✘ inválida' }}</span></td>
+          </tr>
+        </tbody>
+      </table></div>
+      <details><summary>Ver el mensaje canónico firmado por {{ rolTxt(verificaciones[verificaciones.length - 1].rol) }}</summary>
+        <pre class="msg">{{ verificaciones[verificaciones.length - 1].mensaje }}</pre>
+      </details>
     </section>
 
     <div class="two">
@@ -144,11 +176,36 @@
   </main></ng-template>
 </div>
 
+
+<!-- Bandeja de notificaciones -->
+<section class="v-card evid">
+  <div class="det-head">
+    <div>
+      <h3>🔔 Bandeja del Agente Notificador</h3>
+      <p class="mut">Avisos entregados a cada rol: firma pendiente al operador (1/3), al prosumidor (2/3) y el desenlace a todos. GET <code>/api/v1/ia/notificaciones</code></p>
+    </div>
+    <div class="chips">
+      <button *ngFor="let r of rolesBandeja" class="chipf" [class.on]="rolBandeja === r" (click)="rolBandeja = r; cargarBandeja()">{{ r }}</button>
+    </div>
+  </div>
+  <div class="empty" *ngIf="!bandeja.length">Sin avisos para {{ rolBandeja }}.</div>
+  <ul class="notifs">
+    <li *ngFor="let n of bandeja" [class.leida]="n.leida" [class.urg]="n.urgente">
+      <span class="n-ic">{{ n.tipo === 'DESENLACE' ? '🏁' : n.tipo === 'ESCALACION' ? '🚨' : '✍' }}</span>
+      <div class="n-b">
+        <div><strong>{{ n.destinatario }}</strong> · {{ n.tipo }} · {{ n.activoId }} · {{ n.firmas }} <span class="mut">{{ n.instante | date:'dd/MM HH:mm:ss' }}</span></div>
+        <div class="mut">{{ n.mensaje }}</div>
+      </div>
+      <button class="v-btn ghost" *ngIf="!n.leida" (click)="leer(n.id)">Marcar leída</button>
+    </li>
+  </ul>
+</section>
+
 <!-- Evidencia EVM -->
 <section class="v-card evid" *ngIf="evidencia as ev">
   <div class="det-head">
     <div>
-      <h3>🔗 Evidencia on-chain (EVM real · {{ ev.red }} · chainId {{ ev.chainId }})</h3>
+      <h3>🔗 Evidencia EVM del contrato ({{ ev.red }} · chainId {{ ev.chainId }})</h3>
       <p class="mut">Contrato <code>{{ ev.contrato }}</code> · {{ ev.nota }}</p>
     </div>
     <span class="v-badge big" [ngClass]="ev.fail === 0 ? 'ok' : 'err'">{{ ev.ok }}/{{ ev.ok + ev.fail }} criterios</span>

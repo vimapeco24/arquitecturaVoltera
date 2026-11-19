@@ -25,8 +25,8 @@ import java.util.Map;
  * blockchain-gateway (Render, público), aislando a los agentes de la cadena.
  *
  * <p>Best-effort con fail-closed: si el gateway no responde, devuelve un
- * {@code txRef} demo determinista (prefijo {@code demo:}) SOLO para registrar la
- * propuesta/firma en la traza, pero la ejecución del comando nunca se simula sin
+ * {@code txRef} off-chain determinista (prefijo {@code offchain:}) para registrar la
+ * propuesta/firma en la traza (la firma ECDSA del rol queda aparte), y la ejecución nunca ocurre sin
  * que la propuesta esté 3/3 (la invariante vive en el agregado y aquí se
  * re-verifica). La red no alcanzable = no se ejecuta (igual que el resto del
  * caso cuando degrada en la nube).</p>
@@ -90,29 +90,29 @@ public class McpBlockchainGatewayAdapter implements McpBlockchainGatewayPort {
 
     /**
      * Lectura solo-lectura del contrato vía GET al blockchain-gateway. Nunca falla:
-     * si el gateway está apagado, tarda o responde modo SIMULADO, devuelve SIMULADO.
+     * si el gateway está apagado, tarda o responde modo OFF_CHAIN, devuelve OFF_CHAIN.
      */
     @Override
     @SuppressWarnings("unchecked")
     public LecturaOnChain leerEstado(PropuestaAccion p) {
-        if (!enabled) return LecturaOnChain.simulada("herramientas deshabilitadas (ia.tools.enabled=false)");
+        if (!enabled) return LecturaOnChain.offChain("herramientas deshabilitadas (ia.tools.enabled=false)");
         try {
             Map<String, Object> resp = gatewayClient.get()
                     .uri("/api/v1/gobernanza/propuestas/{id}/estado", p.propuestaId().toString())
                     .retrieve().bodyToMono(Map.class)
                     .timeout(timeout).onErrorResume(e -> Mono.empty()).block();
-            if (resp == null) return LecturaOnChain.simulada("blockchain-gateway no respondió");
+            if (resp == null) return LecturaOnChain.offChain("blockchain-gateway no respondió");
             return parsearLectura(resp);
         } catch (Exception e) {
             log.debug("Lectura on-chain no disponible: {}", e.getMessage());
-            return LecturaOnChain.simulada("lectura on-chain no disponible");
+            return LecturaOnChain.offChain("lectura on-chain no disponible");
         }
     }
 
     /** Convierte la respuesta JSON del gateway en {@link LecturaOnChain} (visible para pruebas). */
     @SuppressWarnings("unchecked")
     static LecturaOnChain parsearLectura(Map<String, Object> m) {
-        String modo = String.valueOf(m.getOrDefault("modo", LecturaOnChain.SIMULADO));
+        String modo = String.valueOf(m.getOrDefault("modo", LecturaOnChain.OFF_CHAIN));
         List<LecturaOnChain.FirmaOnChain> firmas = new ArrayList<>();
         Object raw = m.get("firmas");
         if (raw instanceof List<?> lista) {
@@ -128,7 +128,7 @@ public class McpBlockchainGatewayAdapter implements McpBlockchainGatewayPort {
         }
         int aprob = m.get("aprobaciones") instanceof Number n ? n.intValue() : 0;
         return new LecturaOnChain(
-                LecturaOnChain.ON_CHAIN.equals(modo) ? LecturaOnChain.ON_CHAIN : LecturaOnChain.SIMULADO,
+                LecturaOnChain.ON_CHAIN.equals(modo) ? LecturaOnChain.ON_CHAIN : LecturaOnChain.OFF_CHAIN,
                 Boolean.TRUE.equals(m.get("existe")), str(m.get("estado")), aprob, firmas,
                 str(m.get("contrato")), str(m.get("red")), str(m.get("mensaje")));
     }
@@ -154,7 +154,7 @@ public class McpBlockchainGatewayAdapter implements McpBlockchainGatewayPort {
                 log.debug("MCP Blockchain Gateway no disponible path={} motivo={}", path, e.getMessage());
             }
         }
-        // Degradación elegante: txRef demo determinista para la traza off-chain.
-        return "demo:" + tipo + ":" + Integer.toHexString(demoSeed.hashCode());
+        // Sin contrato alcanzable: referencia off-chain determinista para la traza.
+        return "offchain:" + tipo + ":" + Integer.toHexString(demoSeed.hashCode());
     }
 }

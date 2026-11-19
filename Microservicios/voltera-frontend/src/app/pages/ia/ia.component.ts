@@ -3,7 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import {
   IaService, DiagnosticoResponse, EstadoIa, AgenteRegistrado, PasoDto,
-  PropuestaResponse, EstadoAprobacionesDto, AuditoriaPropuestaDto, MetricasGobernanzaDto, RespuestaAsistente, ResultadoEval,
+  PropuestaResponse, EstadoAprobacionesDto, AuditoriaPropuestaDto, MetricasGobernanzaDto,
+  CapacidadesDto, ReporteEvalsDto, CorpusRagDto, ResultadoRagDto, RespuestaAsistente, ResultadoEval,
 } from '../../services/ia.service';
 import { ToastService } from '../../core/toast.service';
 import { describeHttpError } from '../../core/http-error';
@@ -55,6 +56,7 @@ export class IaComponent implements OnInit, OnDestroy {
     { k: 'diagnostico', t: 'Diagnóstico y agentes', i: '🧠' },
     { k: 'gobernanza', t: 'Gobernanza on-chain 3/3', i: '⛓' },
     { k: 'calidad', t: 'Calidad · Evals', i: '🧪' },
+    { k: 'conocimiento', t: 'Conocimiento · RAG', i: '📚' },
     { k: 'experimento', t: 'Experimento', i: '🔬' },
     { k: 'arquitectura', t: 'Arquitectura y API', i: '🏛' },
     { k: 'guia', t: 'Guía, alcance y límites', i: '📘' },
@@ -62,24 +64,59 @@ export class IaComponent implements OnInit, OnDestroy {
   tab = 'diagnostico';
   irTab(k: string): void {
     this.tab = k;
+    this.cargarTab(k);
     this.router.navigate([], { relativeTo: this.route, queryParams: { tab: k }, queryParamsHandling: 'merge', replaceUrl: true });
   }
 
-  /** Qué es real, qué está simulado y qué falta, por componente (lectura crítica). */
-  readonly alcance: { c: string; que: string; estado: 'REAL' | 'SIMULADO' | 'PENDIENTE'; nota: string }[] = [
-    { c: 'Motor de diagnóstico', que: 'Reglas deterministas que clasifican severidad y acción a partir del umbral y los minutos sin señal.', estado: 'REAL', nota: 'Es un motor heurístico local, no un LLM. Por eso el experimento es reproducible. El proveedor LLM (OpenAI compatible) existe pero está apagado (provider=none).' },
-    { c: 'RAG (Knowledge Service)', que: 'Recupera ficha técnica, fallos conocidos y procedimiento de campo del tipo de activo.', estado: 'SIMULADO', nota: 'La base de conocimiento está escrita en código (StubConocimientoDer); no hay base vectorial ni documentos indexados.' },
-    { c: 'MCP Device Management', que: 'Herramientas de solo lectura: telemetría, historial de comandos, topología.', estado: 'SIMULADO', nota: 'La telemetría viaja en la propia alerta; el historial y la topología son sintéticos. Existe una sonda REST opcional a la capa de telemetría.' },
-    { c: 'MCP Blockchain Gateway', que: 'Crea propuesta, registra firmas, ejecuta y lee estado del contrato.', estado: 'SIMULADO', nota: 'Llama al blockchain-gateway por REST; sin RPC y dirección del contrato responde con referencias demo: deterministas (modo SIMULADO).' },
-    { c: 'Contrato MultiFirmaAccionDER', que: 'Exige 3 firmas tipadas (agente, operador, prosumidor) antes de ejecutar; rechazo, TTL y pausa.', estado: 'PENDIENTE', nota: 'Escrito y probado (8 tests propios, 45 en la suite). En una red local de Hardhat funciona con EVM real; no está desplegado en Polygon Amoy por falta de gas.' },
-    { c: 'Firmas de operador y prosumidor', que: 'Botones que registran la aprobación o el rechazo.', estado: 'SIMULADO', nota: 'Las identidades (operador@voltera, prosumidor@casa) son texto enviado por la consola. No hay autenticación IAM ni firma criptográfica con billetera. En producción cada firma debería ser una transacción firmada por la clave del rol.' },
-    { c: 'Gobernanza 3/3 (lógica de negocio)', que: 'Agregado PropuestaAccion: estados, invariantes y TTL.', estado: 'REAL', nota: 'Las reglas se imponen en el backend y el experimento las verifica: sin 3/3 no hay ejecución, un rechazo cierra, la doble firma falla.' },
-    { c: 'Persistencia', que: 'Diagnósticos y propuestas.', estado: 'SIMULADO', nota: 'Repositorios en memoria. Se pierden al reiniciar; en Render free también cuando el servicio duerme.' },
-    { c: 'Notificador', que: 'Avisa al siguiente firmante y escala al mismo firmante ante timeout.', estado: 'SIMULADO', nota: 'Escribe en el log del servicio; no envía correo, SMS ni push.' },
-    { c: 'Tópicos der.*', que: 'der.estado, der.alertas, der.gobernanza.', estado: 'SIMULADO', nota: 'Se publican a Kafka solo on-premise; en la nube se registran en el log.' },
-    { c: 'Evals & Tracing', que: 'Compuerta de calidad por versión de prompt.', estado: 'SIMULADO', nota: 'La compuerta (acierto ≥ 85 %, citas ≥ 95 %, 0 inventados) se aplica en vivo, pero las métricas de cada versión son valores de referencia fijos; no se recalculan con un dataset en cada corrida.' },
-    { c: 'Experimento', que: 'Valida comportamiento, reglas y robustez del servicio.', estado: 'REAL', nota: 'Mide el servicio real, no la calidad de un LLM. La latencia (p50 ≈ 0,4 s) es del motor local; con un LLM externo sería mayor.' },
-  ];
+  // ── Datos calculados por el backend (sin estados escritos a mano) ──────────
+  capacidades?: CapacidadesDto;
+  reporte?: ReporteEvalsDto;
+  cargandoReporte = false;
+  soloFallidos = false;
+  corpus?: CorpusRagDto;
+  ragQuery = 'inversor sobretensión sostenida';
+  ragTipo = '';
+  ragResultados: ResultadoRagDto[] = [];
+  buscandoRag = false;
+
+  cargarCapacidades(): void {
+    this.svc.capacidades().subscribe({ next: (c) => (this.capacidades = c), error: () => (this.capacidades = undefined) });
+  }
+
+  cargarReporteEvals(forzar = false): void {
+    this.cargandoReporte = true;
+    this.svc.evalsReporte(forzar).subscribe({
+      next: (r) => { this.reporte = r; this.evals = r.familias; this.cargandoReporte = false; },
+      error: (e) => { this.cargandoReporte = false; this.toast.error('Evals', describeHttpError(e)); },
+    });
+  }
+
+  casosFallidos(r: ReporteEvalsDto): number {
+    return r.casos.filter((c) => !c.severidadOk || !c.accionOk).length;
+  }
+
+  casosVisibles(r: ReporteEvalsDto) {
+    return this.soloFallidos ? r.casos.filter((c) => !c.severidadOk || !c.accionOk) : r.casos;
+  }
+
+  buscarRag(): void {
+    if (!this.ragQuery.trim()) return;
+    this.buscandoRag = true;
+    this.svc.buscarRag(this.ragQuery, this.ragTipo || undefined, 6).subscribe({
+      next: (r) => { this.ragResultados = r ?? []; this.buscandoRag = false; },
+      error: (e) => { this.buscandoRag = false; this.toast.error('RAG', describeHttpError(e)); },
+    });
+  }
+
+  /** Carga perezosa de los datos de cada pestaña. */
+  private cargarTab(k: string): void {
+    if (k === 'calidad' && !this.reporte) this.cargarReporteEvals();
+    if (k === 'conocimiento') {
+      if (!this.corpus) this.svc.corpusRag().subscribe({ next: (c) => (this.corpus = c), error: () => {} });
+      if (!this.ragResultados.length) this.buscarRag();
+    }
+    if (k === 'guia' && !this.capacidades) this.cargarCapacidades();
+  }
 
   readonly glosario: { t: string; d: string }[] = [
     { t: 'DER', d: 'Recurso energético distribuido: panel solar, batería, inversor, cargador EV o medidor.' },
@@ -91,12 +128,12 @@ export class IaComponent implements OnInit, OnDestroy {
     { t: 'Fail-closed', d: 'Ante duda, falta de firma o vencimiento, la acción no se ejecuta.' },
     { t: 'TTL', d: 'Vigencia de la propuesta. Vencida sin 3/3, pasa a VENCIDA y no se ejecuta.' },
     { t: 'No repudio', d: 'Cada rol firma una sola vez y queda registrado quién y cuándo.' },
-    { t: 'ON_CHAIN / SIMULADO', d: 'ON_CHAIN: el estado se leyó del contrato desplegado. SIMULADO: el contrato no está configurado y las referencias demo: no existen en el explorador.' },
+    { t: 'ON_CHAIN / OFF_CHAIN', d: 'ON_CHAIN: el estado se leyó del contrato desplegado en Amoy. OFF_CHAIN: el contrato no está desplegado; las firmas ECDSA son reales y verificables, pero no hay transacción pública.' },
+    { t: 'ECDSA · EIP-191', d: 'Firma digital de Ethereum sobre un mensaje con prefijo estándar (personal_sign). ecrecover recupera la dirección que firmó.' },
+    { t: 'BM25', d: 'Algoritmo de recuperación léxica: puntúa cada sección según la frecuencia de los términos de la consulta y su rareza en el corpus.' },
     { t: 'Guardrails', d: 'Controles de entrada y salida: bloquean inyección de prompt y enmascaran datos personales.' },
     { t: 'Evals', d: 'Pruebas de calidad de un prompt antes de activarlo; si no pasa, se mantiene la versión anterior.' },
   ];
-
-  contar(e: string): number { return this.alcance.filter((a) => a.estado === e).length; }
 
   /** Catálogo de endpoints expuestos por el ia-service. */
   readonly endpoints = [
@@ -108,7 +145,15 @@ export class IaComponent implements OnInit, OnDestroy {
     { m: 'POST', r: '/api/v1/ia/gobernanza/propuestas/{id}/firmas/{operador|prosumidor}', d: 'Firmas 2/3 y 3/3' },
     { m: 'POST', r: '/api/v1/ia/gobernanza/propuestas/{id}/rechazos/{operador|prosumidor}', d: 'Rechazo con razón obligatoria' },
     { m: 'POST', r: '/api/v1/ia/gobernanza/vencidas', d: 'Caduca propuestas con TTL expirado' },
-    { m: 'GET', r: '/api/v1/ia/gobernanza/propuestas/{id}/aprobaciones', d: 'Firmantes, progreso X/3, modo ON_CHAIN / SIMULADO' },
+    { m: 'GET', r: '/api/v1/ia/gobernanza/propuestas/{id}/aprobaciones', d: 'Firmantes, progreso X/3, modo ON_CHAIN / OFF_CHAIN' },
+    { m: 'GET', r: '/api/v1/ia/gobernanza/propuestas/{id}/firmas/verificacion', d: 'Verificación ecrecover de las firmas ECDSA' },
+    { m: 'GET', r: '/api/v1/ia/gobernanza/propuestas/{id}/mensaje-firma?rol=&decision=', d: 'Mensaje canónico para firmar con billetera (EIP-191)' },
+    { m: 'GET', r: '/api/v1/ia/notificaciones?destinatario=&propuestaId=', d: 'Bandeja del Agente Notificador' },
+    { m: 'POST', r: '/api/v1/ia/notificaciones/{id}/leida', d: 'Marca un aviso como leído' },
+    { m: 'GET', r: '/api/v1/ia/conocimiento/documentos', d: 'Corpus del RAG' },
+    { m: 'GET', r: '/api/v1/ia/conocimiento/buscar?q=&tipoActivo=', d: 'Búsqueda BM25 sobre el corpus' },
+    { m: 'GET', r: '/api/v1/ia/evals/reporte?forzar=', d: 'Corrida real del dataset de Evals, caso a caso' },
+    { m: 'GET', r: '/api/v1/ia/capacidades', d: 'Estado verificable de cada capacidad' },
     { m: 'GET', r: '/api/v1/ia/gobernanza/propuestas/{id}/auditoria', d: 'Línea de tiempo de auditoría (CREG)' },
     { m: 'GET', r: '/api/v1/ia/gobernanza/metricas', d: 'Indicadores agregados y garantía fail-closed' },
     { m: 'GET', r: '/api/v1/ia/evals', d: 'Compuerta de calidad por versión de prompt' },
@@ -161,6 +206,7 @@ export class IaComponent implements OnInit, OnDestroy {
     J: 'J · Rendimiento',
     K: 'K · A/B de versiones de prompt',
     L: 'L · Concurrencia',
+    N: 'N · Integraciones reales (RAG, Evals, firmas ECDSA, notificaciones)',
   };
 
   /** Hipótesis, método y endpoints de cada bloque (para el reporte detallado). */
@@ -176,6 +222,7 @@ export class IaComponent implements OnInit, OnDestroy {
     H: { hipotesis: 'El servicio rechaza entradas inválidas y es reproducible.', metodo: 'Payload sin activoId, Assistant sobre id inexistente, mismo input dos veces', endpoints: ['POST /ia/diagnostico/der', 'POST /ia/asistente/preguntar'], umbral: 'HTTP 4xx · diagnóstico idéntico' },
     J: { hipotesis: 'La latencia del motor local es apta para operación.', metodo: '8 diagnósticos secuenciales, percentiles p50/p95', endpoints: ['POST /ia/diagnostico/der'], umbral: 'p50 ≤ 2 s' },
     K: { hipotesis: 'Entre dos versiones de prompt se elige la apta con mejor acierto.', metodo: 'Comparación asistente-prosumidor vs asistente-operador', endpoints: ['GET /ia/evals'], umbral: 'versión ganadora apta' },
+    N: { hipotesis: 'Las integraciones funcionan de punta a punta: el RAG recupera del corpus, las Evals corren el dataset, las firmas se verifican con ecrecover y las notificaciones llegan a cada rol.', metodo: 'Consulta BM25, corrida de Evals, verificación de las 3 firmas, firma de billetera falsa, bandeja y capacidades', endpoints: ['GET /conocimiento/buscar', 'GET /evals/reporte', 'GET .../firmas/verificacion', 'GET /notificaciones', 'GET /capacidades'], umbral: 'doc correcto · 6 familias aptas · 3/3 firmas válidas · firma falsa 4xx · 3 avisos · ≥ 6 operativas' },
     L: { hipotesis: 'Peticiones paralelas no corrompen el estado.', metodo: '5 diagnósticos simultáneos', endpoints: ['POST /ia/diagnostico/der'], umbral: '5 respuestas · 5 ids únicos' },
   };
 
@@ -316,7 +363,7 @@ export class IaComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     const t = this.route.snapshot.queryParamMap.get('tab');
-    if (t && this.tabsDef.some((x) => x.k === t)) this.tab = t;
+    if (t && this.tabsDef.some((x) => x.k === t)) { this.tab = t; this.cargarTab(t); }
     // Pre-calienta el ia-service al entrar (Render free "duerme"): así el primer
     // diagnóstico no choca con el cold start de 30-60 s. Estas llamadas también
     // cargan el estado, el catálogo A2A y los Evals.
@@ -670,7 +717,7 @@ export class IaComponent implements OnInit, OnDestroy {
       const ap = await firstValueFrom(this.svc.aprobaciones(p1.propuestaId));
       const firmasConFecha = ap.firmantes.filter((f) => f.estado === 'FIRMO' && !!f.firmadoEn).length;
       add('B6 · Aprobaciones 3/3: los 3 firmantes con marca de tiempo', ap.firmasAprobadas === 3 && firmasConFecha === 3, `${ap.progreso} · estado ${ap.estado}`);
-      add('B6 · Modo explícito ON_CHAIN / SIMULADO', ap.modo === 'ON_CHAIN' || ap.modo === 'SIMULADO', `modo=${ap.modo}${ap.contrato ? ' · ' + ap.contrato : ''}`);
+      add('B6 · Modo explícito ON_CHAIN / OFF_CHAIN', ap.modo === 'ON_CHAIN' || ap.modo === 'OFF_CHAIN', `modo=${ap.modo}${ap.contrato ? ' · ' + ap.contrato : ''}`);
       const apR = await firstValueFrom(this.svc.aprobaciones(pr1.propuestaId));
       add('B6 · Propuesta rechazada: estado RECHAZADA con 1 firmante en RECHAZO',
         apR.estado === 'RECHAZADA' && apR.firmantes.filter((f) => f.estado === 'RECHAZO').length === 1, `${apR.estado}`);
@@ -684,6 +731,31 @@ export class IaComponent implements OnInit, OnDestroy {
       const met = await firstValueFrom(this.svc.metricasGobernanza());
       this.metricas = met;
       add('B7 · Métricas: 0 ejecutadas sin 3/3 (fail-closed verificado)', met.ejecutadasSin3de3 === 0 && met.ejecutadas >= 1, `ejecutadas=${met.ejecutadas} · sin3/3=${met.ejecutadasSin3de3}`);
+
+      // N · Integraciones reales: RAG BM25, Evals en vivo, firmas ECDSA, notificaciones y capacidades
+      const rag = await firstValueFrom(this.svc.buscarRag('inversor sobretensión sostenida', 'INVERSOR', 3));
+      add('N · RAG BM25 recupera el documento correcto', rag[0]?.docId === 'inversor-fallos', `${rag[0]?.docId} · BM25 ${rag[0]?.score}`);
+      const citasBm = d.evidencias.filter((e) => e.fuente.startsWith('RAG:') && e.titulo.includes('BM25') && e.detalle.includes('[doc ')).length;
+      add('N · El diagnóstico cita documento, sección y puntaje', citasBm >= 3, `${citasBm} fragmentos citados`);
+      const rep = await firstValueFrom(this.svc.evalsReporte());
+      this.reporte = rep;
+      add('N · Evals en vivo sobre dataset etiquetado (6 familias aptas)', rep.familias.length === 6 && rep.familias.every((f) => f.apta), `${rep.totalCasos} casos · ${rep.duracionMs} ms`);
+      add('N · Evals discrimina (reporta fallos reales caso a caso)', this.casosFallidos(rep) >= 1, `${this.casosFallidos(rep)} casos con fallo`);
+      const ver = await firstValueFrom(this.svc.verificarFirmas(p1.propuestaId));
+      add('N · 3 firmas ECDSA válidas (ecrecover) de 3 cuentas distintas',
+        ver.filter((v) => v.valida).length === 3 && new Set(ver.map((v) => v.direccion.toLowerCase())).size === 3, ver.map((v) => v.rol + ':' + v.direccion.slice(0, 8)).join(' · '));
+      let falsaRechazada = false;
+      try {
+        const pf = await firstValueFrom(this.svc.proponerAccion(d.diagnosticoId));
+        await firstValueFrom(this.svc.firmarOperador(pf.propuestaId, 'x', 'x', '0x0000000000000000000000000000000000000001', '0x' + '1'.repeat(130)));
+      } catch { falsaRechazada = true; }
+      add('N · Firma de billetera falsa rechazada', falsaRechazada, falsaRechazada ? 'HTTP 4xx' : 'aceptada');
+      const nots = await firstValueFrom(this.svc.notificaciones(undefined, p1.propuestaId));
+      const tiposN = nots.map((n) => n.destinatario + ':' + n.tipo).sort().join(',');
+      add('N · Bandeja: operador → prosumidor → desenlace', tiposN === 'OPERADOR:FIRMA_PENDIENTE,PROSUMIDOR:FIRMA_PENDIENTE,TODOS:DESENLACE', tiposN);
+      const cap = await firstValueFrom(this.svc.capacidades());
+      this.capacidades = cap;
+      add('N · Capacidades calculadas por el backend', (cap.resumen['OPERATIVO'] ?? 0) >= 6, JSON.stringify(cap.resumen));
 
       // C · Responsible AI del Assistant (no persuasión + por audiencia)
       const r = await firstValueFrom(this.svc.preguntarAsistente(d.diagnosticoId, 'PROSUMIDOR', '¿qué pasa si no apruebo?'));

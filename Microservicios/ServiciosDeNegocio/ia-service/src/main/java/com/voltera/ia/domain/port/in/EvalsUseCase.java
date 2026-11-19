@@ -1,5 +1,6 @@
 package com.voltera.ia.domain.port.in;
 
+import com.voltera.ia.domain.model.evals.ReporteEvals;
 import com.voltera.ia.domain.model.evals.ResultadoEval;
 
 import java.util.List;
@@ -16,4 +17,10 @@ public interface EvalsUseCase {
 
     /** Evalúa una familia de prompt concreta (p. ej. "diagnosticador"). */
     ResultadoEval evaluar(String agente);
+
+    /** Corre el dataset completo contra el flujo en vivo y devuelve el detalle caso a caso. */
+    ReporteEvals ejecutar();
+
+    /** Igual que {@link #ejecutar()}, forzando una corrida nueva si {@code forzar} es true. */
+    ReporteEvals ejecutar(boolean forzar);
 }

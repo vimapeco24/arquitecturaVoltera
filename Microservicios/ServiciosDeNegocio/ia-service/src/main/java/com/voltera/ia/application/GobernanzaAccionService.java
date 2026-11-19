@@ -7,6 +7,9 @@ import com.voltera.ia.domain.model.gobernanza.EstadoPropuesta;
 import com.voltera.ia.domain.model.gobernanza.EventoGobernanza;
 import com.voltera.ia.domain.model.gobernanza.LecturaOnChain;
 import com.voltera.ia.domain.model.gobernanza.Firma;
+import com.voltera.ia.domain.model.gobernanza.FirmaDigital;
+import com.voltera.ia.domain.model.gobernanza.VerificacionFirma;
+import com.voltera.ia.domain.port.out.FirmaCriptograficaPort;
 import com.voltera.ia.domain.model.gobernanza.Firmante;
 import com.voltera.ia.domain.model.gobernanza.PropuestaAccion;
 import com.voltera.ia.domain.port.in.GobernanzaAccionUseCase;
@@ -46,6 +49,8 @@ public class GobernanzaAccionService implements GobernanzaAccionUseCase {
     private final Duration ttlNormal;
 
     private final String explorerBase;
+    /** Firmas ECDSA de los roles; null desactiva la firma criptográfica (pruebas unitarias). */
+    private FirmaCriptograficaPort firmas;
 
     private static final Pattern TX_HASH = Pattern.compile("^0x[0-9a-fA-F]{64}$");
     static final String EXPLORER_POR_DEFECTO = "https://amoy.polygonscan.com";
@@ -69,6 +74,12 @@ public class GobernanzaAccionService implements GobernanzaAccionUseCase {
         this.ttlNormal = ttlNormal;
     }
 
+    /** Activa la firma criptográfica ECDSA de cada rol (EIP-191). */
+    public GobernanzaAccionService conFirmas(FirmaCriptograficaPort firmas) {
+        this.firmas = firmas;
+        return this;
+    }
+
     @Override
     public PropuestaAccion proponer(DiagnosticoDer d) {
         if (!d.requiereAprobacionHumana()) {
@@ -84,6 +95,12 @@ public class GobernanzaAccionService implements GobernanzaAccionUseCase {
                 comandoDesde(d), "severidad=" + d.severidad(), d.severidad(),
                 hash(d.diagnostico()), d.promptVersion(), d.motor(), ttl);
 
+        // Firma 1: el agente firma criptográficamente lo que propone.
+        if (firmas != null) {
+            String msg = p.mensajeParaFirma(Firmante.AGENTE_IA, true);
+            p.registrarFirmaDigital(new FirmaDigital(Firmante.AGENTE_IA, firmas.direccion(Firmante.AGENTE_IA),
+                    firmas.firmar(Firmante.AGENTE_IA, msg), msg, FirmaDigital.CUSTODIA, Instant.now()));
+        }
         // Firma 1 ya aplicada en crear(). Se registra la propuesta on-chain.
         String tx = gateway.registrarPropuesta(p);
         p.registrarTx(Firmante.AGENTE_IA, tx);       // la creación es la Firma 1
@@ -100,9 +117,17 @@ public class GobernanzaAccionService implements GobernanzaAccionUseCase {
 
     @Override
     public PropuestaAccion aprobar(UUID propuestaId, Firmante firmante, String identidad, String razon) {
+        return aprobar(propuestaId, firmante, identidad, razon, null, null);
+    }
+
+    @Override
+    public PropuestaAccion aprobar(UUID propuestaId, Firmante firmante, String identidad, String razon,
+                                   String direccionExterna, String firmaExterna) {
         PropuestaAccion p = requerir(propuestaId);
+        FirmaDigital fd = firmaDigital(p, firmante, true, direccionExterna, firmaExterna);
         Firma firma = Firma.aprobacion(firmante, identidad, razon);
         p.firmar(firma);
+        if (fd != null) p.registrarFirmaDigital(fd);
         String tx = gateway.registrarFirma(p, firma);
         p.registrarTx(firmante, tx);
         eventos.publicar(EventoGobernanza.de("FirmaRegistrada", p, tx));
@@ -124,9 +149,17 @@ public class GobernanzaAccionService implements GobernanzaAccionUseCase {
 
     @Override
     public PropuestaAccion rechazar(UUID propuestaId, Firmante firmante, String identidad, String razon) {
+        return rechazar(propuestaId, firmante, identidad, razon, null, null);
+    }
+
+    @Override
+    public PropuestaAccion rechazar(UUID propuestaId, Firmante firmante, String identidad, String razon,
+                                    String direccionExterna, String firmaExterna) {
         PropuestaAccion p = requerir(propuestaId);
+        FirmaDigital fd = firmaDigital(p, firmante, false, direccionExterna, firmaExterna);
         Firma firma = Firma.rechazo(firmante, identidad, razon);
         p.firmar(firma);
+        if (fd != null) p.registrarFirmaDigital(fd);
         String tx = gateway.registrarFirma(p, firma);
         p.registrarTx(firmante, tx);
         repositorio.guardar(p);
@@ -163,15 +196,69 @@ public class GobernanzaAccionService implements GobernanzaAccionUseCase {
         return repositorio.porId(propuestaId).map(this::construirAprobaciones);
     }
 
+    @Override
+    public Optional<String> mensajeFirma(UUID propuestaId, Firmante rol, boolean aprueba) {
+        return repositorio.porId(propuestaId).map(p -> p.mensajeParaFirma(rol, aprueba));
+    }
+
+    @Override
+    public Optional<List<VerificacionFirma>> verificarFirmas(UUID propuestaId) {
+        return repositorio.porId(propuestaId).map(p -> {
+            List<VerificacionFirma> out = new ArrayList<>();
+            for (FirmaDigital fd : p.firmasDigitales()) {
+                boolean aprueba = p.firmas().stream().filter(f -> f.firmante() == fd.rol())
+                        .findFirst().map(Firma::aprueba).orElse(true);
+                String esperado = p.mensajeParaFirma(fd.rol(), aprueba);
+                String recuperada = null;
+                String detalle;
+                boolean valida = false;
+                try {
+                    recuperada = firmas == null ? null : firmas.recuperarDireccion(esperado, fd.firma());
+                    valida = recuperada != null && recuperada.equalsIgnoreCase(fd.direccion())
+                            && esperado.equals(fd.mensaje());
+                    detalle = valida ? "ecrecover coincide con la dirección del firmante"
+                            : "la dirección recuperada no coincide o el mensaje cambió";
+                } catch (IllegalArgumentException e) {
+                    detalle = e.getMessage();
+                }
+                out.add(new VerificacionFirma(fd.rol().name(), fd.direccion(), recuperada, fd.firma(),
+                        fd.metodo(), fd.mensaje(), valida, fd.firmadoEn(), detalle));
+            }
+            out.sort(java.util.Comparator.comparing(v -> Firmante.valueOf(v.rol()).ordinal()));
+            return out;
+        });
+    }
+
+    /** Firma del rol: la de la billetera si llega (verificada con ecrecover) o la custodiada. */
+    private FirmaDigital firmaDigital(PropuestaAccion p, Firmante rol, boolean aprueba,
+                                      String direccionExterna, String firmaExterna) {
+        if (firmas == null) return null;
+        String msg = p.mensajeParaFirma(rol, aprueba);
+        FirmaDigital fd;
+        if (firmaExterna != null && !firmaExterna.isBlank()) {
+            String rec = firmas.recuperarDireccion(msg, firmaExterna);
+            if (direccionExterna == null || !rec.equalsIgnoreCase(direccionExterna)) {
+                throw new IllegalArgumentException("La firma no corresponde a la dirección indicada (ecrecover="
+                        + rec + ").");
+            }
+            fd = new FirmaDigital(rol, rec, firmaExterna, msg, FirmaDigital.BILLETERA, Instant.now());
+        } else {
+            fd = new FirmaDigital(rol, firmas.direccion(rol), firmas.firmar(rol, msg), msg,
+                    FirmaDigital.CUSTODIA, Instant.now());
+        }
+        p.validarDireccionUnica(rol, fd.direccion());
+        return fd;
+    }
+
     // ------------------------------------------------------------------ interno
     private EstadoAprobaciones construirAprobaciones(PropuestaAccion p) {
         LecturaOnChain lectura;
         try {
             lectura = gateway.leerEstado(p);
         } catch (Exception e) {
-            lectura = LecturaOnChain.simulada("lectura on-chain no disponible: " + e.getMessage());
+            lectura = LecturaOnChain.offChain("lectura on-chain no disponible: " + e.getMessage());
         }
-        if (lectura == null) lectura = LecturaOnChain.simulada("sin lectura on-chain");
+        if (lectura == null) lectura = LecturaOnChain.offChain("sin lectura on-chain");
 
         List<FirmanteEstado> firmantes = new ArrayList<>();
         List<String> faltantes = new ArrayList<>();
@@ -181,7 +268,7 @@ public class GobernanzaAccionService implements GobernanzaAccionUseCase {
             Firma firma = p.firmas().stream().filter(x -> x.firmante() == f).findFirst().orElse(null);
             if (firma == null) {
                 firmantes.add(new FirmanteEstado(f.name(), EstadoAprobaciones.PENDIENTE,
-                        null, null, null, null, null, LecturaOnChain.SIMULADO));
+                        null, null, null, null, null, LecturaOnChain.OFF_CHAIN));
                 if (p.estado() == EstadoPropuesta.PENDIENTE) faltantes.add(f.name());
                 continue;
             }
@@ -200,14 +287,14 @@ public class GobernanzaAccionService implements GobernanzaAccionUseCase {
             firmantes.add(new FirmanteEstado(f.name(),
                     firma.aprueba() ? EstadoAprobaciones.FIRMO : EstadoAprobaciones.RECHAZO,
                     firma.identidad(), firma.razon(), cuando, tx,
-                    real ? urlTx(tx) : null, real ? LecturaOnChain.ON_CHAIN : LecturaOnChain.SIMULADO));
+                    real ? urlTx(tx) : null, real ? LecturaOnChain.ON_CHAIN : LecturaOnChain.OFF_CHAIN));
         }
         boolean onChain = (lectura.esOnChain() && lectura.existe()) || (conTx > 0 && todasReales);
         String txEj = p.txEjecucion();
         return new EstadoAprobaciones(
                 p.propuestaId().toString(), p.activoId(), p.comando(),
                 p.estado().name(), etiquetaGlobal(p), 3, p.firmasAprobadas(), p.firmasResumen(),
-                onChain ? LecturaOnChain.ON_CHAIN : LecturaOnChain.SIMULADO,
+                onChain ? LecturaOnChain.ON_CHAIN : LecturaOnChain.OFF_CHAIN,
                 lectura.red(), lectura.contrato(), explorerBase, p.creadaEn(), p.venceEn(),
                 firmantes, faltantes, txEj, esHash(txEj) ? urlTx(txEj) : null, lectura);
     }

@@ -29,10 +29,10 @@ public interface McpBlockchainGatewayPort {
 
     /**
      * Lectura (solo lectura, sin gas) del estado de la propuesta en el contrato
-     * vía blockchain-gateway. Debe devolver modo SIMULADO, sin fallar, cuando no
+     * vía blockchain-gateway. Debe devolver modo OFF_CHAIN, sin fallar, cuando no
      * hay contrato/RPC configurados o el gateway no responde.
      */
     default LecturaOnChain leerEstado(PropuestaAccion propuesta) {
-        return LecturaOnChain.simulada("lectura on-chain no disponible en este adaptador");
+        return LecturaOnChain.offChain("lectura on-chain no disponible en este adaptador");
     }
 }

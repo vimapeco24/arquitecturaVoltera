@@ -15,6 +15,7 @@
 #      B3 un mismo rol no puede firmar dos veces (rechazo HTTP 4xx)
 #      B4 no se puede proponer sobre un diagnóstico sin acción (rechazo HTTP 4xx)
 #      B5 endpoint de caducidad de propuestas vencidas (TTL) responde
+#      N  integraciones reales: RAG BM25, Evals en vivo, firmas ECDSA (ecrecover), notificaciones, capacidades
 #      M  demo ON-CHAIN local (Hardhat): 3/3, rechazo, no repudio, TTL, pausa, eventos (26 criterios)
 #      B6 aprobaciones múltiples visibles: GET .../propuestas/{id}/aprobaciones (3/3, rechazo, 404)
 #   C  Responsible AI del Assistant: no persuasión + prompts por audiencia.
@@ -170,7 +171,7 @@ APF=$(printf '%s' "$AP" | jqpy "len([f for f in d.get('firmantes',[]) if f.get('
 APM=$(printf '%s' "$AP" | jqpy "d.get('modo','')")
 APE=$(printf '%s' "$AP" | jqpy "d.get('estado','')")
 [ "$APN" = "3/3" ] && [ "$APF" = "3" ] && ok "estado de aprobaciones 3/3: los 3 firmantes con marca de tiempo (estado $APE)" || bad "aprobaciones 3/3 inesperadas ($APN, firmas con fecha=$APF)"
-{ [ "$APM" = "ON_CHAIN" ] || [ "$APM" = "SIMULADO" ]; } && ok "aprobaciones indican modo explícito ($APM)" || bad "sin campo modo ON_CHAIN/SIMULADO ($APM)"
+{ [ "$APM" = "ON_CHAIN" ] || [ "$APM" = "OFF_CHAIN" ]; } && ok "aprobaciones indican modo explícito ($APM)" || bad "sin campo modo ON_CHAIN/OFF_CHAIN ($APM)"
 APR=$(curl -s --max-time 40 "$IA/api/v1/ia/gobernanza/propuestas/$PID2/aprobaciones")
 APRE=$(printf '%s' "$APR" | jqpy "d.get('estado','')+'|'+str(len([f for f in d.get('firmantes',[]) if f.get('estado')=='RECHAZO']))")
 [ "$APRE" = "RECHAZADA|1" ] && ok "aprobaciones de propuesta rechazada: estado RECHAZADA con 1 firmante en RECHAZO" || bad "aprobaciones de rechazo inesperadas ($APRE)"
@@ -191,6 +192,31 @@ MEJ=$(printf '%s' "$MET" | jqpy "d.get('ejecutadas')")
 [ "$MS3" = "0" ] && [ "${MEJ:-0}" -ge 1 ] && ok "métricas: 0 ejecutadas sin 3/3 (fail-closed) con $MEJ ejecutadas" || bad "métricas inesperadas (sin3/3=$MS3, ejecutadas=$MEJ)"
 APX2=$(curl -s -o /dev/null -w '%{http_code}' --max-time 40 "$IA/api/v1/ia/gobernanza/propuestas/00000000-0000-0000-0000-000000000000/auditoria")
 [ "$APX2" = "404" ] && ok "auditoría de propuesta inexistente -> HTTP 404" || bad "auditoría inexistente no devolvió 404 (HTTP $APX2)"
+
+echo ""
+echo "── EXPERIMENTO N · Integraciones reales (RAG BM25, Evals en vivo, firmas ECDSA, notificaciones, capacidades)"
+RAGQ=$(curl -s --max-time 40 "$IA/api/v1/ia/conocimiento/buscar?q=inversor%20sobretension%20sostenida&tipoActivo=INVERSOR&k=3")
+RAGTOP=$(printf '%s' "$RAGQ" | jqpy "d[0]['docId']+'|'+str(d[0]['score'])")
+case "$RAGTOP" in inversor-fallos\|*) ok "RAG BM25: 'sobretensión' recupera inversor-fallos como primer resultado ($RAGTOP)";; *) bad "RAG no recuperó el documento esperado ($RAGTOP)";; esac
+NBM=$(printf '%s' "$DIAG" | jqpy "len([e for e in d.get('evidencias',[]) if e['fuente'].startswith('RAG:') and 'BM25' in e['titulo'] and '[doc ' in e['detalle']])")
+[ "${NBM:-0}" -ge 3 ] && ok "el diagnóstico cita $NBM fragmentos del corpus con documento y puntaje BM25" || bad "evidencia RAG sin documento/puntaje ($NBM)"
+REP=$(curl -s --max-time 90 "$IA/api/v1/ia/evals/reporte")
+REPN=$(printf '%s' "$REP" | jqpy "str(d['totalCasos'])+'|'+str(len(d['familias']))+'|'+str(all(f['apta'] for f in d['familias']))")
+REPF=$(printf '%s' "$REP" | jqpy "len([c for c in d['casos'] if not c['severidadOk']])")
+case "$REPN" in *\|6\|True) ok "Evals en vivo: dataset de ${REPN%%|*} casos etiquetados, 6 familias aptas";; *) bad "reporte de Evals inesperado ($REPN)";; esac
+[ "${REPF:-0}" -ge 1 ] && ok "Evals discrimina: reporta $REPF casos fallidos caso a caso (no es 100 % fijo)" || bad "Evals no reporta fallos ($REPF)"
+VER=$(curl -s --max-time 40 "$IA/api/v1/ia/gobernanza/propuestas/$PID/firmas/verificacion")
+VERN=$(printf '%s' "$VER" | jqpy "str(len([v for v in d if v['valida']]))+'|'+str(len(set(v['direccion'].lower() for v in d)))")
+[ "$VERN" = "3|3" ] && ok "las 3 firmas ECDSA se verifican con ecrecover y vienen de 3 cuentas distintas" || bad "verificación de firmas inesperada ($VERN)"
+PRF=$(curl -s --max-time 60 -X POST "$IA/api/v1/ia/gobernanza/propuestas/$DID" | jqpy "d.get('propuestaId','')")
+HFAKE=$(http_post "$IA/api/v1/ia/gobernanza/propuestas/$PRF/firmas/operador" '{"identidad":"x","razon":"x","direccion":"0x0000000000000000000000000000000000000001","firma":"0x'"$(printf '1%.0s' $(seq 1 130))"'"}')
+[ "${HFAKE:0:1}" = "4" ] && ok "firma de billetera que no corresponde a la dirección -> rechazada (HTTP $HFAKE)" || bad "firma falsa aceptada (HTTP $HFAKE)"
+NOT=$(curl -s --max-time 40 "$IA/api/v1/ia/notificaciones?propuestaId=$PID")
+NOTT=$(printf '%s' "$NOT" | jqpy "','.join(sorted(n['destinatario']+':'+n['tipo'] for n in d))")
+[ "$NOTT" = "OPERADOR:FIRMA_PENDIENTE,PROSUMIDOR:FIRMA_PENDIENTE,TODOS:DESENLACE" ] && ok "bandeja de notificaciones: operador → prosumidor → desenlace" || bad "notificaciones inesperadas ($NOTT)"
+CAP=$(curl -s --max-time 60 "$IA/api/v1/ia/capacidades")
+CAPN=$(printf '%s' "$CAP" | jqpy "d['resumen'].get('OPERATIVO',0)")
+[ "${CAPN:-0}" -ge 6 ] && ok "capacidades calculadas en vivo: $CAPN operativas ($(printf '%s' "$CAP" | jqpy "d['resumen']"))" || bad "capacidades insuficientes ($CAPN)"
 # ---------------------------------------------------------------------------
 echo ""
 echo "── EXPERIMENTO C · Responsible AI del Assistant (no persuasión + por audiencia)"
@@ -406,6 +432,7 @@ cat > "$EVID" <<JSON
   "experimentoJ_rendimiento": { "n": $N_PERF, "p50_ms": ${P50:-0}, "p95_ms": ${P95:-0}, "avg_ms": ${PAVG:-0}, "max_ms": ${PMAX:-0} },
   "experimentoK_ab_prompts": "$AB",
   "experimentoL_concurrencia": { "n": $N_CONC, "respuestas_ok": ${CC_OK:-0}, "ids_unicos": ${CC_UNIQ:-0} },
+  "experimentoN_integraciones": { "rag_top": "$RAGTOP", "evals": "$REPN", "evals_fallidos": ${REPF:-0}, "firmas_validas": "$VERN", "firma_falsa_http": "$HFAKE", "notificaciones": "$NOTT", "capacidades_operativas": ${CAPN:-0} },
   "experimentoM_onchain": { "resultado": "$ONCHAIN_RES", "evidencia": "onchain-multifirma-$TS.json" },
   "experimentoI_tests": { "junit": "$TEST_JUNIT", "hardhat": "$TEST_HARDHAT" },
   "criterios_ok": $PASS, "criterios_fallidos": $FAIL

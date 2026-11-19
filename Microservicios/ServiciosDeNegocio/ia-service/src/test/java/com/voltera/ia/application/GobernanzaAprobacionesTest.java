@@ -146,12 +146,12 @@ class GobernanzaAprobacionesTest {
         s.aprobar(p.propuestaId(), Firmante.OPERADOR, "op@voltera", "ok");
 
         EstadoAprobaciones e = estado(s, p);
-        assertEquals("SIMULADO", e.modo());
-        assertEquals("SIMULADO", e.lecturaOnChain().modo());
+        assertEquals("OFF_CHAIN", e.modo());
+        assertEquals("OFF_CHAIN", e.lecturaOnChain().modo());
         for (var f : e.firmantes().stream().filter(f -> f.txHash() != null).toList()) {
             assertTrue(f.txHash().startsWith("demo:"));
             assertNull(f.explorerUrl());
-            assertEquals("SIMULADO", f.modo());
+            assertEquals("OFF_CHAIN", f.modo());
         }
     }
 
@@ -185,7 +185,7 @@ class GobernanzaAprobacionesTest {
         var s = servicio(gw);
         PropuestaAccion p = s.proponer(diagnostico());
         EstadoAprobaciones e = estado(s, p);
-        assertEquals("SIMULADO", e.modo());
+        assertEquals("OFF_CHAIN", e.modo());
         assertFalse(e.lecturaOnChain().esOnChain());
     }
 

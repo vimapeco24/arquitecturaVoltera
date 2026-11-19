@@ -47,7 +47,7 @@
   </nav>
 
   <section *ngIf="tab === 'diagnostico'">
-<details class="ayuda" open><summary>ℹ️ ¿Qué estoy viendo?</summary><ul><li><b>Alerta de telemetría (izquierda):</b> simula lo que enviaría un dispositivo. Valor observado frente a umbral esperado y minutos sin señal determinan la severidad.</li><li><b>Flujo agéntico:</b> los 8 pasos que recorre la solicitud: guardrails, registro de agentes, Monitor, RAG, MCP, Diagnosticador, Acción y revisión humana.</li><li><b>Evidencia citada:</b> cada afirmación del diagnóstico apunta a su fuente (RAG o herramienta MCP). Aquí la base de conocimiento y los datos de dispositivos son simulados.</li><li><b>Assistant:</b> responde dudas sobre este diagnóstico sin persuadir y sin poder ejecutar acciones.</li><li><b>Gobernanza 3/3 (abajo):</b> la acción física solo se ejecuta con las tres firmas. Para ver el detalle completo usa la pestaña «Gobernanza on-chain 3/3».</li></ul></details>
+<details class="ayuda" open><summary>ℹ️ ¿Qué estoy viendo?</summary><ul><li><b>Alerta de telemetría (izquierda):</b> representa la lectura que envía el dispositivo al head-end. Valor observado frente a umbral esperado y minutos sin señal determinan la severidad.</li><li><b>Flujo agéntico:</b> los 8 pasos que recorre la solicitud: guardrails, registro de agentes, Monitor, RAG, MCP, Diagnosticador, Acción y revisión humana.</li><li><b>Evidencia citada:</b> cada afirmación del diagnóstico apunta a su fuente (RAG o herramienta MCP). El RAG cita documento, sección y puntaje BM25; puedes probarlo en la pestaña «Conocimiento».</li><li><b>Assistant:</b> responde dudas sobre este diagnóstico sin persuadir y sin poder ejecutar acciones.</li><li><b>Gobernanza 3/3 (abajo):</b> la acción física solo se ejecuta con las tres firmas. Para ver el detalle completo usa la pestaña «Gobernanza on-chain 3/3».</li></ul></details>
   <div class="layout">
     <!-- Panel de entrada: alerta de telemetría -->
     <form class="panel v-card" [formGroup]="form" (ngSubmit)="diagnosticar()">
@@ -258,7 +258,7 @@
             <div class="aprobaciones" *ngIf="aprobaciones as a">
               <h5>
                 ✍ Aprobaciones múltiples
-                <span class="v-badge mini" [ngClass]="a.modo === 'ON_CHAIN' ? 'ok' : 'warn'">{{ a.modo === 'ON_CHAIN' ? 'On-chain' : 'Simulado' }}</span>
+                <span class="v-badge mini" [ngClass]="a.modo === 'ON_CHAIN' ? 'ok' : 'info'">{{ a.modo === 'ON_CHAIN' ? 'On-chain' : 'Off-chain · ECDSA' }}</span>
                 <span class="v-badge mini" [ngClass]="badgeEstadoPropuesta(a.estado)">{{ a.estado }}</span>
               </h5>
               <p class="hint">{{ a.estadoGlobal }}</p>
@@ -271,13 +271,13 @@
                   <span class="v-badge" [ngClass]="badgeFirmante(f.estado)">{{ f.firmante }}</span>
                   <span>{{ f.estado === 'FIRMO' ? '✔ firmó' : f.estado === 'RECHAZO' ? '✘ rechazó' : '⏳ pendiente' }}</span>
                   <span class="f-id" *ngIf="f.firmadoEn">{{ f.firmadoEn | date:'dd/MM HH:mm:ss' }}</span>
-                  <span class="v-badge mini" *ngIf="f.modo" [ngClass]="f.modo === 'ON_CHAIN' ? 'ok' : 'warn'">{{ f.modo === 'ON_CHAIN' ? 'On-chain' : 'Simulado' }}</span>
+                  <span class="v-badge mini" *ngIf="f.modo" [ngClass]="f.modo === 'ON_CHAIN' ? 'ok' : 'info'">{{ f.modo === 'ON_CHAIN' ? 'On-chain' : 'Off-chain' }}</span>
                   <a *ngIf="f.txHash && f.explorerUrl" [href]="f.explorerUrl" target="_blank" rel="noopener" class="f-id">tx {{ f.txHash | slice:0:12 }}…</a>
                   <span class="f-id" *ngIf="f.txHash && !f.explorerUrl">ref {{ f.txHash | slice:0:18 }}…</span>
                 </li>
               </ul>
               <p class="hint" *ngIf="a.contrato">Contrato <code>{{ a.contrato }}</code> · {{ a.red }}</p>
-              <p class="hint" *ngIf="a.modo === 'SIMULADO'">Modo simulado: el contrato no está desplegado/configurado; las referencias <code>demo:</code> no existen en Polygonscan.</p>
+              <p class="hint" *ngIf="a.modo === 'OFF_CHAIN'">Registro off-chain con firmas ECDSA verificables (pestaña «Gobernanza on-chain 3/3» → Verificación criptográfica). El contrato aún no está desplegado en Amoy.</p>
               <p class="hint" *ngIf="a.txEjecucionUrl">Ejecución: <a [href]="a.txEjecucionUrl" target="_blank" rel="noopener">ver en el explorador</a></p>
             </div>
             <!-- Auditoría (línea de tiempo para la CREG) -->
@@ -327,37 +327,90 @@
   <section *ngIf="tab === 'gobernanza'"><app-gobernanza-onchain></app-gobernanza-onchain></section>
 
   <section *ngIf="tab === 'calidad'">
-<details class="ayuda" open><summary>ℹ️ ¿Qué estoy viendo?</summary><ul><li><b>Qué es:</b> la compuerta de calidad de cada prompt. Una versión solo está activa si acierta ≥ 85 %, cita ≥ 95 % y no inventa comandos.</li><li><b>Lectura crítica:</b> las métricas por versión son valores de referencia del registro, no el resultado de evaluar un dataset en esta sesión. Sirven para demostrar el mecanismo de compuerta y rollback.</li><li><b>Por qué importa:</b> un prompt es código; se versiona y se promueve solo si pasa la compuerta.</li></ul></details>
-  <!-- ============ Evals & Tracing (Tema 5) ============ -->
-  <div class="evals v-card" *ngIf="evals.length">
-    <h3>🧪 Evals &amp; Tracing · Prompt &amp; Model Registry (Tema 5)</h3>
-    <p class="sub">
-      Cada versión de prompt se evalúa contra el conjunto de referencia antes de publicarse:
-      <strong>acierto ≥ 85 %</strong>, <strong>citas ≥ 95 %</strong>, <strong>0 comandos inventados</strong>.
-      Si no pasa, el registro mantiene la versión anterior (rollback).
-    </p>
+<details class="ayuda" open><summary>ℹ ¿Qué estoy viendo?</summary><ul>
+<li><b>Qué es:</b> la compuerta de calidad de cada familia de prompt. Una versión solo queda activa si acierta ≥ 85 %, cita ≥ 95 % y no inventa comandos; si no, el registro mantiene la anterior (rollback).</li>
+<li><b>Cómo se calcula:</b> el backend ejecuta en vivo los casos del dataset etiquetado contra el flujo de agentes (instancias aisladas, sin tocar propuestas reales) y compara lo obtenido con la respuesta correcta del dominio.</li>
+<li><b>Lectura crítica:</b> la tabla de casos muestra los fallos reales del motor. Hoy falla en las métricas donde un valor <i>menor</i> es peor (SoH de batería): la regla compara «valor &gt; umbral». Las Evals existen para encontrar esto.</li>
+</ul></details>
+  <div class="evals v-card" *ngIf="reporte as r; else cargandoEvals">
+    <div class="exp-head">
+      <h3>🧪 Evals &amp; Tracing · corrida en vivo</h3>
+      <button type="button" class="v-btn primary" (click)="cargarReporteEvals(true)" [disabled]="cargandoReporte">
+        <span class="v-spinner" *ngIf="cargandoReporte"></span>↻ Re-ejecutar dataset
+      </button>
+    </div>
+    <p class="sub">Dataset <code>{{ r.dataset }}</code> · {{ r.totalCasos }} casos · {{ r.duracionMs }} ms · ejecutado {{ r.ejecutadoEn | date:'dd/MM HH:mm:ss' }}</p>
     <table class="eval-table">
-      <thead>
-        <tr><th>Familia</th><th>Versión</th><th>Casos</th><th>Acierto</th><th>Citas</th><th>Inventados</th><th>Veredicto</th></tr>
-      </thead>
+      <thead><tr><th>Familia</th><th>Versión</th><th>Casos</th><th>Acierto</th><th>Citas</th><th>Inventados</th><th>Veredicto</th></tr></thead>
       <tbody>
-        <tr *ngFor="let e of evals">
-          <td>{{ e.agente }}</td>
-          <td><code>{{ e.version }}</code></td>
-          <td>{{ e.casos }}</td>
-          <td>{{ (e.acierto * 100) | number:'1.0-0' }}%</td>
-          <td>{{ (e.citasValidas * 100) | number:'1.0-0' }}%</td>
+        <tr *ngFor="let e of r.familias">
+          <td>{{ e.agente }}</td><td><code>{{ e.version }}</code></td><td>{{ e.casos }}</td>
+          <td><div class="barra"><i [style.width.%]="e.acierto * 100" [class.bad]="e.acierto < 0.85"></i></div>{{ (e.acierto * 100) | number:'1.0-1' }} %</td>
+          <td>{{ (e.citasValidas * 100) | number:'1.0-0' }} %</td>
           <td>{{ e.comandosInventados }}</td>
           <td><span class="v-badge" [ngClass]="e.apta ? 'ok' : 'err'">{{ e.apta ? 'APTA' : 'NO apta' }}</span></td>
         </tr>
       </tbody>
     </table>
-    <p class="hint">GET <code>/api/v1/ia/evals</code></p>
+    <h4 class="sub-h">Resultado caso a caso <span class="v-badge mini" [ngClass]="casosFallidos(r) ? 'warn' : 'ok'">{{ casosFallidos(r) }} con fallo</span>
+      <label class="check inline"><input type="checkbox" [(ngModel)]="soloFallidos"> solo fallidos</label></h4>
+    <div class="tblw"><table class="arq-t">
+      <thead><tr><th>Id</th><th>Caso</th><th>Severidad esperada → obtenida</th><th>Acción esperada → obtenida</th><th>Citas</th><th>ms</th></tr></thead>
+      <tbody>
+        <tr *ngFor="let c of casosVisibles(r)" [class.fila-bad]="!c.severidadOk || !c.accionOk">
+          <td><code>{{ c.id }}</code></td>
+          <td>{{ c.descripcion }}<div class="hint" *ngIf="c.nota">{{ c.nota }}</div></td>
+          <td>{{ c.severidadEsperada }} → <b [class.txt-bad]="!c.severidadOk">{{ c.severidadObtenida }}</b></td>
+          <td>{{ c.accionEsperada }} → <b [class.txt-bad]="!c.accionOk">{{ c.accionObtenida }}</b></td>
+          <td>{{ c.fuentesRag }} RAG · {{ c.fuentesMcp }} MCP</td>
+          <td>{{ c.ms }}</td>
+        </tr>
+      </tbody>
+    </table></div>
+    <p class="hint">GET <code>/api/v1/ia/evals/reporte</code> · resultado en caché 60 s; «Re-ejecutar» fuerza una corrida nueva.</p>
+  </div>
+  <ng-template #cargandoEvals><div class="v-card evals"><p class="hint">Ejecutando el dataset de Evals…</p></div></ng-template>
+  </section>
+
+  <!-- ============ Conocimiento (RAG BM25) ============ -->
+  <section *ngIf="tab === 'conocimiento'">
+<details class="ayuda" open><summary>ℹ ¿Qué estoy viendo?</summary><ul>
+<li><b>Corpus:</b> los documentos que consulta el Agente-Diagnosticador: fichas técnicas, fallos conocidos, procedimientos de campo y regulación. Cada documento se divide en secciones.</li>
+<li><b>Búsqueda:</b> recuperación léxica BM25 (k1 = 1,2; b = 0,75). El puntaje sube cuando los términos de la consulta son frecuentes en la sección y raros en el resto del corpus.</li>
+<li><b>En el diagnóstico:</b> el agente toma la mejor sección de cada categoría y la cita con documento, sección y puntaje. Es recuperación léxica, no semántica: sinónimos que no aparecen en el texto no se encuentran.</li>
+</ul></details>
+  <div class="layout rag">
+    <div class="v-card panel">
+      <h3>🔍 Probar el RAG</h3>
+      <p class="sub">Escribe lo que preguntaría el agente y filtra por tipo de activo.</p>
+      <div class="v-field"><label>Consulta</label>
+        <input class="v-input" [(ngModel)]="ragQuery" (keyup.enter)="buscarRag()" placeholder="inversor sobretensión sostenida" /></div>
+      <div class="v-field"><label>Tipo de activo</label>
+        <select class="v-select" [(ngModel)]="ragTipo">
+          <option value="">Todos</option>
+          <option *ngFor="let t of ['INVERSOR','BATERIA','PANEL_SOLAR','CARGADOR_EV','MEDIDOR']" [value]="t">{{ t }}</option>
+        </select></div>
+      <div class="form-actions"><button class="v-btn primary" (click)="buscarRag()" [disabled]="buscandoRag">Buscar</button></div>
+      <h4 class="sub-h" *ngIf="corpus as cp">Corpus · {{ cp.documentos.length }} documentos · {{ cp.fragmentos }} secciones</h4>
+      <ul class="docs" *ngIf="corpus as cp">
+        <li *ngFor="let d of cp.documentos"><span class="v-badge mini info">{{ d.categoria }}</span> {{ d.titulo }} <small class="hint">· {{ d.secciones }} secc. · {{ d.activos.join(', ') }}</small></li>
+      </ul>
+    </div>
+    <div class="v-card result">
+      <div class="result-head"><h3>Resultados</h3><span class="count">{{ ragResultados.length }} fragmentos</span></div>
+      <div class="empty" *ngIf="!ragResultados.length">Sin resultados todavía.</div>
+      <div class="rag-item" *ngFor="let r of ragResultados; let i = index">
+        <div class="rag-top"><b>#{{ i + 1 }} · {{ r.titulo }}</b><span class="v-badge mini ok">BM25 {{ r.score }}</span></div>
+        <div class="hint">§ {{ r.seccion }} · <code>{{ r.docId }}</code> · {{ r.categoria }} · términos: {{ r.terminos.join(', ') }}</div>
+        <p>{{ r.texto }}</p>
+        <div class="hint">Fuente: {{ r.fuente }}</div>
+      </div>
+    </div>
   </div>
   </section>
 
   <section *ngIf="tab === 'experimento'">
-<details class="ayuda" open><summary>ℹ️ ¿Qué estoy viendo?</summary><ul><li><b>Qué hace el botón:</b> ejecuta contra el ia-service una serie de pruebas con casos reales y compara cada resultado con un criterio de aceptación.</li><li><b>Cómo leerlo:</b> cada bloque tiene hipótesis, método, endpoints y umbral. Cada fila es un criterio (id, ✓/✗, observado y milisegundos).</li><li><b>Alcance:</b> valida comportamiento y reglas del servicio, no la calidad de un modelo de lenguaje, porque el motor es local y determinista.</li><li><b>Evidencia:</b> descarga el JSON o el reporte en Markdown para adjuntarlo a la entrega. El bloque on-chain se ve en la pestaña de gobernanza.</li></ul></details>
+<details class="ayuda" open><summary>ℹ️ ¿Qué estoy viendo?</summary><ul><li><b>Qué hace el botón:</b> ejecuta contra el ia-service una serie de pruebas con casos reales y compara cada resultado con un criterio de aceptación.</li><li><b>Cómo leerlo:</b> cada bloque tiene hipótesis, método, endpoints y umbral. Cada fila es un criterio (id, ✓/✗, observado y milisegundos).</li><li><b>Alcance:</b> valida comportamiento, reglas e integraciones del servicio (RAG, Evals, firmas ECDSA, notificaciones). No mide un LLM, porque el motor de redacción es local y determinista.</li><li><b>Evidencia:</b> descarga el JSON o el reporte en Markdown para adjuntarlo a la entrega. El bloque on-chain se ve en la pestaña de gobernanza.</li></ul></details>
   <!-- ============ Experimento de validación · Módulo 5 ============ -->
   <div class="exp v-card">
     <div class="exp-head">
@@ -418,31 +471,40 @@
   <!-- ============ Guía, alcance y límites ============ -->
   <section *ngIf="tab === 'guia'" class="guia">
     <div class="v-card guia-card">
-      <h3>🔎 Qué es real, qué está simulado y qué falta</h3>
-      <p class="hint">Lectura honesta del estado del módulo, componente por componente. Sirve para defender el alcance y para planear la siguiente fase.</p>
-      <div class="guia-res">
-        <span class="v-badge ok">{{ contar('REAL') }} reales</span>
-        <span class="v-badge warn">{{ contar('SIMULADO') }} simulados</span>
-        <span class="v-badge err">{{ contar('PENDIENTE') }} pendiente</span>
+      <div class="exp-head">
+        <h3>🔎 Estado de cada capacidad (calculado por el backend)</h3>
+        <button class="v-btn" (click)="cargarCapacidades()">↻ Recalcular</button>
       </div>
-      <div class="tblw"><table class="arq-t">
-        <thead><tr><th>Componente</th><th>Qué hace</th><th>Estado</th><th>Detalle y límite</th></tr></thead>
-        <tbody><tr *ngFor="let a of alcance">
-          <td><b>{{ a.c }}</b></td><td>{{ a.que }}</td>
-          <td><span class="v-badge mini" [ngClass]="a.estado === 'REAL' ? 'ok' : a.estado === 'SIMULADO' ? 'warn' : 'err'">{{ a.estado }}</span></td>
-          <td>{{ a.nota }}</td>
+      <p class="hint">GET <code>/api/v1/ia/capacidades</code> revisa la configuración y sondea los servicios externos en este momento. OPERATIVO: funciona de punta a punta en este despliegue. LOCAL: funciona con un respaldo local porque falta el recurso indicado. PENDIENTE: requiere una acción externa.</p>
+      <div class="guia-res" *ngIf="capacidades as cp">
+        <span class="v-badge ok">{{ cp.resumen['OPERATIVO'] || 0 }} operativas</span>
+        <span class="v-badge info">{{ cp.resumen['LOCAL'] || 0 }} con respaldo local</span>
+        <span class="v-badge err">{{ cp.resumen['PENDIENTE'] || 0 }} pendientes</span>
+        <span class="hint">calculado {{ cp.calculadoEn | date:'HH:mm:ss' }}</span>
+      </div>
+      <div class="tblw" *ngIf="capacidades as cp"><table class="arq-t">
+        <thead><tr><th>Componente</th><th>Estado</th><th>Qué hace hoy</th><th>Cómo comprobarlo</th><th>Qué falta</th></tr></thead>
+        <tbody><tr *ngFor="let c of cp.capacidades">
+          <td><b>{{ c.componente }}</b></td>
+          <td><span class="v-badge mini" [ngClass]="c.estado === 'OPERATIVO' ? 'ok' : c.estado === 'LOCAL' ? 'info' : 'err'">{{ c.estado }}</span></td>
+          <td>{{ c.detalle }}</td>
+          <td><code>{{ c.evidencia }}</code></td>
+          <td>{{ c.requiere || '—' }}</td>
         </tr></tbody>
       </table></div>
+      <div *ngIf="capacidades?.direccionesFirmantes as dir" class="hint">Direcciones de firma por rol:
+        <code *ngFor="let k of ['AGENTE_IA','OPERADOR','PROSUMIDOR']">{{ k }} {{ dir[k] }}</code>
+      </div>
     </div>
 
     <div class="arq-grid">
       <div class="v-card arq-card">
         <h3>⚠️ Riesgos y limitaciones</h3>
         <ul class="arq-list">
-          <li>Sin autenticación real de firmantes: cualquiera con acceso a la consola puede firmar como operador o prosumidor.</li>
-          <li>Datos en memoria: se pierden al reiniciar el servicio.</li>
-          <li>El contrato no está desplegado en una red pública; las aprobaciones se ven en modo SIMULADO.</li>
-          <li>Las métricas de Evals son de referencia, no recalculadas.</li>
+          <li>Las firmas con clave custodiada prueban integridad, no identidad: quien usa la consola firma con la clave del rol. Para identidad real se firma con billetera (MetaMask) o con IAM.</li>
+          <li>Datos en memoria: diagnósticos, propuestas y notificaciones se reinician con el servicio.</li>
+          <li>Sin el contrato en Amoy, el registro de la gobernanza es off-chain (firmas ECDSA verificables, sin transacción pública).</li>
+          <li>El motor no detecta degradación en métricas donde menos es peor (SoH); las Evals lo muestran.</li>
           <li>El primer llamado a Render free tarda 30 a 60 s por el arranque en frío.</li>
         </ul>
       </div>
@@ -450,10 +512,11 @@
         <h3>🚀 Para pasar a producción</h3>
         <ul class="arq-list">
           <li>Desplegar <code>MultiFirmaAccionDER</code> en Amoy y definir <code>VOLTERA_BLOCKCHAIN_GOBERNANZA_ADDRESS</code>.</li>
-          <li>Firmar con la billetera de cada rol (o IAM + custodia de claves) en vez de identidades de texto.</li>
+          <li>Fijar las claves de rol con <code>IA_FIRMA_KEY_*</code> o exigir firma de billetera para operador y prosumidor.</li>
           <li>Persistir propuestas y diagnósticos en base de datos.</li>
-          <li>Indexar documentos reales para RAG y conectar telemetría real por MCP.</li>
-          <li>Activar el LLM (<code>IA_PROVIDER</code>, <code>IA_LLM_API_KEY</code> por variable de entorno) y evaluar con un dataset.</li>
+          <li>Ampliar el corpus RAG con manuales reales y conectar la telemetría on-premise por MCP.</li>
+          <li>Corregir la regla de severidad para métricas donde menos es peor y volver a correr las Evals.</li>
+          <li>Activar el LLM (<code>IA_PROVIDER</code>, <code>IA_LLM_API_KEY</code> por variable de entorno) y repetir las Evals.</li>
         </ul>
       </div>
       <div class="v-card arq-card">
@@ -461,7 +524,8 @@
         <ol class="arq-list">
           <li>Pestaña <b>Diagnóstico</b>: genera la alerta y revisa evidencia y traza.</li>
           <li>Pestaña <b>Gobernanza</b>: lanza la demo guiada 1/3 → 3/3.</li>
-          <li>Mira la auditoría y las transacciones EVM de la evidencia.</li>
+          <li>Revisa la verificación ecrecover de las 3 firmas, la bandeja de notificaciones y las transacciones EVM.</li>
+          <li>Pestañas <b>Calidad</b> y <b>Conocimiento</b>: corre las Evals y prueba el RAG.</li>
           <li>Pestaña <b>Experimento</b>: ejecútalo y descarga el reporte.</li>
           <li>Cierra con esta guía para explicar los límites.</li>
         </ol>

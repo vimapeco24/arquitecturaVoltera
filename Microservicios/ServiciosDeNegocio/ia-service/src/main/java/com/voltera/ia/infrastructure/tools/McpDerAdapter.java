@@ -67,7 +67,7 @@ public class McpDerAdapter implements HerramientasDerPort {
                                     + "ms (on-premise, LAN privada); se usa la telemetría de la alerta."));
         }
 
-        // Herramienta 2: historial de comandos (simulado — lectura, no ejecución).
+        // Herramienta 2: historial de comandos (lectura, no ejecución; datos sintéticos hasta conectar el head-end).
         out.add(Evidencia.de("tool:historial-comandos",
                 "Historial de comandos · " + a.activoId(),
                 "Últimos comandos registrados sobre el activo (lectura): sin comandos físicos en las "

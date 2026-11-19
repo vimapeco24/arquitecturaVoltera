@@ -6,6 +6,19 @@
 > + Evals&Tracing + tópicos `der.*`. Diagrama `.drawio` actualizado y validado).
 > Lee este archivo primero al reconectar.
 
+## 2026-11-19 (tarde) · MÓDULO 5 · Integraciones reales en ia-service + front
+Pedido: «no quiero nada simulado; todo real y orquestado desde backend y front».
+- **RAG real:** `Bm25ConocimientoDer` (BM25 k1=1.2 b=0.75) sobre `resources/conocimiento/*.md` (12 documentos, ~35 secciones). Reemplaza `StubConocimientoDer` (eliminado). API `GET /ia/conocimiento/documentos|buscar`.
+- **Evals reales:** `EvalsService` ejecuta `resources/evals/casos-der.json` (29 casos etiquetados) contra instancias aisladas del flujo; 6 familias; caché 60 s. `GET /ia/evals/reporte[?forzar=true]`. Detecta 2 fallos reales (SoH).
+- **Firmas ECDSA:** web3j `crypto` 4.12.1; `Web3jFirmaCriptografica` (claves `IA_FIRMA_KEY_*` o efímeras). Mensaje canónico EIP-191 por rol; billetera externa (MetaMask) verificada con ecrecover; una cuenta no firma dos roles. `GET .../mensaje-firma`, `GET .../firmas/verificacion`.
+- **Notificador:** `BandejaNotificaciones` + webhook opcional `IA_NOTIF_WEBHOOK_URL`. `GET /ia/notificaciones`, `POST /{id}/leida`.
+- **Capacidades:** `GET /ia/capacidades` calcula OPERATIVO/LOCAL/PENDIENTE con sondas reales; el front ya no tiene estados escritos a mano.
+- **Modo de gobernanza:** `SIMULADO` → `OFF_CHAIN` (registro off-chain con firmas verificables); referencias `demo:` → `offchain:`.
+- **Front `/ia`:** pestaña nueva «Conocimiento · RAG», «Calidad» con corrida caso a caso, guía alimentada por `/capacidades`; consola de gobernanza con verificación ecrecover, firma con MetaMask y bandeja de notificaciones. Experimento: bloque N.
+- **Tests:** 42 JUnit verdes (13 nuevos). Experimento local 54/54.
+- **Diagrama:** `Voltera_Arquitectura_Completa.drawio` — celda RAG (BM25 + corpus), arista MCP Blockchain Gateway (OFF_CHAIN + ECDSA/ecrecover) y celda de gobernanza (Evals en vivo, bandeja, capacidades). XML revalidado.
+- **Sigue dependiendo de recursos externos:** contrato en Amoy (gas: wallet 0xa0A1…DF2 con 0,0011 POL; deploy ≈ 0,05 POL), LLM (API key), Kafka en nube, telemetría on-premise pública, base de datos.
+---
 ## 2026-11-19 · MÓDULO 5 · Experimento ampliado (on-chain local + front completo)
 Pedido: «¿cómo ver el blockchain con las múltiples aprobaciones?» y dejar experimento y front completos para el profesor.
 - **Blockchain:** nuevo `Blockchain/scripts/demo-multifirma-der.js` (+ `npm run demo:multifirma`): despliega `MultiFirmaAccionDER` en Hardhat local y ejecuta 26 criterios con txs reales (3/3, rechazo, no repudio, roles, TTL, pausa, auditoría por eventos). Evidencia JSON con tx hash/bloque/gas/eventos.

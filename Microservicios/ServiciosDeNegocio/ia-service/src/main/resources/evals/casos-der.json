@@ -1,0 +1,442 @@
+{
+ "dataset": "voltera-der-evals",
+ "version": "1.0",
+ "descripcion": "Casos etiquetados según las fichas y fallos conocidos del corpus. La etiqueta es la respuesta correcta del dominio, no la salida del motor.",
+ "casos": [
+  {
+   "id": "EV-01",
+   "descripcion": "Inversor con voltaje 245 V sobre 240 V",
+   "tipoActivo": "INVERSOR",
+   "metrica": "voltaje",
+   "valor": 245,
+   "umbral": 240,
+   "minutosSinSenal": 0,
+   "esperado": {
+    "severidad": "CRITICA",
+    "accion": "COMANDO_FISICO",
+    "requiereHumano": true
+   },
+   "nota": "Sobretensión: riesgo de desconexión en cascada (inversor-fallos)."
+  },
+  {
+   "id": "EV-02",
+   "descripcion": "Inversor con voltaje 252 V sobre 240 V",
+   "tipoActivo": "INVERSOR",
+   "metrica": "voltaje",
+   "valor": 252,
+   "umbral": 240,
+   "minutosSinSenal": 0,
+   "esperado": {
+    "severidad": "CRITICA",
+    "accion": "COMANDO_FISICO",
+    "requiereHumano": true
+   },
+   "nota": "Sobretensión: riesgo de desconexión en cascada (inversor-fallos)."
+  },
+  {
+   "id": "EV-03",
+   "descripcion": "Inversor con voltaje 265 V sobre 240 V",
+   "tipoActivo": "INVERSOR",
+   "metrica": "voltaje",
+   "valor": 265,
+   "umbral": 240,
+   "minutosSinSenal": 0,
+   "esperado": {
+    "severidad": "CRITICA",
+    "accion": "COMANDO_FISICO",
+    "requiereHumano": true
+   },
+   "nota": "Sobretensión: riesgo de desconexión en cascada (inversor-fallos)."
+  },
+  {
+   "id": "EV-04",
+   "descripcion": "Inversor con voltaje 280 V sobre 240 V",
+   "tipoActivo": "INVERSOR",
+   "metrica": "voltaje",
+   "valor": 280,
+   "umbral": 240,
+   "minutosSinSenal": 0,
+   "esperado": {
+    "severidad": "CRITICA",
+    "accion": "COMANDO_FISICO",
+    "requiereHumano": true
+   },
+   "nota": "Sobretensión: riesgo de desconexión en cascada (inversor-fallos)."
+  },
+  {
+   "id": "EV-05",
+   "descripcion": "Inversor con voltaje 220 V dentro de rango",
+   "tipoActivo": "INVERSOR",
+   "metrica": "voltaje",
+   "valor": 220,
+   "umbral": 240,
+   "minutosSinSenal": 0,
+   "esperado": {
+    "severidad": "INFO",
+    "accion": "MONITOREAR",
+    "requiereHumano": false
+   },
+   "nota": ""
+  },
+  {
+   "id": "EV-06",
+   "descripcion": "Inversor con voltaje 232 V dentro de rango",
+   "tipoActivo": "INVERSOR",
+   "metrica": "voltaje",
+   "valor": 232,
+   "umbral": 240,
+   "minutosSinSenal": 0,
+   "esperado": {
+    "severidad": "INFO",
+    "accion": "MONITOREAR",
+    "requiereHumano": false
+   },
+   "nota": ""
+  },
+  {
+   "id": "EV-07",
+   "descripcion": "Inversor con voltaje 238 V dentro de rango",
+   "tipoActivo": "INVERSOR",
+   "metrica": "voltaje",
+   "valor": 238,
+   "umbral": 240,
+   "minutosSinSenal": 0,
+   "esperado": {
+    "severidad": "INFO",
+    "accion": "MONITOREAR",
+    "requiereHumano": false
+   },
+   "nota": ""
+  },
+  {
+   "id": "EV-08",
+   "descripcion": "Inversor sobretemperatura 82 °C sobre 75 °C",
+   "tipoActivo": "INVERSOR",
+   "metrica": "temperatura",
+   "valor": 82,
+   "umbral": 75,
+   "minutosSinSenal": 0,
+   "esperado": {
+    "severidad": "CRITICA",
+    "accion": "COMANDO_FISICO",
+    "requiereHumano": true
+   },
+   "nota": ""
+  },
+  {
+   "id": "EV-09",
+   "descripcion": "Medidor sin señal 15 min",
+   "tipoActivo": "MEDIDOR",
+   "metrica": "latencia",
+   "valor": 0,
+   "umbral": 0,
+   "minutosSinSenal": 15,
+   "esperado": {
+    "severidad": "CRITICA",
+    "accion": "DESPACHAR_TECNICO",
+    "requiereHumano": true
+   },
+   "nota": "Verificar gateway antes de asumir falla (medidor-fallos)."
+  },
+  {
+   "id": "EV-10",
+   "descripcion": "Medidor sin señal 30 min",
+   "tipoActivo": "MEDIDOR",
+   "metrica": "latencia",
+   "valor": 0,
+   "umbral": 0,
+   "minutosSinSenal": 30,
+   "esperado": {
+    "severidad": "CRITICA",
+    "accion": "DESPACHAR_TECNICO",
+    "requiereHumano": true
+   },
+   "nota": "Verificar gateway antes de asumir falla (medidor-fallos)."
+  },
+  {
+   "id": "EV-11",
+   "descripcion": "Medidor sin señal 120 min",
+   "tipoActivo": "MEDIDOR",
+   "metrica": "latencia",
+   "valor": 0,
+   "umbral": 0,
+   "minutosSinSenal": 120,
+   "esperado": {
+    "severidad": "CRITICA",
+    "accion": "DESPACHAR_TECNICO",
+    "requiereHumano": true
+   },
+   "nota": "Verificar gateway antes de asumir falla (medidor-fallos)."
+  },
+  {
+   "id": "EV-12",
+   "descripcion": "Medidor con 0 min sin reporte (bajo el umbral de 15)",
+   "tipoActivo": "MEDIDOR",
+   "metrica": "latencia",
+   "valor": 0,
+   "umbral": 0,
+   "minutosSinSenal": 0,
+   "esperado": {
+    "severidad": "INFO",
+    "accion": "MONITOREAR",
+    "requiereHumano": false
+   },
+   "nota": ""
+  },
+  {
+   "id": "EV-13",
+   "descripcion": "Medidor con 5 min sin reporte (bajo el umbral de 15)",
+   "tipoActivo": "MEDIDOR",
+   "metrica": "latencia",
+   "valor": 0,
+   "umbral": 0,
+   "minutosSinSenal": 5,
+   "esperado": {
+    "severidad": "INFO",
+    "accion": "MONITOREAR",
+    "requiereHumano": false
+   },
+   "nota": ""
+  },
+  {
+   "id": "EV-14",
+   "descripcion": "Medidor con 10 min sin reporte (bajo el umbral de 15)",
+   "tipoActivo": "MEDIDOR",
+   "metrica": "latencia",
+   "valor": 0,
+   "umbral": 0,
+   "minutosSinSenal": 10,
+   "esperado": {
+    "severidad": "INFO",
+    "accion": "MONITOREAR",
+    "requiereHumano": false
+   },
+   "nota": ""
+  },
+  {
+   "id": "EV-15",
+   "descripcion": "Batería a 52 °C sobre 45 °C",
+   "tipoActivo": "BATERIA",
+   "metrica": "temperatura",
+   "valor": 52,
+   "umbral": 45,
+   "minutosSinSenal": 0,
+   "esperado": {
+    "severidad": "ADVERTENCIA",
+    "accion": "DESPACHAR_TECNICO",
+    "requiereHumano": true
+   },
+   "nota": ""
+  },
+  {
+   "id": "EV-16",
+   "descripcion": "Batería a 48 °C sobre 45 °C",
+   "tipoActivo": "BATERIA",
+   "metrica": "temperatura",
+   "valor": 48,
+   "umbral": 45,
+   "minutosSinSenal": 0,
+   "esperado": {
+    "severidad": "ADVERTENCIA",
+    "accion": "DESPACHAR_TECNICO",
+    "requiereHumano": true
+   },
+   "nota": ""
+  },
+  {
+   "id": "EV-17",
+   "descripcion": "Batería a 70 °C sobre 45 °C",
+   "tipoActivo": "BATERIA",
+   "metrica": "temperatura",
+   "valor": 70,
+   "umbral": 45,
+   "minutosSinSenal": 0,
+   "esperado": {
+    "severidad": "CRITICA",
+    "accion": "COMANDO_FISICO",
+    "requiereHumano": true
+   },
+   "nota": ""
+  },
+  {
+   "id": "EV-18",
+   "descripcion": "Batería a 30 °C dentro de rango",
+   "tipoActivo": "BATERIA",
+   "metrica": "temperatura",
+   "valor": 30,
+   "umbral": 45,
+   "minutosSinSenal": 0,
+   "esperado": {
+    "severidad": "INFO",
+    "accion": "MONITOREAR",
+    "requiereHumano": false
+   },
+   "nota": ""
+  },
+  {
+   "id": "EV-19",
+   "descripcion": "Batería con SoH 72 % bajo el mínimo de 80 %",
+   "tipoActivo": "BATERIA",
+   "metrica": "SoH",
+   "valor": 72,
+   "umbral": 80,
+   "minutosSinSenal": 0,
+   "esperado": {
+    "severidad": "ADVERTENCIA",
+    "accion": "DESPACHAR_TECNICO",
+    "requiereHumano": true
+   },
+   "nota": "Métrica donde MENOS es peor: el motor compara valor > umbral y no detecta la degradación."
+  },
+  {
+   "id": "EV-20",
+   "descripcion": "Batería con SoH 65 % bajo el retiro de 70 %",
+   "tipoActivo": "BATERIA",
+   "metrica": "SoH",
+   "valor": 65,
+   "umbral": 70,
+   "minutosSinSenal": 0,
+   "esperado": {
+    "severidad": "CRITICA",
+    "accion": "COMANDO_FISICO",
+    "requiereHumano": true
+   },
+   "nota": "Métrica donde MENOS es peor: el motor compara valor > umbral y no detecta la degradación."
+  },
+  {
+   "id": "EV-21",
+   "descripcion": "Panel con potencia 560 W sobre nominal 550 W (leve)",
+   "tipoActivo": "PANEL_SOLAR",
+   "metrica": "potencia",
+   "valor": 560,
+   "umbral": 550,
+   "minutosSinSenal": 0,
+   "esperado": {
+    "severidad": "ADVERTENCIA",
+    "accion": "DESPACHAR_TECNICO",
+    "requiereHumano": true
+   },
+   "nota": ""
+  },
+  {
+   "id": "EV-22",
+   "descripcion": "Panel con potencia 900 W sobre nominal 550 W (lectura anómala)",
+   "tipoActivo": "PANEL_SOLAR",
+   "metrica": "potencia",
+   "valor": 900,
+   "umbral": 550,
+   "minutosSinSenal": 0,
+   "esperado": {
+    "severidad": "CRITICA",
+    "accion": "COMANDO_FISICO",
+    "requiereHumano": true
+   },
+   "nota": ""
+  },
+  {
+   "id": "EV-23",
+   "descripcion": "Panel con potencia 500 W bajo nominal",
+   "tipoActivo": "PANEL_SOLAR",
+   "metrica": "potencia",
+   "valor": 500,
+   "umbral": 550,
+   "minutosSinSenal": 0,
+   "esperado": {
+    "severidad": "INFO",
+    "accion": "MONITOREAR",
+    "requiereHumano": false
+   },
+   "nota": ""
+  },
+  {
+   "id": "EV-24",
+   "descripcion": "Panel con generación 100 frente a 120 esperado",
+   "tipoActivo": "PANEL_SOLAR",
+   "metrica": "generacion",
+   "valor": 100,
+   "umbral": 120,
+   "minutosSinSenal": 0,
+   "esperado": {
+    "severidad": "INFO",
+    "accion": "MONITOREAR",
+    "requiereHumano": false
+   },
+   "nota": "Caso del experimento F: el motor lo trata como en rango."
+  },
+  {
+   "id": "EV-25",
+   "descripcion": "Cargador EV con temperatura de conector 70 °C sobre 60 °C",
+   "tipoActivo": "CARGADOR_EV",
+   "metrica": "temperatura",
+   "valor": 70,
+   "umbral": 60,
+   "minutosSinSenal": 0,
+   "esperado": {
+    "severidad": "ADVERTENCIA",
+    "accion": "DESPACHAR_TECNICO",
+    "requiereHumano": true
+   },
+   "nota": ""
+  },
+  {
+   "id": "EV-26",
+   "descripcion": "Cargador EV con corriente 40 A sobre 32 A",
+   "tipoActivo": "CARGADOR_EV",
+   "metrica": "corriente",
+   "valor": 40,
+   "umbral": 32,
+   "minutosSinSenal": 0,
+   "esperado": {
+    "severidad": "ADVERTENCIA",
+    "accion": "DESPACHAR_TECNICO",
+    "requiereHumano": true
+   },
+   "nota": ""
+  },
+  {
+   "id": "EV-27",
+   "descripcion": "Cargador EV con corriente 60 A sobre 32 A",
+   "tipoActivo": "CARGADOR_EV",
+   "metrica": "corriente",
+   "valor": 60,
+   "umbral": 32,
+   "minutosSinSenal": 0,
+   "esperado": {
+    "severidad": "CRITICA",
+    "accion": "COMANDO_FISICO",
+    "requiereHumano": true
+   },
+   "nota": ""
+  },
+  {
+   "id": "EV-28",
+   "descripcion": "Cargador EV en operación normal",
+   "tipoActivo": "CARGADOR_EV",
+   "metrica": "corriente",
+   "valor": 30,
+   "umbral": 32,
+   "minutosSinSenal": 0,
+   "esperado": {
+    "severidad": "INFO",
+    "accion": "MONITOREAR",
+    "requiereHumano": false
+   },
+   "nota": ""
+  },
+  {
+   "id": "EV-29",
+   "descripcion": "Cargador EV sin señal 45 min",
+   "tipoActivo": "CARGADOR_EV",
+   "metrica": "latencia",
+   "valor": 0,
+   "umbral": 0,
+   "minutosSinSenal": 45,
+   "esperado": {
+    "severidad": "CRITICA",
+    "accion": "DESPACHAR_TECNICO",
+    "requiereHumano": true
+   },
+   "nota": ""
+  }
+ ]
+}
