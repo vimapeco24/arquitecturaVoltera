@@ -57,12 +57,46 @@ export class IaComponent implements OnInit, OnDestroy {
     { k: 'calidad', t: 'Calidad · Evals', i: '🧪' },
     { k: 'experimento', t: 'Experimento', i: '🔬' },
     { k: 'arquitectura', t: 'Arquitectura y API', i: '🏛' },
+    { k: 'guia', t: 'Guía, alcance y límites', i: '📘' },
   ];
   tab = 'diagnostico';
   irTab(k: string): void {
     this.tab = k;
     this.router.navigate([], { relativeTo: this.route, queryParams: { tab: k }, queryParamsHandling: 'merge', replaceUrl: true });
   }
+
+  /** Qué es real, qué está simulado y qué falta, por componente (lectura crítica). */
+  readonly alcance: { c: string; que: string; estado: 'REAL' | 'SIMULADO' | 'PENDIENTE'; nota: string }[] = [
+    { c: 'Motor de diagnóstico', que: 'Reglas deterministas que clasifican severidad y acción a partir del umbral y los minutos sin señal.', estado: 'REAL', nota: 'Es un motor heurístico local, no un LLM. Por eso el experimento es reproducible. El proveedor LLM (OpenAI compatible) existe pero está apagado (provider=none).' },
+    { c: 'RAG (Knowledge Service)', que: 'Recupera ficha técnica, fallos conocidos y procedimiento de campo del tipo de activo.', estado: 'SIMULADO', nota: 'La base de conocimiento está escrita en código (StubConocimientoDer); no hay base vectorial ni documentos indexados.' },
+    { c: 'MCP Device Management', que: 'Herramientas de solo lectura: telemetría, historial de comandos, topología.', estado: 'SIMULADO', nota: 'La telemetría viaja en la propia alerta; el historial y la topología son sintéticos. Existe una sonda REST opcional a la capa de telemetría.' },
+    { c: 'MCP Blockchain Gateway', que: 'Crea propuesta, registra firmas, ejecuta y lee estado del contrato.', estado: 'SIMULADO', nota: 'Llama al blockchain-gateway por REST; sin RPC y dirección del contrato responde con referencias demo: deterministas (modo SIMULADO).' },
+    { c: 'Contrato MultiFirmaAccionDER', que: 'Exige 3 firmas tipadas (agente, operador, prosumidor) antes de ejecutar; rechazo, TTL y pausa.', estado: 'PENDIENTE', nota: 'Escrito y probado (8 tests propios, 45 en la suite). En una red local de Hardhat funciona con EVM real; no está desplegado en Polygon Amoy por falta de gas.' },
+    { c: 'Firmas de operador y prosumidor', que: 'Botones que registran la aprobación o el rechazo.', estado: 'SIMULADO', nota: 'Las identidades (operador@voltera, prosumidor@casa) son texto enviado por la consola. No hay autenticación IAM ni firma criptográfica con billetera. En producción cada firma debería ser una transacción firmada por la clave del rol.' },
+    { c: 'Gobernanza 3/3 (lógica de negocio)', que: 'Agregado PropuestaAccion: estados, invariantes y TTL.', estado: 'REAL', nota: 'Las reglas se imponen en el backend y el experimento las verifica: sin 3/3 no hay ejecución, un rechazo cierra, la doble firma falla.' },
+    { c: 'Persistencia', que: 'Diagnósticos y propuestas.', estado: 'SIMULADO', nota: 'Repositorios en memoria. Se pierden al reiniciar; en Render free también cuando el servicio duerme.' },
+    { c: 'Notificador', que: 'Avisa al siguiente firmante y escala al mismo firmante ante timeout.', estado: 'SIMULADO', nota: 'Escribe en el log del servicio; no envía correo, SMS ni push.' },
+    { c: 'Tópicos der.*', que: 'der.estado, der.alertas, der.gobernanza.', estado: 'SIMULADO', nota: 'Se publican a Kafka solo on-premise; en la nube se registran en el log.' },
+    { c: 'Evals & Tracing', que: 'Compuerta de calidad por versión de prompt.', estado: 'SIMULADO', nota: 'La compuerta (acierto ≥ 85 %, citas ≥ 95 %, 0 inventados) se aplica en vivo, pero las métricas de cada versión son valores de referencia fijos; no se recalculan con un dataset en cada corrida.' },
+    { c: 'Experimento', que: 'Valida comportamiento, reglas y robustez del servicio.', estado: 'REAL', nota: 'Mide el servicio real, no la calidad de un LLM. La latencia (p50 ≈ 0,4 s) es del motor local; con un LLM externo sería mayor.' },
+  ];
+
+  readonly glosario: { t: string; d: string }[] = [
+    { t: 'DER', d: 'Recurso energético distribuido: panel solar, batería, inversor, cargador EV o medidor.' },
+    { t: 'RAG', d: 'Recuperación aumentada: el agente busca evidencia antes de responder y la cita.' },
+    { t: 'MCP', d: 'Protocolo que da al agente herramientas con permisos acotados (aquí, solo lectura sobre dispositivos).' },
+    { t: 'A2A / Agent Registry', d: 'Catálogo de agentes con dueño, capacidad y permisos.' },
+    { t: 'Human-in-the-loop', d: 'Una persona aprueba antes de cualquier acción sobre infraestructura.' },
+    { t: 'Multi-firma 3/3', d: 'Se exigen las tres firmas (agente IA, operador, prosumidor). No existe modo 2/3.' },
+    { t: 'Fail-closed', d: 'Ante duda, falta de firma o vencimiento, la acción no se ejecuta.' },
+    { t: 'TTL', d: 'Vigencia de la propuesta. Vencida sin 3/3, pasa a VENCIDA y no se ejecuta.' },
+    { t: 'No repudio', d: 'Cada rol firma una sola vez y queda registrado quién y cuándo.' },
+    { t: 'ON_CHAIN / SIMULADO', d: 'ON_CHAIN: el estado se leyó del contrato desplegado. SIMULADO: el contrato no está configurado y las referencias demo: no existen en el explorador.' },
+    { t: 'Guardrails', d: 'Controles de entrada y salida: bloquean inyección de prompt y enmascaran datos personales.' },
+    { t: 'Evals', d: 'Pruebas de calidad de un prompt antes de activarlo; si no pasa, se mantiene la versión anterior.' },
+  ];
+
+  contar(e: string): number { return this.alcance.filter((a) => a.estado === e).length; }
 
   /** Catálogo de endpoints expuestos por el ia-service. */
   readonly endpoints = [

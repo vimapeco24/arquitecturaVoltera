@@ -71,3 +71,8 @@ tfoot td { font-weight: 700; border-bottom: 0; }
 details { margin-top: 6px; font-size: 13px; } summary { cursor: pointer; color: var(--v-text-soft); }
 .crit { list-style: none; padding: 8px 0 0; margin: 0; columns: 2; font-size: 12px; color: var(--v-primary); } .crit li { padding: 2px 0; break-inside: avoid; } .crit li.bad { color: var(--v-danger); }
 @media (max-width: 900px) { .crit { columns: 1; } }
+
+.ayuda { margin: 0 0 16px; padding: 12px 16px; border: 1px solid rgba(56,189,248,.35); background: rgba(56,189,248,.06); border-radius: 12px; font-size: 12.5px; color: var(--v-text-soft); }
+.ayuda summary { cursor: pointer; font-weight: 700; color: var(--v-accent); }
+.ayuda ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; } .ayuda b { color: var(--v-text); }
+h4 + .mut { margin: -6px 0 12px; line-height: 1.5; }

@@ -47,6 +47,7 @@
   </nav>
 
   <section *ngIf="tab === 'diagnostico'">
+<details class="ayuda" open><summary>ℹ️ ¿Qué estoy viendo?</summary><ul><li><b>Alerta de telemetría (izquierda):</b> simula lo que enviaría un dispositivo. Valor observado frente a umbral esperado y minutos sin señal determinan la severidad.</li><li><b>Flujo agéntico:</b> los 8 pasos que recorre la solicitud: guardrails, registro de agentes, Monitor, RAG, MCP, Diagnosticador, Acción y revisión humana.</li><li><b>Evidencia citada:</b> cada afirmación del diagnóstico apunta a su fuente (RAG o herramienta MCP). Aquí la base de conocimiento y los datos de dispositivos son simulados.</li><li><b>Assistant:</b> responde dudas sobre este diagnóstico sin persuadir y sin poder ejecutar acciones.</li><li><b>Gobernanza 3/3 (abajo):</b> la acción física solo se ejecuta con las tres firmas. Para ver el detalle completo usa la pestaña «Gobernanza on-chain 3/3».</li></ul></details>
   <div class="layout">
     <!-- Panel de entrada: alerta de telemetría -->
     <form class="panel v-card" [formGroup]="form" (ngSubmit)="diagnosticar()">
@@ -104,7 +105,7 @@
 
       <div class="v-empty" *ngIf="!diagnostico && !reproduciendo">
         <div class="ic">🤖</div>
-        <p>Envía una alerta para ver el diagnóstico, la acción propuesta, la evidencia citada y la traza de los tres agentes.</p>
+        <p>Envía una alerta para ver el diagnóstico, la acción propuesta, la evidencia citada y la traza de los cuatro agentes.</p>
       </div>
 
       <!-- ============ Reproductor del flujo agéntico (paso a paso en vivo) ============ -->
@@ -326,6 +327,7 @@
   <section *ngIf="tab === 'gobernanza'"><app-gobernanza-onchain></app-gobernanza-onchain></section>
 
   <section *ngIf="tab === 'calidad'">
+<details class="ayuda" open><summary>ℹ️ ¿Qué estoy viendo?</summary><ul><li><b>Qué es:</b> la compuerta de calidad de cada prompt. Una versión solo está activa si acierta ≥ 85 %, cita ≥ 95 % y no inventa comandos.</li><li><b>Lectura crítica:</b> las métricas por versión son valores de referencia del registro, no el resultado de evaluar un dataset en esta sesión. Sirven para demostrar el mecanismo de compuerta y rollback.</li><li><b>Por qué importa:</b> un prompt es código; se versiona y se promueve solo si pasa la compuerta.</li></ul></details>
   <!-- ============ Evals & Tracing (Tema 5) ============ -->
   <div class="evals v-card" *ngIf="evals.length">
     <h3>🧪 Evals &amp; Tracing · Prompt &amp; Model Registry (Tema 5)</h3>
@@ -355,6 +357,7 @@
   </section>
 
   <section *ngIf="tab === 'experimento'">
+<details class="ayuda" open><summary>ℹ️ ¿Qué estoy viendo?</summary><ul><li><b>Qué hace el botón:</b> ejecuta contra el ia-service una serie de pruebas con casos reales y compara cada resultado con un criterio de aceptación.</li><li><b>Cómo leerlo:</b> cada bloque tiene hipótesis, método, endpoints y umbral. Cada fila es un criterio (id, ✓/✗, observado y milisegundos).</li><li><b>Alcance:</b> valida comportamiento y reglas del servicio, no la calidad de un modelo de lenguaje, porque el motor es local y determinista.</li><li><b>Evidencia:</b> descarga el JSON o el reporte en Markdown para adjuntarlo a la entrega. El bloque on-chain se ve en la pestaña de gobernanza.</li></ul></details>
   <!-- ============ Experimento de validación · Módulo 5 ============ -->
   <div class="exp v-card">
     <div class="exp-head">
@@ -409,6 +412,66 @@
     </div>
     <p class="hint">Equivalente a <code>Microservicios/experimento-ia-der.sh</code> · doc <code>EXPERIMENTO_IA_DER_VOLTERA.md</code></p>
   </div>
+  </section>
+
+
+  <!-- ============ Guía, alcance y límites ============ -->
+  <section *ngIf="tab === 'guia'" class="guia">
+    <div class="v-card guia-card">
+      <h3>🔎 Qué es real, qué está simulado y qué falta</h3>
+      <p class="hint">Lectura honesta del estado del módulo, componente por componente. Sirve para defender el alcance y para planear la siguiente fase.</p>
+      <div class="guia-res">
+        <span class="v-badge ok">{{ contar('REAL') }} reales</span>
+        <span class="v-badge warn">{{ contar('SIMULADO') }} simulados</span>
+        <span class="v-badge err">{{ contar('PENDIENTE') }} pendiente</span>
+      </div>
+      <div class="tblw"><table class="arq-t">
+        <thead><tr><th>Componente</th><th>Qué hace</th><th>Estado</th><th>Detalle y límite</th></tr></thead>
+        <tbody><tr *ngFor="let a of alcance">
+          <td><b>{{ a.c }}</b></td><td>{{ a.que }}</td>
+          <td><span class="v-badge mini" [ngClass]="a.estado === 'REAL' ? 'ok' : a.estado === 'SIMULADO' ? 'warn' : 'err'">{{ a.estado }}</span></td>
+          <td>{{ a.nota }}</td>
+        </tr></tbody>
+      </table></div>
+    </div>
+
+    <div class="arq-grid">
+      <div class="v-card arq-card">
+        <h3>⚠️ Riesgos y limitaciones</h3>
+        <ul class="arq-list">
+          <li>Sin autenticación real de firmantes: cualquiera con acceso a la consola puede firmar como operador o prosumidor.</li>
+          <li>Datos en memoria: se pierden al reiniciar el servicio.</li>
+          <li>El contrato no está desplegado en una red pública; las aprobaciones se ven en modo SIMULADO.</li>
+          <li>Las métricas de Evals son de referencia, no recalculadas.</li>
+          <li>El primer llamado a Render free tarda 30 a 60 s por el arranque en frío.</li>
+        </ul>
+      </div>
+      <div class="v-card arq-card">
+        <h3>🚀 Para pasar a producción</h3>
+        <ul class="arq-list">
+          <li>Desplegar <code>MultiFirmaAccionDER</code> en Amoy y definir <code>VOLTERA_BLOCKCHAIN_GOBERNANZA_ADDRESS</code>.</li>
+          <li>Firmar con la billetera de cada rol (o IAM + custodia de claves) en vez de identidades de texto.</li>
+          <li>Persistir propuestas y diagnósticos en base de datos.</li>
+          <li>Indexar documentos reales para RAG y conectar telemetría real por MCP.</li>
+          <li>Activar el LLM (<code>IA_PROVIDER</code>, <code>IA_LLM_API_KEY</code> por variable de entorno) y evaluar con un dataset.</li>
+        </ul>
+      </div>
+      <div class="v-card arq-card">
+        <h3>🧭 Cómo recorrer la demostración</h3>
+        <ol class="arq-list">
+          <li>Pestaña <b>Diagnóstico</b>: genera la alerta y revisa evidencia y traza.</li>
+          <li>Pestaña <b>Gobernanza</b>: lanza la demo guiada 1/3 → 3/3.</li>
+          <li>Mira la auditoría y las transacciones EVM de la evidencia.</li>
+          <li>Pestaña <b>Experimento</b>: ejecútalo y descarga el reporte.</li>
+          <li>Cierra con esta guía para explicar los límites.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="v-card guia-card">
+      <h3>📖 Glosario</h3>
+      <dl class="glos"><ng-container *ngFor="let g of glosario"><dt>{{ g.t }}</dt><dd>{{ g.d }}</dd></ng-container></dl>
+    </div>
   </section>
 
   <!-- ============ Arquitectura y API ============ -->

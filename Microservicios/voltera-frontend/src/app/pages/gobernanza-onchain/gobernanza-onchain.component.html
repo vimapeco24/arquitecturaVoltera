@@ -11,6 +11,18 @@
   </div>
 </header>
 
+<details class="ayuda" open>
+  <summary>ℹ️ ¿Qué estoy viendo en esta consola?</summary>
+  <ul>
+    <li><b>Indicadores:</b> conteo de propuestas por estado. «Ejecutadas sin 3/3» debe ser siempre 0: es la garantía de que ninguna acción se ejecutó sin las tres firmas.</li>
+    <li><b>Lista de propuestas:</b> cada propuesta es una acción física sugerida por el agente (por ejemplo, reiniciar un inversor). La barra indica cuántas de las 3 firmas lleva.</li>
+    <li><b>Máquina de estados:</b> ciclo del contrato. PENDIENTE → APROBADA (3/3) → EJECUTADA. Un rechazo lleva a RECHAZADA y un TTL vencido a VENCIDA; desde ambos no se ejecuta.</li>
+    <li><b>Firmantes:</b> agente IA (firma al proponer), operador (valida técnicamente) y prosumidor (dueño del activo, consiente). Cada uno firma una sola vez.</li>
+    <li><b>Modo SIMULADO / ON_CHAIN:</b> hoy el contrato no está desplegado en Amoy, así que las referencias <code>demo:</code> no existen en un explorador. Las firmas de esta consola usan identidades de demostración, no billeteras.</li>
+    <li><b>Evidencia on-chain:</b> transacciones reales del contrato en una red local de Hardhat (sin gas real). Muestran el comportamiento exacto que tendrá en Amoy.</li>
+  </ul>
+</details>
+
 <section class="kpis" *ngIf="metricas as m">
   <div class="kpi"><span>{{ m.total }}</span><label>Propuestas</label></div>
   <div class="kpi warn"><span>{{ m.porEstado['PENDIENTE'] || 0 }}</span><label>En firma</label></div>
@@ -102,6 +114,7 @@
     <div class="two">
       <section class="v-card">
         <h4>🧾 Auditoría (CREG)</h4>
+        <p class="mut">Línea de tiempo reconstruida del agregado: quién actuó, cuándo y con qué referencia de transacción. Es el insumo para una revisión regulatoria.</p>
         <ol class="tl" *ngIf="audit as au">
           <li *ngFor="let e of au.eventos">
             <span class="ic">{{ icono(e.tipo) }}</span>
@@ -113,6 +126,7 @@
       </section>
       <section class="v-card">
         <h4>🔒 Trazabilidad inmutable</h4>
+        <p class="mut">Datos que el contrato guarda junto a la propuesta para poder reconstruir por qué se propuso la acción: hash del diagnóstico, versión de prompt y de modelo, y vigencia (TTL).</p>
         <dl class="kv">
           <dt>Hash del diagnóstico</dt><dd><button class="lnk" (click)="copiar(s.hashDiagnostico)">{{ corto(s.hashDiagnostico, 18) }} ⧉</button></dd>
           <dt>Versión de prompt</dt><dd>{{ s.versionPrompt }}</dd>
@@ -151,6 +165,7 @@
     </tbody>
     <tfoot><tr><td colspan="3">Gas total ({{ ev.transacciones.length }} transacciones)</td><td colspan="2">{{ gasTotal | number }}</td></tr></tfoot>
   </table></div>
+  <p class="mut">Cada fila es una transacción real. «Gas» es el costo de cómputo de la operación; la creación cuesta más porque escribe la propuesta completa. «Eventos» son los registros que el contrato emite y que sirven de auditoría. Es una red local: los hashes no se verifican en Polygonscan.</p>
   <details><summary>Ver los {{ ev.criterios.length }} criterios verificados</summary>
     <ul class="crit"><li *ngFor="let c of ev.criterios" [class.bad]="!c.ok">{{ c.ok ? '✓' : '✗' }} {{ c.texto }}</li></ul>
   </details>
