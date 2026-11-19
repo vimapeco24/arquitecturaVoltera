@@ -16,7 +16,8 @@ Pedido: «¿cómo ver el blockchain con las múltiples aprobaciones?» y dejar e
 - **Front `/ia` reorganizado en pestañas** (Diagnóstico · Gobernanza on-chain 3/3 · Calidad · Experimento · Arquitectura y API · Guía, alcance y límites). La consola de gobernanza vive dentro de `/ia` (`/gobernanza` redirige a `/ia?tab=gobernanza`), con demo guiada 1/3→3/3. Cada pestaña trae panel «¿Qué estoy viendo?». La guía clasifica 12 componentes como REAL/SIMULADO/PENDIENTE, con riesgos, pasos a producción y glosario. El experimento muestra hipótesis, método, endpoints, umbral y ms por criterio, y exporta JSON y Markdown.
 - **Docs:** `EXPERIMENTO_IA_DER_VOLTERA.md` (secciones B7 y M).
 - **Diagrama:** sin cambios de arquitectura (no se agregaron servicios, topics ni contratos); `.drawio` sigue reflejando el estado real.
-- **Pendiente:** desplegar `MultiFirmaAccionDER` en Amoy (gas) y definir `VOLTERA_BLOCKCHAIN_GOBERNANZA_ADDRESS`; redesplegar el front en Vercel.
+- **Front desplegado en Vercel (producción)** el 2026-11-19: `voltera-frontend.vercel.app/ia` sirve `main-RHVYKSML.js` con las pestañas nuevas. El proyecto Vercel NO está conectado a Git: cada cambio requiere `vercel deploy --prod` con un token de scope «Vimapeco», o conectar el repo (Root Directory `Microservicios/voltera-frontend`).
+- **Pendiente:** desplegar `MultiFirmaAccionDER` en Amoy (gas) y definir `VOLTERA_BLOCKCHAIN_GOBERNANZA_ADDRESS`.
 ---
 ## 2026-11-19 · MÓDULO 5 · Aprobaciones múltiples visibles + lectura on-chain (solo lectura)
 Pedido: ver en código la integración IA↔blockchain con las aprobaciones 3/3 (no un informe).
