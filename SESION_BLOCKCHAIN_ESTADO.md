@@ -1159,3 +1159,15 @@ Ninguno se escribió en archivos ni en `.git/config` (verificado: `origin` queda
 ## Actualizacion: liquidacion-p2p-service con Outbox (item 7)
 - liquidacion-p2p ya no publica directo: `OutboxLiquidacionEventPublisher` escribe `LiquidacionCalculada` en `InMemoryOutbox` y `OutboxRelay` lo envía a `topic.facturacion.liquidacion`. Flag `voltera.kafka.enabled` (env `KAFKA_ENABLED`, default false => publisher no-op, sin outbox/relay/productor).
 - `Modificados/Voltera_Arquitectura_Completa.drawio`: etiqueta del nodo `ms-p2p` actualizada. XML validado.
+## Actualizacion: revision backend completo (items 1, 3, 4, 6, 7, 8, 9, 10)
+Origen: informe `.agents/tasks/REVISION_BACKEND_COMPLETO.md` (20 negocio + 1 registry compilan, 179 tests, 0 fallos). Cifra oficial: **20 microservicios de negocio + 1 registry (21 modulos)**.
+- Item 1: `Microservicios/wso2-gateway/publish-cobros-certificados.sh` publica las APIs `cobros`, `certificacion-generacion` y `certificados-renovables` que el front llama por `gw()` (el script no se ejecuto; falta correrlo contra el WSO2 real). Commit e811409.
+- Item 3: `render.yaml` declara `VOLTERA_BLOCKCHAIN_GOBERNANZA_ADDRESS` (sync: false) para la multi-firma 3/3 on-chain. Falta desplegar el contrato y cargar el valor en Render. Commit e811409.
+- Item 4: `api/token.js` y `api/obs.js` ya no traen consumer key/secret por defecto; `WSO2_CONSUMER_KEY/SECRET` son obligatorias (responde 500 `missing_env` si faltan) + test `test/api-env.test.mjs`. Las credenciales antiguas siguen en el historial de git: rotarlas en WSO2. Commit e811409.
+- Item 6: pagos-service publica `PagoConfirmado` por Outbox + relay a `topic.cobros.pago-confirmado` (cierra el flujo pagos -> cobros). Commit 6ac2a3e.
+- Item 7: liquidacion-p2p-service publica `LiquidacionCalculada` por Outbox + relay a `topic.facturacion.liquidacion`. Commit e49b8ae. El Outbox sigue siendo `InMemoryOutbox` (no sobrevive a reinicios). volumetria queda sin Kafka por decision de alcance.
+- Item 8 (este cambio): `Microservicios/ARQUITECTURA_ACTUAL.md` con tabla de los 20+1 modulos y puertos verificados en los `application.yml` (telemetria 8093, tarifa-eventos 8094; el 8090 anterior era erroneo), emisores de `PagoConfirmado` y `LiquidacionCalculada` corregidos.
+- Item 9: `docker-compose.deploy.yml` reescrito con servicios reales (se quitaron liquidacion-service, reportes-service y comunidades-service, que no existen). Commit e811409.
+- Item 10: `render.yaml` agrega `IA_TOOL_TELEMETRIA_URL` (opcional); sin URLs publicas de siniestros/telemetria el copiloto degrada. Commit e811409.
+### Diagrama vivo
+`Modificados/Voltera_Arquitectura_Completa.drawio`: banda de capa 2 pasa de "Microservicios (17)" a "20 de negocio + 1 registry (service-registry :8761)"; nodo nuevo `ms-registry` (gris infra, :8761); nodo `ms-pagos` indica Outbox -> `topic.cobros.pago-confirmado`; `ms-p2p` ya reflejaba su Outbox. Se conserva "17 DestinationRules" (cuenta real de `02-destinationrules-circuitbreaker.yaml`). XML validado. Las menciones de 17 en `BITACORA_ENTREGA3_EDA.md` son historicas de la Entrega 3.

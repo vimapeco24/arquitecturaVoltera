@@ -20,10 +20,10 @@ consumido tiene un emisor correspondiente (verificado contra el código):
 | LecturaValidada / LecturaSospechosaDetectada / CanalIngestaCreado | `topic.telemetria.validadas` | ingesta | telemetria-core, habilitacion (CanalIngestaCreado), notificaciones (LecturaSospechosaDetectada) |
 | ConsumoIntervaloRegistrado / MedidorSinReporte | `topic.tarifas.calculo` | telemetria-core | tarifas, liquidacion-mensual, notificaciones (MedidorSinReporte) |
 | TarifaAsignada | `topic.tarifas.asignada` | tarifas | habilitacion |
-| LiquidacionCalculada | `topic.facturacion.liquidacion` | liquidacion-mensual | facturacion |
+| LiquidacionCalculada | `topic.facturacion.liquidacion` | liquidacion-mensual, liquidacion-p2p (Outbox + relay) | facturacion |
 | FacturaEmitida | `topic.facturacion.emitida` | facturacion | notificaciones |
 | ClienteNotificado | `topic.notificaciones.cliente` | notificaciones | (terminal / auditoría) |
-| PagoConfirmado | `topic.cobros.pago-confirmado` | pagos (contexto externo) | cobros (concilia Movimiento → Recibo) |
+| PagoConfirmado | `topic.cobros.pago-confirmado` | pagos (Outbox + relay; flag `PAGOS_KAFKA_ENABLED`) | cobros (concilia Movimiento → Recibo) |
 
 ```mermaid
 flowchart LR
@@ -99,8 +99,8 @@ flowchart TB
                 direction LR
                 siniestros["siniestros :8091<br/>(productor)"]
                 reaseguro["reaseguro :8092<br/>(consumidor)"]
-                telemetria["telemetria :8090"]
-                tarifaev["tarifa-eventos"]
+                telemetria["telemetria :8093"]
+                tarifaev["tarifa-eventos :8094"]
             end
 
             broker[("Redpanda<br/>broker Kafka :9092<br/>topic: topic.siniestros.aprobado")]
@@ -174,23 +174,35 @@ flowchart LR
 |---|---|---|
 | WSO2 API Manager 4.7.0 | 8243 (https), 8280 (http), 9443 (Publisher/DevPortal) | Publicación, ciclo de vida, throttling. Rutas `/{servicio}/v1/api/v1/...` |
 
-### Servicios de negocio (Spring Boot 3.3 / Java 21, hexagonal)
-| Servicio | Puerto | Agregado raíz |
-|---|---|---|
-| tarifas | 8084 | `Tarifa` |
-| volumetria | 8083 | `LecturaTelemetria` |
-| liquidacion-p2p | 8081 | `TransaccionP2P` |
-| liquidacion-mensual | 8082 | liquidación mensual |
-| facturacion | 8088 | `Factura` |
-| pagos | 8085 | `OrdenPago` |
+### Módulos del backend: 20 servicios de negocio + 1 registry
 
-### Servicios EDA
-| Servicio | Puerto | Rol |
-|---|---|---|
-| siniestros | 8091 | Productor del evento `SiniestroAprobado` |
-| reaseguro | 8092 | Consumidor de `topic.siniestros.aprobado` (autoescala KEDA por lag) |
-| telemetria | 8090 | Telemetría / métricas |
-| tarifa-eventos | — | Tarifa basada en eventos |
+Puertos verificados en `src/main/resources/application*.yml` de cada módulo (Spring Boot 3.3 / Java 21, hexagonal). 21 puertos distintos, sin duplicados.
+
+| # | Servicio | Puerto | Módulo (`ServiciosDeNegocio/`) | Agregado / rol | Mensajería |
+|---|---|---|---|---|---|
+| 1 | tarifas | 8084 | tarifas-service | Tarifa | Outbox + Inbox |
+| 2 | volumetria | 8083 | volumetria-service | LecturaTelemetria | — |
+| 3 | liquidacion-p2p | 8081 | liquidacion-p2p-service | TransaccionP2P | Outbox → `topic.facturacion.liquidacion` |
+| 4 | liquidacion-mensual | 8082 | liquidacion-mensual-service | Liquidación mensual | Outbox + Inbox |
+| 5 | facturacion | 8088 | facturacion-service | Factura | Outbox + Inbox |
+| 6 | pagos | 8085 | pagos-service | OrdenPago | Outbox → `topic.cobros.pago-confirmado` |
+| 7 | cobros | 8100 | cobros-service | Movimiento / Recibo | Consume `topic.cobros.pago-confirmado` |
+| 8 | siniestros | 8091 | siniestros-service | Siniestro | Productor `topic.siniestros.aprobado` |
+| 9 | reaseguro | 8092 | reaseguro-service | Cesión | Consumidor (KEDA por lag) |
+| 10 | telemetria | 8093 | telemetria-service | Medidor (emisor IoT demo) | Productor |
+| 11 | tarifa-eventos | 8094 | tarifa-eventos-service | Cargo | Consumidor CQRS |
+| 12 | habilitacion | 8095 | habilitacion-service | Medidor | EDA |
+| 13 | integracion-ami | 8096 | integracion-ami-service | Conexión head-end (ACL) | EDA |
+| 14 | ingesta | 8097 | ingesta-service | Sesión de ingesta | EDA |
+| 15 | telemetria-core | 8098 | telemetria-core-service | Serie de medición (CQRS) | EDA |
+| 16 | notificaciones | 8099 | notificaciones-service | Notificación | EDA |
+| 17 | blockchain-gateway | 8101 | blockchain-gateway-service | Anclaje / gobernanza on-chain | Outbox relay (Render) |
+| 18 | certificacion-generacion | 8102 | certificacion-generacion-service | Certificación de generación | REST |
+| 19 | certificados-renovables | 8103 | certificados-renovables-service | Certificado renovable | REST |
+| 20 | ia-service | 8104 | ia-service | Agentes IA / gobernanza multi-firma | Render (puerto `${PORT:8104}`) |
+| +1 | service-registry (Eureka) | 8761 | `Microservicios/service-registry` | Descubrimiento | — |
+
+Nota: `telemetria` usa el puerto 8093 (no 8090) y `tarifa-eventos` el 8094.
 
 ### Infraestructura
 | Componente | Detalle |
