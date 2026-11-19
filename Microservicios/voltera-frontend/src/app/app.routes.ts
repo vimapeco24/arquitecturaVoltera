@@ -1,4 +1,5 @@
-import { Routes } from '@angular/router';
+import { inject } from '@angular/core';
+import { Router, Routes } from '@angular/router';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'panel' },
@@ -152,10 +153,6 @@ export const routes: Routes = [
     title: 'Agente de diagnóstico DER · GenAI · Voltera',
     loadComponent: () => import('./pages/ia/ia.component').then((m) => m.IaComponent),
   },
-  {
-    path: 'gobernanza',
-    title: 'Gobernanza on-chain 3/3 · Voltera',
-    loadComponent: () => import('./pages/gobernanza-onchain/gobernanza-onchain.component').then((m) => m.GobernanzaOnchainComponent),
-  },
+  { path: 'gobernanza', pathMatch: 'full', redirectTo: () => inject(Router).parseUrl('/ia?tab=gobernanza') },
   { path: '**', redirectTo: 'panel' },
 ];

@@ -37,6 +37,16 @@
     </div>
   </div>
 
+  <!-- ============ Navegación por secciones ============ -->
+  <nav class="tabs" role="tablist" aria-label="Secciones del módulo de IA">
+    <button *ngFor="let t of tabsDef" role="tab" class="tab" [class.on]="tab === t.k" [attr.aria-selected]="tab === t.k" (click)="irTab(t.k)">
+      <span>{{ t.i }}</span> {{ t.t }}
+      <span class="v-badge mini" *ngIf="t.k === 'gobernanza' && metricas?.total">{{ metricas?.total }}</span>
+      <span class="v-badge mini ok" *ngIf="t.k === 'experimento' && expResultados.length && expTodosOk">✓</span>
+    </button>
+  </nav>
+
+  <section *ngIf="tab === 'diagnostico'">
   <div class="layout">
     <!-- Panel de entrada: alerta de telemetría -->
     <form class="panel v-card" [formGroup]="form" (ngSubmit)="diagnosticar()">
@@ -310,7 +320,12 @@
       </ng-container>
     </div>
   </div>
+  </section>
 
+  <!-- ============ Gobernanza on-chain 3/3 (consola completa) ============ -->
+  <section *ngIf="tab === 'gobernanza'"><app-gobernanza-onchain></app-gobernanza-onchain></section>
+
+  <section *ngIf="tab === 'calidad'">
   <!-- ============ Evals & Tracing (Tema 5) ============ -->
   <div class="evals v-card" *ngIf="evals.length">
     <h3>🧪 Evals &amp; Tracing · Prompt &amp; Model Registry (Tema 5)</h3>
@@ -337,21 +352,9 @@
     </table>
     <p class="hint">GET <code>/api/v1/ia/evals</code></p>
   </div>
+  </section>
 
-  <!-- ============ Tablero de gobernanza (métricas agregadas) ============ -->
-  <div class="kpis v-card" *ngIf="metricas as m">
-    <h3>📊 Tablero de gobernanza 3/3</h3>
-    <div class="kpi-grid">
-      <div class="kpi"><span class="kpi-n">{{ m.total }}</span><span class="kpi-l">propuestas</span></div>
-      <div class="kpi"><span class="kpi-n">{{ m.porEstado['PENDIENTE'] || 0 }}</span><span class="kpi-l">pendientes</span></div>
-      <div class="kpi"><span class="kpi-n">{{ m.ejecutadas }}</span><span class="kpi-l">ejecutadas (3/3)</span></div>
-      <div class="kpi"><span class="kpi-n">{{ m.porEstado['RECHAZADA'] || 0 }}</span><span class="kpi-l">rechazadas</span></div>
-      <div class="kpi"><span class="kpi-n">{{ m.porEstado['VENCIDA'] || 0 }}</span><span class="kpi-l">vencidas</span></div>
-      <div class="kpi" [class.kpi-ok]="m.ejecutadasSin3de3 === 0"><span class="kpi-n">{{ m.ejecutadasSin3de3 }}</span><span class="kpi-l">ejecutadas sin 3/3 (debe ser 0)</span></div>
-    </div>
-    <p class="hint">Tasa de ejecución {{ m.tasaEjecucion * 100 | number:'1.0-0' }} % · rechazo {{ m.tasaRechazo * 100 | number:'1.0-0' }} % · firmas promedio {{ m.promedioFirmas }} · GET <code>/api/v1/ia/gobernanza/metricas</code></p>
-  </div>
-
+  <section *ngIf="tab === 'experimento'">
   <!-- ============ Experimento de validación · Módulo 5 ============ -->
   <div class="exp v-card">
     <div class="exp-head">
@@ -389,4 +392,63 @@
     </div>
     <p class="hint">Equivalente a <code>Microservicios/experimento-ia-der.sh</code> · doc <code>EXPERIMENTO_IA_DER_VOLTERA.md</code></p>
   </div>
+  </section>
+
+  <!-- ============ Arquitectura y API ============ -->
+  <section *ngIf="tab === 'arquitectura'" class="arq">
+    <div class="arq-grid">
+      <div class="v-card arq-card">
+        <h3>🧠 Flujo agéntico (4 agentes)</h3>
+        <ol class="arq-flow">
+          <li><b>Monitor</b><span>detecta la anomalía por umbrales</span></li>
+          <li><b>Diagnosticador</b><span>RAG + MCP, clasifica severidad con evidencia citada</span></li>
+          <li><b>Acción</b><span>propone la acción; firma 1/3</span></li>
+          <li><b>Notificador</b><span>avisa y escala al mismo firmante pendiente</span></li>
+        </ol>
+        <p class="hint">Assistant aparte: explica el caso sin persuadir y sin herramientas de acción.</p>
+      </div>
+      <div class="v-card arq-card">
+        <h3>🛡 Controles de responsabilidad</h3>
+        <ul class="arq-list">
+          <li>Guardrails: bloqueo de inyección de prompt (HTTP 422) y PII enmascarada</li>
+          <li>Gobernanza 3/3 sin modo degradado 2/3 (fail-closed)</li>
+          <li>Evals por versión de prompt: acierto ≥ 85 %, citas ≥ 95 %, 0 comandos inventados</li>
+          <li>Trazabilidad on-chain: hash del diagnóstico + versión de prompt y modelo</li>
+          <li>Motor local determinista, sin enviar datos a un LLM externo</li>
+        </ul>
+      </div>
+      <div class="v-card arq-card">
+        <h3>🔌 Integraciones</h3>
+        <ul class="arq-list">
+          <li><b>MCP Device Management:</b> telemetría, historial, topología, comandos</li>
+          <li><b>MCP Blockchain Gateway:</b> propuesta, firma, ejecución y lectura on-chain</li>
+          <li><b>Tópicos:</b> <code>der.estado</code>, <code>der.alertas</code>, <code>der.gobernanza</code></li>
+          <li><b>Contrato:</b> <code>MultiFirmaAccionDER</code> (Polygon Amoy; pendiente de despliegue)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="v-card arq-wide" *ngIf="agentes.length">
+      <h3>🗂 Agent Registry (catálogo A2A)</h3>
+      <div class="tblw"><table class="arq-t">
+        <thead><tr><th>Agente</th><th>Dueño</th><th>Capacidad</th><th>Permisos</th><th>Estado</th></tr></thead>
+        <tbody><tr *ngFor="let a of agentes">
+          <td><code>{{ a.nombre }}</code></td><td>{{ a.dueno }}</td><td>{{ a.capacidad }}</td><td>{{ a.permisos }}</td>
+          <td><span class="v-badge mini" [ngClass]="a.activo ? 'ok' : 'warn'">{{ a.activo ? 'activo' : 'inactivo' }}</span></td>
+        </tr></tbody>
+      </table></div>
+    </div>
+
+    <div class="v-card arq-wide">
+      <h3>📡 Catálogo de endpoints del ia-service</h3>
+      <div class="tblw"><table class="arq-t">
+        <thead><tr><th>Método</th><th>Ruta</th><th>Descripción</th></tr></thead>
+        <tbody><tr *ngFor="let e of endpoints">
+          <td><span class="v-badge mini" [ngClass]="e.m === 'GET' ? 'info' : 'ok'">{{ e.m }}</span></td>
+          <td><code>{{ e.r }}</code></td><td>{{ e.d }}</td>
+        </tr></tbody>
+      </table></div>
+    </div>
+  </section>
+
 </div>

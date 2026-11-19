@@ -6,7 +6,8 @@
   <div class="gh-actions">
     <span class="v-badge" [ngClass]="aprob?.modo === 'ON_CHAIN' ? 'ok' : 'warn'">{{ aprob?.modo === 'ON_CHAIN' ? 'On-chain' : 'Modo simulado' }}</span>
     <button class="v-btn" (click)="recargar()" [disabled]="cargando">↻ Actualizar</button>
-    <button class="v-btn primary" (click)="crearDemo()" [disabled]="ocupado">＋ Nueva propuesta demo</button>
+    <button class="v-btn" (click)="crearDemo()" [disabled]="ocupado">＋ Nueva propuesta</button>
+    <button class="v-btn primary" (click)="demoGuiada()" [disabled]="ocupado">▶ Demo guiada 1/3 → 3/3</button>
   </div>
 </header>
 
@@ -123,7 +124,10 @@
       </section>
     </div>
   </main>
-  <ng-template #vacio><main class="v-card empty big">Selecciona o crea una propuesta para ver sus aprobaciones.</main></ng-template>
+  <ng-template #vacio><main class="v-card empty big">
+    <p>Aún no hay propuestas. Lanza la demo guiada para ver el ciclo completo: el agente propone (1/3), el operador firma (2/3, no ejecuta) y el prosumidor firma (3/3 → ejecutada).</p>
+    <button class="v-btn primary" (click)="demoGuiada()" [disabled]="ocupado">▶ Demo guiada 1/3 → 3/3</button>
+  </main></ng-template>
 </div>
 
 <!-- Evidencia EVM -->

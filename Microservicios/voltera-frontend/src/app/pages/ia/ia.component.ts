@@ -8,6 +8,8 @@ import {
 import { ToastService } from '../../core/toast.service';
 import { describeHttpError } from '../../core/http-error';
 import { firstValueFrom } from 'rxjs';
+import { GobernanzaOnchainComponent } from '../gobernanza-onchain/gobernanza-onchain.component';
+import { ActivatedRoute, Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
 
 /** Un nodo del pipeline agéntico, con su estado de ejecución para la animación. */
@@ -39,12 +41,44 @@ export interface NodoFlujo {
 @Component({
   selector: 'app-ia',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, GobernanzaOnchainComponent],
   templateUrl: './ia.component.html',
   styleUrl: './ia.component.scss',
 })
 export class IaComponent implements OnInit, OnDestroy {
   private fb = inject(FormBuilder);
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
+
+  /** Secciones de la página (se conserva en la URL: /ia?tab=gobernanza). */
+  readonly tabsDef = [
+    { k: 'diagnostico', t: 'Diagnóstico y agentes', i: '🧠' },
+    { k: 'gobernanza', t: 'Gobernanza on-chain 3/3', i: '⛓' },
+    { k: 'calidad', t: 'Calidad · Evals', i: '🧪' },
+    { k: 'experimento', t: 'Experimento', i: '🔬' },
+    { k: 'arquitectura', t: 'Arquitectura y API', i: '🏛' },
+  ];
+  tab = 'diagnostico';
+  irTab(k: string): void {
+    this.tab = k;
+    this.router.navigate([], { relativeTo: this.route, queryParams: { tab: k }, queryParamsHandling: 'merge', replaceUrl: true });
+  }
+
+  /** Catálogo de endpoints expuestos por el ia-service. */
+  readonly endpoints = [
+    { m: 'GET', r: '/api/v1/ia/estado', d: 'Estado de la plataforma (agentes, MCP, gobernanza)' },
+    { m: 'POST', r: '/api/v1/ia/diagnostico/der', d: 'Flujo de 4 agentes sobre una alerta de un activo DER' },
+    { m: 'GET', r: '/api/v1/ia/agentes', d: 'Agent Registry (A2A)' },
+    { m: 'POST', r: '/api/v1/ia/asistente/preguntar', d: 'Assistant acotado al diagnóstico, sin persuasión' },
+    { m: 'POST', r: '/api/v1/ia/gobernanza/propuestas/{diagnosticoId}', d: 'Crea la propuesta (firma 1/3 del agente)' },
+    { m: 'POST', r: '/api/v1/ia/gobernanza/propuestas/{id}/firmas/{operador|prosumidor}', d: 'Firmas 2/3 y 3/3' },
+    { m: 'POST', r: '/api/v1/ia/gobernanza/propuestas/{id}/rechazos/{operador|prosumidor}', d: 'Rechazo con razón obligatoria' },
+    { m: 'POST', r: '/api/v1/ia/gobernanza/vencidas', d: 'Caduca propuestas con TTL expirado' },
+    { m: 'GET', r: '/api/v1/ia/gobernanza/propuestas/{id}/aprobaciones', d: 'Firmantes, progreso X/3, modo ON_CHAIN / SIMULADO' },
+    { m: 'GET', r: '/api/v1/ia/gobernanza/propuestas/{id}/auditoria', d: 'Línea de tiempo de auditoría (CREG)' },
+    { m: 'GET', r: '/api/v1/ia/gobernanza/metricas', d: 'Indicadores agregados y garantía fail-closed' },
+    { m: 'GET', r: '/api/v1/ia/evals', d: 'Compuerta de calidad por versión de prompt' },
+  ];
   private svc = inject(IaService);
   private toast = inject(ToastService);
 
@@ -205,6 +239,8 @@ export class IaComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    const t = this.route.snapshot.queryParamMap.get('tab');
+    if (t && this.tabsDef.some((x) => x.k === t)) this.tab = t;
     // Pre-calienta el ia-service al entrar (Render free "duerme"): así el primer
     // diagnóstico no choca con el cold start de 30-60 s. Estas llamadas también
     // cargan el estado, el catálogo A2A y los Evals.

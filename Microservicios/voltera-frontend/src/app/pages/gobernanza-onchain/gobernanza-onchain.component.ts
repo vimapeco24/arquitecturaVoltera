@@ -115,6 +115,31 @@ export class GobernanzaOnchainComponent implements OnInit {
     } catch (e) { this.toast.error('No se pudo firmar', describeHttpError(e)); } finally { this.ocupado = false; }
   }
 
+  /** Demo guiada: crea la propuesta y la lleva de 1/3 a 3/3 → EJECUTADA con pausas visibles. */
+  async demoGuiada(): Promise<void> {
+    if (this.ocupado) return;
+    this.ocupado = true;
+    const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    try {
+      const d = await firstValueFrom(this.svc.diagnosticarDer({
+        activoId: 'INV-DEMO-' + Date.now().toString().slice(-5), tipoActivo: 'INVERSOR', comunidadId: 'COM-NORTE',
+        metrica: 'voltaje', valor: 265, umbral: 240, minutosSinSenal: 0, usuario: 'demo.guiada',
+      }));
+      let p = await firstValueFrom(this.svc.proponerAccion(d.diagnosticoId));
+      this.seleccionada = p; this.propuestas = [p, ...this.propuestas]; this.seleccionar(p);
+      this.toast.success('Paso 1/3', 'El agente IA propone y firma');
+      await pausa(1800);
+      p = await firstValueFrom(this.svc.firmarOperador(p.propuestaId, 'operador@voltera', 'validado técnicamente'));
+      this.seleccionada = p; this.seleccionar(p);
+      this.toast.success('Paso 2/3', 'Operador firma; aún no se ejecuta');
+      await pausa(1800);
+      p = await firstValueFrom(this.svc.firmarProsumidor(p.propuestaId, 'prosumidor@casa', 'autorizo'));
+      this.seleccionada = p; this.seleccionar(p);
+      this.toast.success('Paso 3/3', `Prosumidor firma · ${p.estado}`);
+      this.recargar();
+    } catch (e) { this.toast.error('Demo interrumpida', describeHttpError(e)); } finally { this.ocupado = false; }
+  }
+
   /** Posición del arco de progreso (0..3 de 3). */
   dash(): number { return this.circ * (1 - (this.aprob?.firmasAprobadas ?? 0) / 3); }
 
