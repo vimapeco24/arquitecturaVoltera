@@ -1,0 +1,154 @@
+<header class="gh">
+  <div>
+    <h2>⛓ Gobernanza on-chain · multi-firma 3/3</h2>
+    <p>Contrato <code>MultiFirmaAccionDER</code> · ninguna acción física se ejecuta sin las firmas del agente IA, el operador y el prosumidor.</p>
+  </div>
+  <div class="gh-actions">
+    <span class="v-badge" [ngClass]="aprob?.modo === 'ON_CHAIN' ? 'ok' : 'warn'">{{ aprob?.modo === 'ON_CHAIN' ? 'On-chain' : 'Modo simulado' }}</span>
+    <button class="v-btn" (click)="recargar()" [disabled]="cargando">↻ Actualizar</button>
+    <button class="v-btn primary" (click)="crearDemo()" [disabled]="ocupado">＋ Nueva propuesta demo</button>
+  </div>
+</header>
+
+<section class="kpis" *ngIf="metricas as m">
+  <div class="kpi"><span>{{ m.total }}</span><label>Propuestas</label></div>
+  <div class="kpi warn"><span>{{ m.porEstado['PENDIENTE'] || 0 }}</span><label>En firma</label></div>
+  <div class="kpi ok"><span>{{ m.ejecutadas }}</span><label>Ejecutadas 3/3</label></div>
+  <div class="kpi err"><span>{{ m.porEstado['RECHAZADA'] || 0 }}</span><label>Rechazadas</label></div>
+  <div class="kpi"><span>{{ m.tasaEjecucion * 100 | number:'1.0-0' }}%</span><label>Tasa de ejecución</label></div>
+  <div class="kpi" [class.ok]="m.ejecutadasSin3de3 === 0" [class.err]="m.ejecutadasSin3de3 > 0"><span>{{ m.ejecutadasSin3de3 }}</span><label>Ejecutadas sin 3/3</label></div>
+</section>
+
+<div class="grid">
+  <!-- Lista -->
+  <aside class="v-card lista">
+    <div class="chips">
+      <button *ngFor="let f of filtros" class="chipf" [class.on]="filtro === f" (click)="filtro = f">{{ f }}</button>
+    </div>
+    <div class="empty" *ngIf="!visibles.length">Sin propuestas. Crea una con «Nueva propuesta demo».</div>
+    <button class="item" *ngFor="let p of visibles" [class.sel]="seleccionada?.propuestaId === p.propuestaId" (click)="seleccionar(p)">
+      <div class="item-top"><strong>{{ p.activoId }}</strong><span class="v-badge mini" [ngClass]="chip(p.estado)">{{ p.estado }}</span></div>
+      <div class="item-sub">{{ p.comando }}</div>
+      <div class="item-bar"><i [style.width.%]="(p.firmas.charAt(0) === '3' ? 100 : p.firmas.charAt(0) === '2' ? 66 : 33)"></i></div>
+      <div class="item-foot"><span>{{ p.firmas }} firmas</span><span>{{ p.creadaEn | date:'dd/MM HH:mm' }}</span></div>
+    </button>
+  </aside>
+
+  <!-- Detalle -->
+  <main class="detalle" *ngIf="seleccionada as s; else vacio">
+    <section class="v-card">
+      <div class="det-head">
+        <div>
+          <h3>{{ s.comando }} <small>sobre {{ s.activoId }}</small></h3>
+          <p class="mut">ID <code>{{ corto(s.propuestaId, 8) }}</code> · {{ s.comunidadId }} · severidad {{ s.severidad }}</p>
+        </div>
+        <span class="v-badge big" [ngClass]="chip(s.estado)">{{ s.estado }}</span>
+      </div>
+
+      <!-- Máquina de estados -->
+      <svg viewBox="0 0 520 200" class="fsm" role="img" aria-label="Máquina de estados del contrato">
+        <defs><marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#6b7c96"/></marker></defs>
+        <line x1="130" y1="90" x2="228" y2="90" class="ln" marker-end="url(#ar)"/>
+        <line x1="320" y1="90" x2="418" y2="90" class="ln" marker-end="url(#ar)"/>
+        <line x1="90" y1="112" x2="135" y2="148" class="ln dash" marker-end="url(#ar)"/>
+        <line x1="130" y1="112" x2="325" y2="148" class="ln dash" marker-end="url(#ar)"/>
+        <text x="180" y="82" class="lbl">3/3</text><text x="370" y="82" class="lbl">ejecutar()</text>
+        <text x="70" y="135" class="lbl">rechazo</text><text x="235" y="140" class="lbl">TTL</text>
+        <g *ngFor="let n of estados" [attr.transform]="'translate(' + n.x + ',' + (n.y - 20) + ')'">
+          <rect width="92" height="40" rx="10" class="nd" [class.act]="nodoActivo(n.k)" [class.past]="nodoPasado(n.k)"
+                [class.bad]="nodoActivo(n.k) && (n.k === 'RECHAZADA' || n.k === 'VENCIDA')"/>
+          <text x="46" y="25" text-anchor="middle" class="nt">{{ n.k }}</text>
+        </g>
+      </svg>
+
+      <!-- Firmantes -->
+      <div class="firm" *ngIf="aprob as a">
+        <div class="ring">
+          <svg viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="52" class="rb"/>
+            <circle cx="60" cy="60" r="52" class="rf" [attr.stroke-dasharray]="circ" [attr.stroke-dashoffset]="dash()" transform="rotate(-90 60 60)"/>
+          </svg>
+          <div class="ring-t"><b>{{ a.firmasAprobadas }}/{{ a.firmasRequeridas }}</b><small>firmas</small></div>
+        </div>
+        <div class="cards">
+          <div class="fc" *ngFor="let f of a.firmantes" [class.firmo]="f.estado === 'FIRMO'" [class.rech]="f.estado === 'RECHAZO'">
+            <div class="av">{{ avatar(f.firmante) }}</div>
+            <div class="fc-b">
+              <strong>{{ rolTxt(f.firmante) }}</strong>
+              <span class="mut">{{ f.estado === 'FIRMO' ? 'Firmó' : f.estado === 'RECHAZO' ? 'Rechazó' : 'Pendiente' }}<ng-container *ngIf="f.identidad"> · {{ f.identidad }}</ng-container></span>
+              <span class="mut" *ngIf="f.firmadoEn">{{ f.firmadoEn | date:'dd/MM HH:mm:ss' }}</span>
+              <a *ngIf="f.txHash && f.explorerUrl" [href]="f.explorerUrl" target="_blank" rel="noopener">tx {{ corto(f.txHash) }} ↗</a>
+              <button *ngIf="f.txHash && !f.explorerUrl" class="lnk" (click)="copiar(f.txHash)">ref {{ corto(f.txHash, 16) }} ⧉</button>
+            </div>
+            <span class="tick">{{ f.estado === 'FIRMO' ? '✔' : f.estado === 'RECHAZO' ? '✘' : '⏳' }}</span>
+          </div>
+        </div>
+      </div>
+      <p class="note" *ngIf="aprob?.modo === 'SIMULADO'">Modo simulado: las referencias <code>demo:</code> no existen en el explorador. Con el contrato desplegado en Amoy se muestran hashes verificables.</p>
+
+      <div class="acts" *ngIf="s.estado === 'PENDIENTE'">
+        <ng-container *ngIf="s.siguienteFirmante === 'OPERADOR'">
+          <button class="v-btn primary" (click)="firmar('OPERADOR', true)" [disabled]="ocupado">🛠 Firmar como operador</button>
+          <button class="v-btn ghost" (click)="firmar('OPERADOR', false)" [disabled]="ocupado">Rechazar</button>
+        </ng-container>
+        <ng-container *ngIf="s.siguienteFirmante === 'PROSUMIDOR'">
+          <button class="v-btn primary" (click)="firmar('PROSUMIDOR', true)" [disabled]="ocupado">🏠 Firmar como prosumidor</button>
+          <button class="v-btn ghost" (click)="firmar('PROSUMIDOR', false)" [disabled]="ocupado">Rechazar</button>
+        </ng-container>
+      </div>
+    </section>
+
+    <div class="two">
+      <section class="v-card">
+        <h4>🧾 Auditoría (CREG)</h4>
+        <ol class="tl" *ngIf="audit as au">
+          <li *ngFor="let e of au.eventos">
+            <span class="ic">{{ icono(e.tipo) }}</span>
+            <div><strong>{{ e.tipo }}</strong> <span class="mut">{{ e.instante | date:'HH:mm:ss' }} · {{ e.actor }}</span>
+              <div class="mut" *ngIf="e.detalle">{{ e.detalle }}</div>
+              <button class="lnk" *ngIf="e.tx" (click)="copiar(e.tx)">{{ corto(e.tx, 16) }} ⧉</button></div>
+          </li>
+        </ol>
+      </section>
+      <section class="v-card">
+        <h4>🔒 Trazabilidad inmutable</h4>
+        <dl class="kv">
+          <dt>Hash del diagnóstico</dt><dd><button class="lnk" (click)="copiar(s.hashDiagnostico)">{{ corto(s.hashDiagnostico, 18) }} ⧉</button></dd>
+          <dt>Versión de prompt</dt><dd>{{ s.versionPrompt }}</dd>
+          <dt>Modelo</dt><dd>{{ s.versionModelo }}</dd>
+          <dt>Creada</dt><dd>{{ s.creadaEn | date:'dd/MM/yyyy HH:mm:ss' }}</dd>
+          <dt>Vence (TTL)</dt><dd>{{ s.venceEn | date:'dd/MM/yyyy HH:mm:ss' }}</dd>
+          <dt *ngIf="aprob?.contrato">Contrato</dt><dd *ngIf="aprob?.contrato"><code>{{ aprob?.contrato }}</code></dd>
+        </dl>
+      </section>
+    </div>
+  </main>
+  <ng-template #vacio><main class="v-card empty big">Selecciona o crea una propuesta para ver sus aprobaciones.</main></ng-template>
+</div>
+
+<!-- Evidencia EVM -->
+<section class="v-card evid" *ngIf="evidencia as ev">
+  <div class="det-head">
+    <div>
+      <h3>🔗 Evidencia on-chain (EVM real · {{ ev.red }} · chainId {{ ev.chainId }})</h3>
+      <p class="mut">Contrato <code>{{ ev.contrato }}</code> · {{ ev.nota }}</p>
+    </div>
+    <span class="v-badge big" [ngClass]="ev.fail === 0 ? 'ok' : 'err'">{{ ev.ok }}/{{ ev.ok + ev.fail }} criterios</span>
+  </div>
+  <div class="tblw"><table>
+    <thead><tr><th>Operación</th><th>Tx hash</th><th>Bloque</th><th>Gas</th><th>Eventos</th></tr></thead>
+    <tbody>
+      <tr *ngFor="let t of ev.transacciones">
+        <td>{{ t.etiqueta }}</td>
+        <td><button class="lnk" (click)="copiar(t.txHash)">{{ corto(t.txHash, 14) }} ⧉</button></td>
+        <td>{{ t.bloque }}</td><td>{{ t.gas | number }}</td>
+        <td><span class="ev" *ngFor="let e of t.eventos">{{ e }}</span></td>
+      </tr>
+    </tbody>
+    <tfoot><tr><td colspan="3">Gas total ({{ ev.transacciones.length }} transacciones)</td><td colspan="2">{{ gasTotal | number }}</td></tr></tfoot>
+  </table></div>
+  <details><summary>Ver los {{ ev.criterios.length }} criterios verificados</summary>
+    <ul class="crit"><li *ngFor="let c of ev.criterios" [class.bad]="!c.ok">{{ c.ok ? '✓' : '✗' }} {{ c.texto }}</li></ul>
+  </details>
+  <p class="mut">Reproducir: <code>cd Blockchain &amp;&amp; npm run demo:multifirma</code></p>
+</section>

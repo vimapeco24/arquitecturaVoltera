@@ -207,6 +207,7 @@ curl -s http://localhost:8101/api/v1/gobernanza/propuestas/$P/estado
 ```
 
 - **Front:** `/ia` → crear propuesta y firmar; el panel «Aprobaciones múltiples» muestra cada firmante, estado, X de 3, etiqueta On-chain/Simulado y el enlace `tx` al explorador.
+- **Consola profesional:** `/gobernanza` en el front (máquina de estados, firmantes, auditoría y tabla de transacciones EVM con gas).
 - **Polygonscan:** con contrato desplegado, `https://amoy.polygonscan.com/tx/<txHash>` (o `/address/<contrato>#events`). Hoy el contrato **no está desplegado en Amoy (falta gas)**, por eso el modo es `SIMULADO` y las referencias `demo:` no existen en el explorador.
 - **Script:** el bloque B6 de `experimento-ia-der.sh` verifica este endpoint.
 

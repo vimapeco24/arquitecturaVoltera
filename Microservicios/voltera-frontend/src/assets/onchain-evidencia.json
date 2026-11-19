@@ -1,0 +1,248 @@
+{
+  "red": "hardhat",
+  "chainId": 31337,
+  "contrato": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+  "nota": "Red local de Hardhat: transacciones EVM reales, sin gas ni claves reales. Mismo bytecode que se desplegará en Amoy.",
+  "transacciones": [
+    {
+      "etiqueta": "crearPropuesta (Firma 1 · agente)",
+      "txHash": "0x9388bed724fc7c7d0c61413a69187bbbaf358892cac9f0087d030641ceb5380b",
+      "bloque": 5,
+      "gas": "213604",
+      "eventos": [
+        "PropuestaCreada",
+        "FirmaRegistrada(AGENTE_IA, 1/3)"
+      ]
+    },
+    {
+      "etiqueta": "firmarOperador (Firma 2)",
+      "txHash": "0xa4797f391abadc06b488073164f06a2da54e58ac8e24d3c9f5c93a896e49a543",
+      "bloque": 6,
+      "gas": "57526",
+      "eventos": [
+        "FirmaRegistrada(OPERADOR, 2/3)"
+      ]
+    },
+    {
+      "etiqueta": "firmarProsumidor (Firma 3)",
+      "txHash": "0xf8e1c4c8fb3a424a54f1b72498a1480a2dbb712235fca42c6a6588d5cebf4ecc",
+      "bloque": 8,
+      "gas": "61650",
+      "eventos": [
+        "FirmaRegistrada(PROSUMIDOR, 3/3)",
+        "AccionAprobada"
+      ]
+    },
+    {
+      "etiqueta": "ejecutar (solo desde APROBADA)",
+      "txHash": "0x13b79d2c158993dee5baaa5308637a5c0aef844c9b5df05940052a97cd740de5",
+      "bloque": 9,
+      "gas": "58070",
+      "eventos": [
+        "AccionEjecutada"
+      ]
+    },
+    {
+      "etiqueta": "crearPropuesta",
+      "txHash": "0xb2b225d0b7b7297553f1302c059fcd16eaa65bce60538003a07689ecfb73844c",
+      "bloque": 11,
+      "gas": "196516",
+      "eventos": [
+        "PropuestaCreada",
+        "FirmaRegistrada(AGENTE_IA, 1/3)"
+      ]
+    },
+    {
+      "etiqueta": "firmarOperador",
+      "txHash": "0x52cdcedd896bfef8acb05b0c4b5a928b8bfb1672782aacc9c0b463703542779f",
+      "bloque": 12,
+      "gas": "57526",
+      "eventos": [
+        "FirmaRegistrada(OPERADOR, 2/3)"
+      ]
+    },
+    {
+      "etiqueta": "rechazarProsumidor",
+      "txHash": "0x2a9dadc30cc8441c37177be293cb6c70492e2620ea0b0911dbbbb4747edc6c15",
+      "bloque": 13,
+      "gas": "33894",
+      "eventos": [
+        "AccionRechazada"
+      ]
+    },
+    {
+      "etiqueta": "crearPropuesta",
+      "txHash": "0x6177aa7a0ea69f422b322b6e2eb69c2dc00185cf6d85ba415a2686e3452bc7f4",
+      "bloque": 16,
+      "gas": "196504",
+      "eventos": [
+        "PropuestaCreada",
+        "FirmaRegistrada(AGENTE_IA, 1/3)"
+      ]
+    },
+    {
+      "etiqueta": "firmarOperador",
+      "txHash": "0xd1597350dc9b31f43a1d77f05cfba826291ae2fc2f2163d7d6af81be12b2a0ae",
+      "bloque": 17,
+      "gas": "57526",
+      "eventos": [
+        "FirmaRegistrada(OPERADOR, 2/3)"
+      ]
+    },
+    {
+      "etiqueta": "crearPropuesta (TTL 60 s)",
+      "txHash": "0x8dc51bf4217d587c37276375e01250ebced64bac6e373d589166e70c2a85d87c",
+      "bloque": 23,
+      "gas": "196504",
+      "eventos": [
+        "PropuestaCreada",
+        "FirmaRegistrada(AGENTE_IA, 1/3)"
+      ]
+    },
+    {
+      "etiqueta": "caducar (TTL vencido)",
+      "txHash": "0x4d13cff2b9a183bd92f2a8b83152c429d48e14cc41cf84ee79bdf643846bec16",
+      "bloque": 26,
+      "gas": "30936",
+      "eventos": [
+        "AccionVencida"
+      ]
+    },
+    {
+      "etiqueta": "pausar (admin)",
+      "txHash": "0xd6ec33d52f82359f09eeba9330fb0907740ed2256154374ed7dc282b4baf9f00",
+      "bloque": 29,
+      "gas": "47052",
+      "eventos": [
+        "Paused"
+      ]
+    },
+    {
+      "etiqueta": "reanudar (admin)",
+      "txHash": "0x616be2dd4ea8052ffbea96922e1cded7e758c54f716fc47ea9f7173efe3040dc",
+      "bloque": 32,
+      "gas": "25175",
+      "eventos": [
+        "Unpaused"
+      ]
+    },
+    {
+      "etiqueta": "crearPropuesta tras reanudar",
+      "txHash": "0x525ee976ec4c66fd6fbe564fc5995ff6a469e2172d3d25f4f6cce90dd5809476",
+      "bloque": 33,
+      "gas": "196504",
+      "eventos": [
+        "PropuestaCreada",
+        "FirmaRegistrada(AGENTE_IA, 1/3)"
+      ]
+    }
+  ],
+  "criterios": [
+    {
+      "ok": true,
+      "texto": "crear deja 1/3 y PENDIENTE"
+    },
+    {
+      "ok": true,
+      "texto": "hash del diagnóstico + versión de prompt/modelo quedan inmutables on-chain"
+    },
+    {
+      "ok": true,
+      "texto": "con 2/3 sigue PENDIENTE"
+    },
+    {
+      "ok": true,
+      "texto": "con 2/3 ejecutar() revierte (fail-closed, sin modo 2/3)"
+    },
+    {
+      "ok": true,
+      "texto": "con 3/3 pasa a APROBADA"
+    },
+    {
+      "ok": true,
+      "texto": "queda EJECUTADA y emite AccionEjecutada"
+    },
+    {
+      "ok": true,
+      "texto": "no se puede ejecutar dos veces"
+    },
+    {
+      "ok": true,
+      "texto": "el rechazo del prosumidor cierra la propuesta (RECHAZADA)"
+    },
+    {
+      "ok": true,
+      "texto": "tras el rechazo no se admiten más firmas"
+    },
+    {
+      "ok": true,
+      "texto": "una propuesta RECHAZADA no se ejecuta"
+    },
+    {
+      "ok": true,
+      "texto": "el mismo rol no puede firmar dos veces (RolYaFirmo)"
+    },
+    {
+      "ok": true,
+      "texto": "una cuenta sin rol PROSUMIDOR no puede firmar (AccessControl)"
+    },
+    {
+      "ok": true,
+      "texto": "el operador no puede firmar en nombre del prosumidor"
+    },
+    {
+      "ok": true,
+      "texto": "solo el AGENTE_IA puede crear propuestas"
+    },
+    {
+      "ok": true,
+      "texto": "no se puede recrear una propuesta con el mismo id"
+    },
+    {
+      "ok": true,
+      "texto": "las firmas inválidas no alteraron el contador (2/3)"
+    },
+    {
+      "ok": true,
+      "texto": "antes del TTL caducar() revierte (aún vigente)"
+    },
+    {
+      "ok": true,
+      "texto": "vencido el TTL sin 3/3 queda VENCIDA"
+    },
+    {
+      "ok": true,
+      "texto": "no se firma una propuesta VENCIDA"
+    },
+    {
+      "ok": true,
+      "texto": "una propuesta VENCIDA no se ejecuta"
+    },
+    {
+      "ok": true,
+      "texto": "con el contrato pausado no se crean propuestas"
+    },
+    {
+      "ok": true,
+      "texto": "solo el admin puede pausar"
+    },
+    {
+      "ok": true,
+      "texto": "totalPropuestas = 5"
+    },
+    {
+      "ok": true,
+      "texto": "totalEjecutadas = 1 (solo la de 3/3)"
+    },
+    {
+      "ok": true,
+      "texto": "la auditoría por eventos reconstruye el orden de firmas (AGENTE_IA→OPERADOR→PROSUMIDOR)"
+    },
+    {
+      "ok": true,
+      "texto": "las 3 firmas provienen de 3 cuentas distintas"
+    }
+  ],
+  "ok": 26,
+  "fail": 0
+}

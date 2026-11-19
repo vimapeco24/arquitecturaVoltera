@@ -152,5 +152,10 @@ export const routes: Routes = [
     title: 'Agente de diagnóstico DER · GenAI · Voltera',
     loadComponent: () => import('./pages/ia/ia.component').then((m) => m.IaComponent),
   },
+  {
+    path: 'gobernanza',
+    title: 'Gobernanza on-chain 3/3 · Voltera',
+    loadComponent: () => import('./pages/gobernanza-onchain/gobernanza-onchain.component').then((m) => m.GobernanzaOnchainComponent),
+  },
   { path: '**', redirectTo: 'panel' },
 ];

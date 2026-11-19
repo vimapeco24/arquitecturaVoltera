@@ -52,6 +52,7 @@ export class AppComponent {
     { path: '/microservicios-cadena', label: 'Microservicios cadena · 🧩', icon: '🧩' },
     { path: '/experimento-validacion', label: 'Experimento · 🧪', icon: '🧪' },
     { path: '/ia', label: 'Agente DER · 🤖', icon: '🤖' },
+    { path: '/gobernanza', label: 'Gobernanza on-chain 3/3', icon: '⛓' },
   ];
 
   toggle(): void {

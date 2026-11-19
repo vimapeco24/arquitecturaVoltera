@@ -12,6 +12,7 @@ Pedido: «¿cómo ver el blockchain con las múltiples aprobaciones?» y dejar e
 - **Script `experimento-ia-der.sh`:** bloque M (on-chain; `--sin-onchain` para omitir), parseo de flags múltiples, M en JSON/MD/HTML. Corrida LIVE Render: 44/44.
 - **Front `/ia`:** el experimento suma bloque P (estado), B5 (caducidad), B6 (aprobaciones múltiples); resultados agrupados por bloque con contador, barra de progreso, duración y botón «Descargar evidencia (JSON)». `IaService.caducarVencidas()`. `npm run build` OK.
 - **ia-service:** `GET .../propuestas/{id}/auditoria` (`AuditoriaPropuesta`) y `GET .../gobernanza/metricas` (`MetricasGobernanza`, `ejecutadasSin3de3`=0); 4 tests nuevos (29 JUnit verdes). Front: línea de tiempo de auditoría y tablero KPI en `/ia`. Script: bloque B7. Corrida local 46/46.
+- **Front `/gobernanza` (nuevo, menú «Gobernanza on-chain 3/3»):** consola con KPIs, lista filtrable de propuestas, máquina de estados del contrato (SVG), anillo de progreso 0–3/3, tarjetas de firmantes con tx, auditoría, trazabilidad (hash/prompt/modelo/TTL), acciones de firma y panel de evidencia EVM real (`assets/onchain-evidencia.json`: tx hash, bloque, gas, eventos, 26 criterios). Build OK.
 - **Docs:** `EXPERIMENTO_IA_DER_VOLTERA.md` (secciones B7 y M).
 - **Diagrama:** sin cambios de arquitectura (no se agregaron servicios, topics ni contratos); `.drawio` sigue reflejando el estado real.
 - **Pendiente:** desplegar `MultiFirmaAccionDER` en Amoy (gas) y definir `VOLTERA_BLOCKCHAIN_GOBERNANZA_ADDRESS`; redesplegar el front en Vercel.
