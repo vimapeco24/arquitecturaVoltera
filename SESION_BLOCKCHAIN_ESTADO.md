@@ -1151,3 +1151,7 @@ Ninguno se escribió en archivos ni en `.git/config` (verificado: `origin` queda
 4. Credenciales de git: la cuenta activa de la máquina es `victorperez-TCS` (SIN permiso de escritura
    en el repo `vimapeco24/arquitecturaVoltera`) → el push necesita un PAT de `vimapeco24` o
    re-autenticar `gh` como `vimapeco24`.
+
+## Actualizacion: pagos-service con Outbox (item 6)
+- pagos-service publica `PagoConfirmado` (Outbox + OutboxRelay) a `topic.cobros.pago-confirmado` (consumidor: cobros-service). Flag `pagos.kafka.enabled` (env `PAGOS_KAFKA_ENABLED`).
+- `Modificados/Voltera_Arquitectura_Completa.drawio`: etiqueta del nodo `ms-pagos` actualizada para reflejar el Outbox. XML validado.

@@ -15,6 +15,17 @@ spring:
   threads:
     virtual:
       enabled: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:redpanda.voltera-app:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+pagos:
+  kafka:
+    # false => no se crea productor ni relay y no se escribe outbox; el servicio funciona solo por REST.
+    enabled: ${PAGOS_KAFKA_ENABLED:true}
+  outbox:
+    relay-interval-ms: ${OUTBOX_RELAY_INTERVAL_MS:3000}
 
 eureka:
   client:

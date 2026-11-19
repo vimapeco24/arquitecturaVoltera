@@ -7,6 +7,7 @@ import com.voltera.pagos.domain.model.PagoId;
 import com.voltera.pagos.domain.model.TipoPago;
 import com.voltera.pagos.domain.port.in.ConsultarPagoUseCase;
 import com.voltera.pagos.domain.port.in.ProcesarPagoUseCase;
+import com.voltera.pagos.domain.port.out.EventosPagoPort;
 import com.voltera.pagos.domain.port.out.PagoRepositoryPort;
 
 import java.util.List;
@@ -20,8 +21,16 @@ public class PagoService implements ProcesarPagoUseCase, ConsultarPagoUseCase {
 
     private final PagoRepositoryPort repositorio;
 
+    private final EventosPagoPort eventos;
+
+    /** Sin publicacion de eventos (Kafka deshabilitado). */
     public PagoService(PagoRepositoryPort repositorio) {
+        this(repositorio, orden -> { });
+    }
+
+    public PagoService(PagoRepositoryPort repositorio, EventosPagoPort eventos) {
         this.repositorio = repositorio;
+        this.eventos = eventos;
     }
 
     @Override
@@ -39,7 +48,9 @@ public class PagoService implements ProcesarPagoUseCase, ConsultarPagoUseCase {
         // aqui iria el adaptador de salida hacia el PSP. Por defecto, exito.
         orden.marcarProcesada();
 
-        return repositorio.guardar(orden);
+        OrdenPago guardada = repositorio.guardar(orden);
+        eventos.pagoConfirmado(guardada);
+        return guardada;
     }
 
     @Override
