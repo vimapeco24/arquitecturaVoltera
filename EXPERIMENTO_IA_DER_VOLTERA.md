@@ -8,8 +8,9 @@
 > (b) por consola con `Microservicios/experimento-ia-der.sh` (guarda evidencia JSON),
 > (c) por los tests automatizados (`ia-service` JUnit + `MultiFirmaAccionDER` Hardhat).
 >
-> **Última corrida real contra el `ia-service` LIVE (Render): 35/35 criterios superados**
-> (37/37 con `--con-tests`, que suma JUnit + Hardhat). Genera evidencia en JSON y reporte en Markdown.
+> **Última corrida: 46/46 criterios superados** (ia-service local con los endpoints nuevos; Render 44/44 antes de redesplegar B7)
+> (incluye el bloque M on-chain; con `--con-tests` suma además JUnit + Hardhat). Genera evidencia en JSON, Markdown y HTML.
+> El front `/ia` ejecuta los bloques P, A–L (con B5/B6) agrupados por bloque, con barra de progreso y descarga de evidencia JSON.
 
 ---
 
@@ -25,7 +26,7 @@ El caso del Grupo 5 tiene afirmaciones fuertes que un evaluador debe poder compr
    cada propuesta lleva trazabilidad on-chain (hash del diagnóstico + versión de prompt/modelo) para
    auditoría regulatoria (CREG).
 
-El experimento aterriza ambas en **11 bloques (A–L) con ~39 criterios ✓/✗**, más un bloque I opcional
+El experimento aterriza ambas en **12 bloques (Pre, A–M) con 46 criterios ✓/✗ en consola**, más un bloque I opcional
 (`--con-tests`) que ejecuta las pruebas automatizadas (JUnit del `ia-service` + Hardhat del contrato).
 Genera tres salidas: **JSON** (estructurada), **Markdown** (reporte) y **HTML** (para proyectar).
 
@@ -56,6 +57,10 @@ La 1ª firma del operador responde 200; la 2ª del mismo rol se **rechaza (HTTP 
 
 ### B4 · No se propone gobernanza sobre un diagnóstico sin acción
 Un panel en rango da **MONITOREAR**; intentar crear propuesta se **rechaza (HTTP 400)**. **✓**
+
+### B7 · Auditoría y métricas de la gobernanza (nuevo)
+`GET /api/v1/ia/gobernanza/propuestas/{id}/auditoria` reconstruye la línea de tiempo (PROPUESTA_CREADA → 3 firmas → APROBADA_3_DE_3 → EJECUTADA) con actor, instante y tx; 404 si no existe.
+`GET /api/v1/ia/gobernanza/metricas` entrega volumen por estado, tasas y `ejecutadasSin3de3`, que debe ser **0** (fail-closed verificado). **✓ 3 criterios**. En `/ia` se ve como «Auditoría de la propuesta» y «Tablero de gobernanza 3/3». JUnit: 29 tests.
 
 ### B5 · Caducidad por TTL (fail-closed)
 El endpoint de caducidad de propuestas vencidas responde (vencido el plazo sin 3/3, la propuesta queda VENCIDA y no se ejecuta). **✓**
@@ -154,6 +159,31 @@ responden y que cada uno recibe un `diagnosticoId` **único** (sin corrupción d
 
 ---
 
+## Experimento M · Gobernanza 3/3 ON-CHAIN (contrato `MultiFirmaAccionDER`, red local Hardhat)
+
+Responde a «¿cómo vemos el blockchain con las múltiples aprobaciones?» con **transacciones EVM reales**, sin gas
+ni claves: `Blockchain/scripts/demo-multifirma-der.js` despliega el contrato (mismo bytecode que irá a Amoy) y
+recorre los escenarios imprimiendo, por cada paso, `tx hash`, bloque, gas y eventos.
+
+```bash
+cd Blockchain && npm run demo:multifirma        # 26 criterios + JSON de evidencia
+cd Microservicios && ./experimento-ia-der.sh    # lo incluye como bloque M (omitir con --sin-onchain)
+```
+
+| Escenario | Criterios (✓ los 26) |
+|---|---|
+| B1 camino feliz | crear = 1/3 PENDIENTE · hash de diagnóstico + versión prompt/modelo inmutables · 2/3 sigue PENDIENTE · con 2/3 `ejecutar()` revierte · 3/3 → APROBADA · `ejecutar` → EJECUTADA · no se ejecuta dos veces |
+| B2 rechazo | el rechazo del prosumidor cierra (RECHAZADA) · no admite más firmas · no se ejecuta |
+| B3 no repudio / roles | mismo rol no firma dos veces · cuenta sin rol no firma · el operador no firma por el prosumidor · solo el AGENTE_IA crea · id duplicado revierte · contador intacto (2/3) |
+| B5 TTL | antes del TTL `caducar` revierte · vencido → VENCIDA · no se firma ni ejecuta una VENCIDA |
+| B7 pausa | contrato pausado no crea propuestas · solo el admin pausa |
+| B8 auditoría | `totalPropuestas`/`totalEjecutadas` consistentes · el orden de firmas se reconstruye desde los eventos (AGENTE_IA→OPERADOR→PROSUMIDOR) · 3 cuentas distintas |
+
+Evidencia: `Microservicios/evidencia-experimento/onchain-multifirma-<ts>.json` (tx hash, bloque, gas y eventos por paso).
+Cuando el contrato se despliegue en Amoy, los mismos pasos darán hashes verificables en Polygonscan.
+
+---
+
 ## Aprobaciones múltiples (3/3): cómo verlas
 
 Endpoint de lectura: `GET /api/v1/ia/gobernanza/propuestas/{id}/aprobaciones` (ia-service, :8104).
@@ -182,7 +212,7 @@ curl -s http://localhost:8101/api/v1/gobernanza/propuestas/$P/estado
 
 ## Evidencia real (contra el `ia-service` LIVE en Render)
 
-Última corrida: **39/39 criterios superados** (más JUnit + Hardhat con `--con-tests`). Se generan tres
+Última corrida: **44/44 criterios superados** (más JUnit + Hardhat con `--con-tests`). Se generan tres
 archivos en `evidencia-experimento/`: `ia-der-<ts>.json` (estructurada), `ia-der-<ts>.md` (reporte) y
 `ia-der-<ts>.html` (para proyectar en la sustentación). Resumen:
 
@@ -203,7 +233,8 @@ H   payload inválido/propuesta inexistente/assistant inexistente -> 4xx · moto
 J   latencia p50≈357ms · p95≈446ms (n=10)
 K   A/B Assistant -> gana asistente-operador@v2 (0.94), apta
 L   5 diagnósticos en paralelo · 5 ids únicos (sin corrupción de estado)
-I   (--con-tests) JUnit 16 verdes · Hardhat 45 passing
+M   demo on-chain Hardhat: 26/26 (3/3, rechazo, no repudio, TTL, pausa, eventos)
+I   (--con-tests) JUnit verdes · Hardhat 45 passing
 ```
 
 ---

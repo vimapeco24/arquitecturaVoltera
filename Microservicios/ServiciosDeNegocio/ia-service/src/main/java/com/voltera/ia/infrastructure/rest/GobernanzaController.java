@@ -1,7 +1,9 @@
 package com.voltera.ia.infrastructure.rest;
 
 import com.voltera.ia.domain.model.der.DiagnosticoDer;
+import com.voltera.ia.domain.model.gobernanza.AuditoriaPropuesta;
 import com.voltera.ia.domain.model.gobernanza.EstadoAprobaciones;
+import com.voltera.ia.domain.model.gobernanza.MetricasGobernanza;
 import com.voltera.ia.domain.model.gobernanza.Firmante;
 import com.voltera.ia.domain.model.gobernanza.PropuestaAccion;
 import com.voltera.ia.domain.port.in.GobernanzaAccionUseCase;
@@ -33,6 +35,8 @@ import java.util.UUID;
  *   <li>GET  .../propuestas[/{id}] — estado del ciclo (0/3 → 3/3).</li>
  *   <li>GET  .../propuestas/{id}/aprobaciones — firmantes requeridos, quién firmó
  *       (tx + enlace al explorador), quién falta, estado global y modo ON_CHAIN/SIMULADO.</li>
+ *   <li>GET  .../propuestas/{id}/auditoria — línea de tiempo de auditoría (CREG).</li>
+ *   <li>GET  .../metricas — indicadores agregados (estados, tasas, ejecutadasSin3de3 = 0).</li>
  * </ul>
  *
  * La firma es un control explícito y separado de la conversación del Assistant.
@@ -99,6 +103,20 @@ public class GobernanzaController {
         return gobernanza.aprobaciones(UUID.fromString(id))
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    /** Línea de tiempo de auditoría (quién, qué, cuándo, tx) de una propuesta. */
+    @GetMapping("/propuestas/{id}/auditoria")
+    public ResponseEntity<AuditoriaPropuesta> auditoria(@PathVariable String id) {
+        return gobernanza.consultar(UUID.fromString(id))
+                .map(p -> ResponseEntity.ok(AuditoriaPropuesta.desde(p)))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    /** Indicadores agregados de la gobernanza (volumen por estado, tasas, garantía fail-closed). */
+    @GetMapping("/metricas")
+    public ResponseEntity<MetricasGobernanza> metricas() {
+        return ResponseEntity.ok(MetricasGobernanza.desde(gobernanza.listar()));
     }
 
     private ResponseEntity<PropuestaResponse> aprobar(String id, Firmante f, FirmaRequest req) {

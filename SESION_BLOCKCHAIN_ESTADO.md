@@ -6,6 +6,16 @@
 > + Evals&Tracing + tópicos `der.*`. Diagrama `.drawio` actualizado y validado).
 > Lee este archivo primero al reconectar.
 
+## 2026-11-19 · MÓDULO 5 · Experimento ampliado (on-chain local + front completo)
+Pedido: «¿cómo ver el blockchain con las múltiples aprobaciones?» y dejar experimento y front completos para el profesor.
+- **Blockchain:** nuevo `Blockchain/scripts/demo-multifirma-der.js` (+ `npm run demo:multifirma`): despliega `MultiFirmaAccionDER` en Hardhat local y ejecuta 26 criterios con txs reales (3/3, rechazo, no repudio, roles, TTL, pausa, auditoría por eventos). Evidencia JSON con tx hash/bloque/gas/eventos.
+- **Script `experimento-ia-der.sh`:** bloque M (on-chain; `--sin-onchain` para omitir), parseo de flags múltiples, M en JSON/MD/HTML. Corrida LIVE Render: 44/44.
+- **Front `/ia`:** el experimento suma bloque P (estado), B5 (caducidad), B6 (aprobaciones múltiples); resultados agrupados por bloque con contador, barra de progreso, duración y botón «Descargar evidencia (JSON)». `IaService.caducarVencidas()`. `npm run build` OK.
+- **ia-service:** `GET .../propuestas/{id}/auditoria` (`AuditoriaPropuesta`) y `GET .../gobernanza/metricas` (`MetricasGobernanza`, `ejecutadasSin3de3`=0); 4 tests nuevos (29 JUnit verdes). Front: línea de tiempo de auditoría y tablero KPI en `/ia`. Script: bloque B7. Corrida local 46/46.
+- **Docs:** `EXPERIMENTO_IA_DER_VOLTERA.md` (secciones B7 y M).
+- **Diagrama:** sin cambios de arquitectura (no se agregaron servicios, topics ni contratos); `.drawio` sigue reflejando el estado real.
+- **Pendiente:** desplegar `MultiFirmaAccionDER` en Amoy (gas) y definir `VOLTERA_BLOCKCHAIN_GOBERNANZA_ADDRESS`; redesplegar el front en Vercel.
+---
 ## 2026-11-19 · MÓDULO 5 · Aprobaciones múltiples visibles + lectura on-chain (solo lectura)
 Pedido: ver en código la integración IA↔blockchain con las aprobaciones 3/3 (no un informe).
 - **ia-service:** `GET /api/v1/ia/gobernanza/propuestas/{id}/aprobaciones` (`EstadoAprobaciones`, `LecturaOnChain`,

@@ -15,6 +15,7 @@
 #      B3 un mismo rol no puede firmar dos veces (rechazo HTTP 4xx)
 #      B4 no se puede proponer sobre un diagnóstico sin acción (rechazo HTTP 4xx)
 #      B5 endpoint de caducidad de propuestas vencidas (TTL) responde
+#      M  demo ON-CHAIN local (Hardhat): 3/3, rechazo, no repudio, TTL, pausa, eventos (26 criterios)
 #      B6 aprobaciones múltiples visibles: GET .../propuestas/{id}/aprobaciones (3/3, rechazo, 404)
 #   C  Responsible AI del Assistant: no persuasión + prompts por audiencia.
 #   D  Evals & Tracing (Tema 5): compuerta de calidad de prompts.
@@ -29,6 +30,7 @@
 # USO:
 #   ./experimento-ia-der.sh                 # contra el ia-service público (Render)
 #   IA=http://localhost:8104 ./experimento-ia-der.sh
+#   ./experimento-ia-der.sh --sin-onchain   # omite el bloque M (demo on-chain local en Hardhat)
 #   ./experimento-ia-der.sh --con-tests     # además corre JUnit (ia-service) y Hardhat (contrato)
 #
 # SALIDAS:
@@ -43,7 +45,11 @@ set -uo pipefail
 
 IA="${IA:-https://voltera-ia.onrender.com}"
 CON_TESTS=0
-[ "${1:-}" = "--con-tests" ] && CON_TESTS=1
+SIN_ONCHAIN=0
+for a in "$@"; do
+  [ "$a" = "--con-tests" ] && CON_TESTS=1
+  [ "$a" = "--sin-onchain" ] && SIN_ONCHAIN=1
+done
 # Tamaños de las pruebas de rendimiento y concurrencia (configurables por env).
 N_PERF="${N_PERF:-10}"
 N_CONC="${N_CONC:-5}"
@@ -170,6 +176,21 @@ APRE=$(printf '%s' "$APR" | jqpy "d.get('estado','')+'|'+str(len([f for f in d.g
 [ "$APRE" = "RECHAZADA|1" ] && ok "aprobaciones de propuesta rechazada: estado RECHAZADA con 1 firmante en RECHAZO" || bad "aprobaciones de rechazo inesperadas ($APRE)"
 APX=$(curl -s -o /dev/null -w '%{http_code}' --max-time 40 "$IA/api/v1/ia/gobernanza/propuestas/00000000-0000-0000-0000-000000000000/aprobaciones")
 [ "$APX" = "404" ] && ok "aprobaciones de propuesta inexistente -> HTTP 404" || bad "inexistente no devolvió 404 (HTTP $APX)"
+
+echo ""
+echo "── EXPERIMENTO B7 · Auditoría (línea de tiempo) y métricas de gobernanza"
+AUD=$(curl -s --max-time 40 "$IA/api/v1/ia/gobernanza/propuestas/$PID/auditoria")
+AUDT=$(printf '%s' "$AUD" | jqpy "','.join(e['tipo'] for e in d.get('eventos',[]))")
+case "$AUDT" in
+  PROPUESTA_CREADA*FIRMA_AGENTE_IA*FIRMA_OPERADOR*FIRMA_PROSUMIDOR*APROBADA_3_DE_3*EJECUTADA*) ok "auditoría reconstruye el ciclo completo ($AUDT)";;
+  *) bad "auditoría incompleta ($AUDT)";;
+esac
+MET=$(curl -s --max-time 40 "$IA/api/v1/ia/gobernanza/metricas")
+MS3=$(printf '%s' "$MET" | jqpy "d.get('ejecutadasSin3de3')")
+MEJ=$(printf '%s' "$MET" | jqpy "d.get('ejecutadas')")
+[ "$MS3" = "0" ] && [ "${MEJ:-0}" -ge 1 ] && ok "métricas: 0 ejecutadas sin 3/3 (fail-closed) con $MEJ ejecutadas" || bad "métricas inesperadas (sin3/3=$MS3, ejecutadas=$MEJ)"
+APX2=$(curl -s -o /dev/null -w '%{http_code}' --max-time 40 "$IA/api/v1/ia/gobernanza/propuestas/00000000-0000-0000-0000-000000000000/auditoria")
+[ "$APX2" = "404" ] && ok "auditoría de propuesta inexistente -> HTTP 404" || bad "auditoría inexistente no devolvió 404 (HTTP $APX2)"
 # ---------------------------------------------------------------------------
 echo ""
 echo "── EXPERIMENTO C · Responsible AI del Assistant (no persuasión + por audiencia)"
@@ -308,6 +329,30 @@ echo "   respuestas: $CC_OK/$N_CONC · diagnosticoId únicos: $CC_UNIQ"
 [ "$CC_OK" = "$N_CONC" ] && [ "$CC_UNIQ" = "$N_CONC" ] && ok "$N_CONC diagnósticos en paralelo con id único cada uno (sin corrupción de estado)" || bad "concurrencia con problemas ($CC_OK ok, $CC_UNIQ únicos)"
 
 # ---------------------------------------------------------------------------
+ONCHAIN_OK=0; ONCHAIN_FAIL=0; ONCHAIN_RES="(omitido)"
+SCRIPT_DIR_M="$(cd "$(dirname "$0")" && pwd)"
+if [ "$SIN_ONCHAIN" = "0" ]; then
+  echo ""
+  echo "── EXPERIMENTO M · Gobernanza 3/3 ON-CHAIN (contrato MultiFirmaAccionDER en Hardhat local)"
+  BC_DIR="$SCRIPT_DIR_M/../Blockchain"
+  if [ -d "$BC_DIR/node_modules" ]; then
+    export EVID_ONCHAIN="$(cd "$OUT_DIR" && pwd)/onchain-multifirma-$TS.json"
+    (cd "$BC_DIR" && npx hardhat run scripts/demo-multifirma-der.js >/tmp/onchain-multifirma.log 2>&1)
+    LINE=$(grep -E '^ONCHAIN_RESULT' /tmp/onchain-multifirma.log | tail -1)
+    ONCHAIN_OK=$(printf '%s' "$LINE" | sed -n 's/.*ok=\([0-9]*\).*/\1/p')
+    ONCHAIN_FAIL=$(printf '%s' "$LINE" | sed -n 's/.*fail=\([0-9]*\).*/\1/p')
+    if [ -n "$ONCHAIN_OK" ] && [ "${ONCHAIN_FAIL:-1}" = "0" ] && [ "$ONCHAIN_OK" -ge 20 ]; then
+      ONCHAIN_RES="$ONCHAIN_OK/$ONCHAIN_OK"
+      ok "contrato on-chain: $ONCHAIN_OK/$ONCHAIN_OK criterios (3/3, rechazo, no repudio, roles, TTL, pausa, eventos) · evidencia onchain-multifirma-$TS.json"
+    else
+      ONCHAIN_RES="FALLÓ"; bad "demo on-chain falló o incompleta (ver /tmp/onchain-multifirma.log)"
+    fi
+  else
+    echo "   ⚠ Blockchain/node_modules no instalado (cd Blockchain && npm install); se omite el bloque M"
+  fi
+fi
+
+# ---------------------------------------------------------------------------
 TEST_JUNIT="(omitido)"; TEST_HARDHAT="(omitido)"
 if [ "$CON_TESTS" = "1" ]; then
   echo ""
@@ -361,6 +406,7 @@ cat > "$EVID" <<JSON
   "experimentoJ_rendimiento": { "n": $N_PERF, "p50_ms": ${P50:-0}, "p95_ms": ${P95:-0}, "avg_ms": ${PAVG:-0}, "max_ms": ${PMAX:-0} },
   "experimentoK_ab_prompts": "$AB",
   "experimentoL_concurrencia": { "n": $N_CONC, "respuestas_ok": ${CC_OK:-0}, "ids_unicos": ${CC_UNIQ:-0} },
+  "experimentoM_onchain": { "resultado": "$ONCHAIN_RES", "evidencia": "onchain-multifirma-$TS.json" },
   "experimentoI_tests": { "junit": "$TEST_JUNIT", "hardhat": "$TEST_HARDHAT" },
   "criterios_ok": $PASS, "criterios_fallidos": $FAIL
 }
@@ -373,6 +419,7 @@ cat > "$REPORTE" <<MD
 - **Fecha:** $TS
 - **Servicio:** \`$IA\`
 - **Resultado:** **$PASS/$((PASS+FAIL)) criterios superados** · fallidos: $FAIL
+- **On-chain (M):** $ONCHAIN_RES · evidencia \`onchain-multifirma-$TS.json\`
 - **Pruebas automatizadas:** JUnit=$TEST_JUNIT · Hardhat=$TEST_HARDHAT
 
 | Estado | Criterio |
@@ -408,6 +455,7 @@ $HTML_ROWS
 <p class="m"><b>Rendimiento (J):</b> p50=${P50:-0}ms · p95=${P95:-0}ms · avg=${PAVG:-0}ms · max=${PMAX:-0}ms (n=$N_PERF)<br>
 <b>A/B de prompts (K):</b> $AB<br>
 <b>Concurrencia (L):</b> ${CC_OK:-0}/$N_CONC respuestas · ${CC_UNIQ:-0} ids únicos<br>
+<b>On-chain (M):</b> $ONCHAIN_RES<br>
 <b>Pruebas automatizadas (I):</b> JUnit=$TEST_JUNIT · Hardhat=$TEST_HARDHAT</p>
 <p class="m">Generado por <code>Microservicios/experimento-ia-der.sh</code>.</p>
 </body></html>

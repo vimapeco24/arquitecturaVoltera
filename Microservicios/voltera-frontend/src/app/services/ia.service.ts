@@ -176,6 +176,33 @@ export interface RespuestaAsistente {
   generadoEn: string;
 }
 
+/** Hito de la línea de tiempo de auditoría de una propuesta. */
+export interface EventoAuditoriaDto {
+  instante: string;
+  tipo: string;
+  actor: string;
+  detalle: string;
+  tx: string | null;
+}
+export interface AuditoriaPropuestaDto {
+  propuestaId: string;
+  estado: string;
+  hashDiagnostico: string;
+  versionPrompt: string;
+  versionModelo: string;
+  eventos: EventoAuditoriaDto[];
+}
+/** Indicadores agregados de la gobernanza 3/3. */
+export interface MetricasGobernanzaDto {
+  total: number;
+  porEstado: Record<string, number>;
+  ejecutadas: number;
+  ejecutadasSin3de3: number;
+  tasaEjecucion: number;
+  tasaRechazo: number;
+  promedioFirmas: number;
+}
+
 /** Resultado de Evals por versión de prompt (Tema 5). */
 export interface ResultadoEval {
   agente: string;
@@ -267,6 +294,22 @@ export class IaService {
   aprobaciones(propuestaId: string): Observable<EstadoAprobacionesDto> {
     return this.http.get<EstadoAprobacionesDto>(
       this.url(`api/v1/ia/gobernanza/propuestas/${propuestaId}/aprobaciones`));
+  }
+
+  /** Línea de tiempo de auditoría (quién, qué, cuándo, tx) de una propuesta. */
+  auditoria(propuestaId: string): Observable<AuditoriaPropuestaDto> {
+    return this.http.get<AuditoriaPropuestaDto>(
+      this.url(`api/v1/ia/gobernanza/propuestas/${propuestaId}/auditoria`));
+  }
+
+  /** Indicadores agregados de la gobernanza (estados, tasas, garantía fail-closed). */
+  metricasGobernanza(): Observable<MetricasGobernanzaDto> {
+    return this.http.get<MetricasGobernanzaDto>(this.url('api/v1/ia/gobernanza/metricas'));
+  }
+
+  /** Caduca las propuestas cuyo TTL expiró sin 3/3 (fail-closed). */
+  caducarVencidas(): Observable<PropuestaResponse[]> {
+    return this.http.post<PropuestaResponse[]>(this.url('api/v1/ia/gobernanza/vencidas'), {});
   }
 
   propuestas(): Observable<PropuestaResponse[]> {

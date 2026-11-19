@@ -269,6 +269,22 @@
               <p class="hint" *ngIf="a.modo === 'SIMULADO'">Modo simulado: el contrato no está desplegado/configurado; las referencias <code>demo:</code> no existen en Polygonscan.</p>
               <p class="hint" *ngIf="a.txEjecucionUrl">Ejecución: <a [href]="a.txEjecucionUrl" target="_blank" rel="noopener">ver en el explorador</a></p>
             </div>
+            <!-- Auditoría (línea de tiempo para la CREG) -->
+            <div class="auditoria" *ngIf="auditoria as au">
+              <h5>🧾 Auditoría de la propuesta <span class="v-badge mini" [ngClass]="badgeEstadoPropuesta(au.estado)">{{ au.estado }}</span></h5>
+              <ol class="timeline">
+                <li *ngFor="let e of au.eventos">
+                  <span class="tl-ic">{{ iconoEvento(e.tipo) }}</span>
+                  <div>
+                    <strong>{{ e.tipo }}</strong> · <span class="f-id">{{ e.actor }}</span>
+                    <span class="f-id">{{ e.instante | date:'dd/MM HH:mm:ss' }}</span>
+                    <div class="hint" *ngIf="e.detalle">{{ e.detalle }}</div>
+                    <code class="f-id" *ngIf="e.tx">{{ e.tx | slice:0:22 }}…</code>
+                  </div>
+                </li>
+              </ol>
+              <p class="hint">Hash del diagnóstico <code>{{ au.hashDiagnostico | slice:0:16 }}…</code> · {{ au.versionPrompt }} · modelo {{ au.versionModelo }}</p>
+            </div>
             <!-- Acciones de firma (según el firmante pendiente) -->
             <div class="firma-actions" *ngIf="p.estado === 'PENDIENTE'">
               <ng-container *ngIf="p.siguienteFirmante === 'OPERADOR'">
@@ -322,6 +338,20 @@
     <p class="hint">GET <code>/api/v1/ia/evals</code></p>
   </div>
 
+  <!-- ============ Tablero de gobernanza (métricas agregadas) ============ -->
+  <div class="kpis v-card" *ngIf="metricas as m">
+    <h3>📊 Tablero de gobernanza 3/3</h3>
+    <div class="kpi-grid">
+      <div class="kpi"><span class="kpi-n">{{ m.total }}</span><span class="kpi-l">propuestas</span></div>
+      <div class="kpi"><span class="kpi-n">{{ m.porEstado['PENDIENTE'] || 0 }}</span><span class="kpi-l">pendientes</span></div>
+      <div class="kpi"><span class="kpi-n">{{ m.ejecutadas }}</span><span class="kpi-l">ejecutadas (3/3)</span></div>
+      <div class="kpi"><span class="kpi-n">{{ m.porEstado['RECHAZADA'] || 0 }}</span><span class="kpi-l">rechazadas</span></div>
+      <div class="kpi"><span class="kpi-n">{{ m.porEstado['VENCIDA'] || 0 }}</span><span class="kpi-l">vencidas</span></div>
+      <div class="kpi" [class.kpi-ok]="m.ejecutadasSin3de3 === 0"><span class="kpi-n">{{ m.ejecutadasSin3de3 }}</span><span class="kpi-l">ejecutadas sin 3/3 (debe ser 0)</span></div>
+    </div>
+    <p class="hint">Tasa de ejecución {{ m.tasaEjecucion * 100 | number:'1.0-0' }} % · rechazo {{ m.tasaRechazo * 100 | number:'1.0-0' }} % · firmas promedio {{ m.promedioFirmas }} · GET <code>/api/v1/ia/gobernanza/metricas</code></p>
+  </div>
+
   <!-- ============ Experimento de validación · Módulo 5 ============ -->
   <div class="exp v-card">
     <div class="exp-head">
@@ -331,20 +361,31 @@
       </button>
     </div>
     <p class="sub">
-      Valida en vivo el caso del documento Final en bloques A–L: (A) diagnóstico fundamentado RAG+MCP,
-      (B) gobernanza <strong>3/3</strong>, (C) Assistant sin persuadir y por audiencia, (D) Evals,
+      Valida en vivo el caso del documento Final en bloques: (P) estado de la plataforma, (A) diagnóstico
+      fundamentado RAG+MCP, (B) gobernanza <strong>3/3</strong> incluyendo rechazo, no repudio, caducidad por TTL y
+      <strong>aprobaciones múltiples visibles</strong> (B6), (C) Assistant sin persuadir y por audiencia, (D) Evals,
       (E) Guardrails, (F) variedad de activos, (G) trazabilidad de las 8 cajas, (H) robustez/determinismo,
       (J) rendimiento p50/p95, (K) A/B de prompts y (L) concurrencia.
+      La prueba <strong>on-chain</strong> del contrato (26 criterios con transacciones EVM reales) se ejecuta con
+      <code>npm run demo:multifirma</code> en <code>Blockchain/</code>.
     </p>
-    <ul class="exp-list" *ngIf="expResultados.length">
-      <li *ngFor="let r of expResultados" [class.ok]="r.ok" [class.bad]="!r.ok">
-        <span class="exp-ic">{{ r.ok ? '✓' : '✗' }}</span>
-        <span class="exp-nombre">{{ r.nombre }}</span>
-        <code class="exp-detalle">{{ r.detalle }}</code>
-      </li>
-    </ul>
+    <div class="exp-progreso" *ngIf="experimentando || expResultados.length">
+      <div class="exp-bar"><span [style.width.%]="expPorcentaje" [class.bad]="!expTodosOk && !experimentando"></span></div>
+      <small>{{ experimentando ? expProgreso : expPorcentaje + ' % de criterios superados' }}</small>
+    </div>
+    <div class="exp-grupo" *ngFor="let g of expGrupos">
+      <h4>{{ g.titulo }} <span class="v-badge" [ngClass]="g.ok === g.total ? 'ok' : 'err'">{{ g.ok }}/{{ g.total }}</span></h4>
+      <ul class="exp-list">
+        <li *ngFor="let r of g.items" [class.ok]="r.ok" [class.bad]="!r.ok">
+          <span class="exp-ic">{{ r.ok ? '✓' : '✗' }}</span>
+          <span class="exp-nombre">{{ r.nombre }}</span>
+          <code class="exp-detalle">{{ r.detalle }}</code>
+        </li>
+      </ul>
+    </div>
     <div class="exp-resumen" *ngIf="expResumen">
       <span class="v-badge big" [ngClass]="expTodosOk ? 'ok' : 'err'">{{ expResumen }}</span>
+      <button type="button" class="v-btn" (click)="descargarEvidencia()">⬇ Descargar evidencia (JSON)</button>
     </div>
     <p class="hint">Equivalente a <code>Microservicios/experimento-ia-der.sh</code> · doc <code>EXPERIMENTO_IA_DER_VOLTERA.md</code></p>
   </div>

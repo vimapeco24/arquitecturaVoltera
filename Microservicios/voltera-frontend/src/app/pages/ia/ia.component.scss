@@ -258,3 +258,19 @@
 .aprobaciones h5 { margin: 0 0 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .aprob-progress .bar { height: 6px; background: #e2e8f0; border-radius: 4px; margin-top: 4px; overflow: hidden; }
 .aprob-progress .fill { height: 100%; background: #16a34a; transition: width .3s; }
+
+.exp-progreso { margin: 10px 0 4px; }
+.exp-bar { height: 8px; border-radius: 6px; background: rgba(127,127,127,0.18); overflow: hidden; }
+.exp-bar span { display: block; height: 100%; background: #2e9e5b; transition: width .25s ease; }
+.exp-bar span.bad { background: var(--v-danger, #d9534f); }
+.exp-grupo h4 { margin: 14px 0 4px; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+.exp-resumen { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+.timeline { list-style: none; margin: 8px 0; padding: 0 0 0 6px; border-left: 2px solid rgba(127,127,127,0.3); display: flex; flex-direction: column; gap: 8px; }
+.timeline li { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; }
+.timeline .tl-ic { margin-left: -16px; background: var(--v-bg, #fff); border-radius: 50%; width: 20px; text-align: center; }
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin: 10px 0; }
+.kpi { display: flex; flex-direction: column; padding: 10px 12px; border-radius: 10px; background: rgba(127,127,127,0.08); }
+.kpi-n { font-size: 24px; font-weight: 800; }
+.kpi-l { font-size: 11px; color: var(--v-muted); }
+.kpi.kpi-ok .kpi-n { color: #2e9e5b; }

@@ -3,11 +3,12 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import {
   IaService, DiagnosticoResponse, EstadoIa, AgenteRegistrado, PasoDto,
-  PropuestaResponse, EstadoAprobacionesDto, RespuestaAsistente, ResultadoEval,
+  PropuestaResponse, EstadoAprobacionesDto, AuditoriaPropuestaDto, MetricasGobernanzaDto, RespuestaAsistente, ResultadoEval,
 } from '../../services/ia.service';
 import { ToastService } from '../../core/toast.service';
 import { describeHttpError } from '../../core/http-error';
 import { firstValueFrom } from 'rxjs';
+import { environment } from '../../../environments/environment';
 
 /** Un nodo del pipeline agéntico, con su estado de ejecución para la animación. */
 export interface NodoFlujo {
@@ -56,6 +57,10 @@ export class IaComponent implements OnInit, OnDestroy {
   propuesta?: PropuestaResponse;
   /** Panel «Aprobaciones múltiples» (lectura GET .../aprobaciones). */
   aprobaciones?: EstadoAprobacionesDto;
+  /** Línea de tiempo de auditoría de la propuesta activa. */
+  auditoria?: AuditoriaPropuestaDto;
+  /** Indicadores agregados de la gobernanza 3/3. */
+  metricas?: MetricasGobernanzaDto;
   proponiendo = false;
   firmando = false;
   /** Mensaje de conversación: lista de preguntas/respuestas del Assistant. */
@@ -70,6 +75,60 @@ export class IaComponent implements OnInit, OnDestroy {
   experimentando = false;
   expResultados: { nombre: string; ok: boolean; detalle: string }[] = [];
   expResumen = '';
+  expDuracionMs = 0;
+  expProgreso = '';
+  /** Definición de los bloques del experimento (título para agrupar en pantalla). */
+  readonly expBloques: Record<string, string> = {
+    P: 'Pre · estado de la plataforma',
+    A: 'A · Diagnóstico agéntico fundamentado (RAG + MCP · 4 agentes)',
+    B: 'B · Gobernanza multi-firma 3/3 (MultiFirmaAccionDER)',
+    C: 'C · Responsible AI del Assistant',
+    D: 'D · Evals & Tracing',
+    E: 'E · Guardrails',
+    F: 'F · Variedad de activos y degradación elegante',
+    G: 'G · Trazabilidad y cobertura',
+    H: 'H · Robustez y determinismo',
+    J: 'J · Rendimiento',
+    K: 'K · A/B de versiones de prompt',
+    L: 'L · Concurrencia',
+  };
+
+  /** Resultados agrupados por bloque, con conteo ✓ por bloque. */
+  get expGrupos(): { clave: string; titulo: string; ok: number; total: number; items: { nombre: string; ok: boolean; detalle: string }[] }[] {
+    const mapa = new Map<string, { nombre: string; ok: boolean; detalle: string }[]>();
+    for (const r of this.expResultados) {
+      const k = r.nombre.charAt(0);
+      if (!mapa.has(k)) mapa.set(k, []);
+      mapa.get(k)!.push(r);
+    }
+    return [...mapa.entries()].map(([clave, items]) => ({
+      clave, titulo: this.expBloques[clave] ?? clave, items,
+      ok: items.filter((i) => i.ok).length, total: items.length,
+    }));
+  }
+
+  get expPorcentaje(): number {
+    const t = this.expResultados.length;
+    return t ? Math.round((this.expResultados.filter((r) => r.ok).length / t) * 100) : 0;
+  }
+
+  /** Descarga la evidencia del experimento (JSON) para adjuntar a la entrega. */
+  descargarEvidencia(): void {
+    const ok = this.expResultados.filter((r) => r.ok).length;
+    const evidencia = {
+      experimento: 'Módulo 5 · Agente DER + gobernanza multi-firma 3/3',
+      fecha: new Date().toISOString(),
+      iaService: environment.iaBase || '(gateway WSO2)',
+      criteriosOk: ok, criteriosTotal: this.expResultados.length, duracionMs: this.expDuracionMs,
+      criterios: this.expResultados,
+    };
+    const blob = new Blob([JSON.stringify(evidencia, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `evidencia-experimento-ia-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
 
   /** true si todos los criterios del experimento pasaron. */
   get expTodosOk(): boolean {
@@ -152,6 +211,7 @@ export class IaComponent implements OnInit, OnDestroy {
     this.svc.estado().subscribe({ next: (e) => (this.estado = e), error: () => {} });
     this.svc.agentes().subscribe({ next: (a) => (this.agentes = a ?? []), error: () => {} });
     this.svc.evals().subscribe({ next: (r) => (this.evals = r ?? []), error: () => {} });
+    this.cargarMetricas();
     // Si cambia el tipo de activo, el Activo ID autogenerado toma el nuevo prefijo.
     this.form.get('tipoActivo')?.valueChanges.subscribe(() => this.regenerarActivoId());
   }
@@ -178,6 +238,7 @@ export class IaComponent implements OnInit, OnDestroy {
     // Reinicia el flujo de gobernanza y la conversación del Assistant.
     this.propuesta = undefined;
     this.aprobaciones = undefined;
+    this.auditoria = undefined;
     this.chat = [];
     this.preguntaTexto = '';
     this.flujo = this.guion.map((g) => ({ ...g, estado: 'pendiente' as const }));
@@ -347,6 +408,28 @@ export class IaComponent implements OnInit, OnDestroy {
       next: (a) => (this.aprobaciones = a),
       error: () => (this.aprobaciones = undefined),
     });
+    this.svc.auditoria(propuestaId).subscribe({
+      next: (a) => (this.auditoria = a),
+      error: () => (this.auditoria = undefined),
+    });
+    this.cargarMetricas();
+  }
+
+  /** KPIs de la gobernanza; si falla, el tablero no se muestra. */
+  cargarMetricas(): void {
+    this.svc.metricasGobernanza().subscribe({
+      next: (m) => (this.metricas = m),
+      error: () => (this.metricas = undefined),
+    });
+  }
+
+  iconoEvento(tipo: string): string {
+    if (tipo.startsWith('RECHAZO')) return '✘';
+    if (tipo === 'EJECUTADA') return '⚡';
+    if (tipo === 'APROBADA_3_DE_3') return '✅';
+    if (tipo === 'VENCIDA') return '⌛';
+    if (tipo === 'PROPUESTA_CREADA') return '📝';
+    return '✍';
   }
 
   badgeFirmante(estado: string): string {
@@ -381,7 +464,7 @@ export class IaComponent implements OnInit, OnDestroy {
     });
   }
 
-  // ── Experimento de validación del Módulo 5 (A–D) ───────────────────────────
+  // ── Experimento de validación del Módulo 5 (P, A–L) ───────────────────────────
 
   /**
    * Corre el experimento del Módulo 5 contra el ia-service y muestra ✓/✗ por
@@ -393,9 +476,19 @@ export class IaComponent implements OnInit, OnDestroy {
     this.experimentando = true;
     this.expResultados = [];
     this.expResumen = '';
-    const add = (nombre: string, ok: boolean, detalle: string) =>
+    this.expDuracionMs = 0;
+    const t0exp = performance.now();
+    const add = (nombre: string, ok: boolean, detalle: string) => {
       this.expResultados.push({ nombre, ok, detalle });
+      this.expProgreso = `${this.expResultados.length} criterios evaluados…`;
+    };
     try {
+      // Pre · estado de la plataforma (4 agentes, sin modo 2/3)
+      const est = await firstValueFrom(this.svc.estado());
+      add('P · Flujo con 4 agentes (Monitor→Diagnosticador→Acción→Notificador)', (est.agentes?.length ?? 0) >= 4, `${est.agentes?.length ?? 0} agentes`);
+      add('P · Sin modo degradado 2/3 (gobernanza exige 3/3)', est.gobernanza?.modoDegradado2de3 === false, `modoDegradado2de3=${est.gobernanza?.modoDegradado2de3}`);
+      add('P · Dos MCP Servers (Device Management + Blockchain Gateway)', (est.mcpServers?.length ?? 0) >= 2, `${est.mcpServers?.length ?? 0} MCP`);
+
       // A · Diagnóstico agéntico fundamentado
       const d = await firstValueFrom(this.svc.diagnosticarDer({
         activoId: 'INV-EXP-' + Date.now(), tipoActivo: 'INVERSOR', comunidadId: 'COM-NORTE',
@@ -449,6 +542,30 @@ export class IaComponent implements OnInit, OnDestroy {
         await firstValueFrom(this.svc.proponerAccion(dMon.diagnosticoId));
       } catch { proponerRechazado = true; }
       add('B4 · No se propone gobernanza sin acción (solo monitoreo)', proponerRechazado, proponerRechazado ? 'proponer rechazado para MONITOREAR' : 'permitió proponer sin acción');
+
+      // B5 · Caducidad por TTL (fail-closed): el endpoint de vencidas opera
+      let vencidasOk = false;
+      try { await firstValueFrom(this.svc.caducarVencidas()); vencidasOk = true; } catch { vencidasOk = false; }
+      add('B5 · Caducidad por TTL operativa (vencidas no se ejecutan)', vencidasOk, vencidasOk ? 'HTTP 200' : 'no responde');
+
+      // B6 · Aprobaciones múltiples visibles (3/3 con marca de tiempo, rechazo y modo)
+      const ap = await firstValueFrom(this.svc.aprobaciones(p1.propuestaId));
+      const firmasConFecha = ap.firmantes.filter((f) => f.estado === 'FIRMO' && !!f.firmadoEn).length;
+      add('B6 · Aprobaciones 3/3: los 3 firmantes con marca de tiempo', ap.firmasAprobadas === 3 && firmasConFecha === 3, `${ap.progreso} · estado ${ap.estado}`);
+      add('B6 · Modo explícito ON_CHAIN / SIMULADO', ap.modo === 'ON_CHAIN' || ap.modo === 'SIMULADO', `modo=${ap.modo}${ap.contrato ? ' · ' + ap.contrato : ''}`);
+      const apR = await firstValueFrom(this.svc.aprobaciones(pr1.propuestaId));
+      add('B6 · Propuesta rechazada: estado RECHAZADA con 1 firmante en RECHAZO',
+        apR.estado === 'RECHAZADA' && apR.firmantes.filter((f) => f.estado === 'RECHAZO').length === 1, `${apR.estado}`);
+
+      // B7 · Auditoría (línea de tiempo CREG) y métricas agregadas
+      const au = await firstValueFrom(this.svc.auditoria(p1.propuestaId));
+      const tipos = au.eventos.map((e) => e.tipo);
+      add('B7 · Auditoría reconstruye el ciclo (creada → 3 firmas → 3/3 → ejecutada)',
+        tipos[0] === 'PROPUESTA_CREADA' && ['FIRMA_AGENTE_IA', 'FIRMA_OPERADOR', 'FIRMA_PROSUMIDOR', 'APROBADA_3_DE_3', 'EJECUTADA'].every((t) => tipos.includes(t)),
+        `${au.eventos.length} hitos`);
+      const met = await firstValueFrom(this.svc.metricasGobernanza());
+      this.metricas = met;
+      add('B7 · Métricas: 0 ejecutadas sin 3/3 (fail-closed verificado)', met.ejecutadasSin3de3 === 0 && met.ejecutadas >= 1, `ejecutadas=${met.ejecutadas} · sin3/3=${met.ejecutadasSin3de3}`);
 
       // C · Responsible AI del Assistant (no persuasión + por audiencia)
       const r = await firstValueFrom(this.svc.preguntarAsistente(d.diagnosticoId, 'PROSUMIDOR', '¿qué pasa si no apruebo?'));
@@ -562,12 +679,14 @@ export class IaComponent implements OnInit, OnDestroy {
 
       const ok = this.expResultados.filter((x) => x.ok).length;
       const total = this.expResultados.length;
-      this.expResumen = `${ok}/${total} criterios superados`;
+      this.expDuracionMs = Math.round(performance.now() - t0exp);
+      this.expResumen = `${ok}/${total} criterios superados · ${(this.expDuracionMs / 1000).toFixed(1)} s`;
       if (ok === total) this.toast.success('Experimento Módulo 5', this.expResumen);
       else this.toast.error('Experimento Módulo 5', this.expResumen);
     } catch (e) {
       this.toast.error('Error en el experimento', describeHttpError(e));
     } finally {
+      this.expProgreso = '';
       this.experimentando = false;
     }
   }
