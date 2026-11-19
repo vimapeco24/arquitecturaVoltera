@@ -72,11 +72,12 @@ public class CapacidadesController {
         if (cache != null && Duration.between(cacheEn, Instant.now()).getSeconds() < 60) {
             return ResponseEntity.ok(cache);
         }
-        Map<String, Object> red = sonda(blockchainUrl + "/api/v1/anclajes/red");
-        Map<String, Object> gob = sonda(blockchainUrl + "/api/v1/gobernanza/propuestas/00000000-0000-0000-0000-000000000000/estado");
+        // El gateway en Render free puede estar dormido: se le da tiempo de arranque.
+        Map<String, Object> red = sonda(blockchainUrl + "/api/v1/anclajes/red", 45);
+        Map<String, Object> gob = sonda(blockchainUrl + "/api/v1/gobernanza/propuestas/00000000-0000-0000-0000-000000000000/estado", 20);
         boolean anclajeVivo = red != null && Boolean.TRUE.equals(red.get("disponible"));
         boolean contratoGob = gob != null && "ON_CHAIN".equals(String.valueOf(gob.get("modo")));
-        Map<String, Object> tel = sonda(telemetriaUrl + "/actuator/health");
+        Map<String, Object> tel = sonda(telemetriaUrl + "/actuator/health", 6);
         boolean telVivo = tel != null && "UP".equals(String.valueOf(tel.get("status")));
 
         List<Capacidad> c = new ArrayList<>();
@@ -109,7 +110,7 @@ public class CapacidadesController {
                 webhook.isEmpty() ? "IA_NOTIF_WEBHOOK_URL para enviar también a Slack/Teams" : ""));
         c.add(new Capacidad("anclaje", "Blockchain · contrato de anclaje (Amoy)", anclajeVivo ? "OPERATIVO" : "PENDIENTE",
                 anclajeVivo ? "Contrato " + red.get("contrato") + " en " + red.get("red") + " responde."
-                        : "El blockchain-gateway no respondió.",
+                        : "El blockchain-gateway no respondió en 45 s (en Render free puede estar arrancando); reintenta con «Recalcular».",
                 "GET " + blockchainUrl + "/api/v1/anclajes/red", anclajeVivo ? "" : "blockchain-gateway disponible"));
         c.add(new Capacidad("contrato", "Blockchain · MultiFirmaAccionDER (Amoy)", contratoGob ? "OPERATIVO" : "PENDIENTE",
                 contratoGob ? "Las aprobaciones se leen del contrato desplegado."
@@ -139,15 +140,16 @@ public class CapacidadesController {
         out.put("capacidades", c);
         out.put("direccionesFirmantes", firmas.direcciones());
         cache = out;
-        cacheEn = Instant.now();
+        // Si alguna sonda externa falló, se vuelve a intentar pronto.
+        cacheEn = anclajeVivo ? Instant.now() : Instant.now().minusSeconds(45);
         return ResponseEntity.ok(out);
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> sonda(String url) {
+    private Map<String, Object> sonda(String url, int segundos) {
         if (!toolsEnabled || url == null || url.isBlank() || url.startsWith("/")) return null;
         try {
-            return http.get().uri(url).retrieve().bodyToMono(Map.class).timeout(Duration.ofSeconds(6)).block();
+            return http.get().uri(url).retrieve().bodyToMono(Map.class).timeout(Duration.ofSeconds(segundos)).block();
         } catch (Exception e) {
             return null;
         }

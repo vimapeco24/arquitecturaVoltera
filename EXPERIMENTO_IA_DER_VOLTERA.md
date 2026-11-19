@@ -170,7 +170,7 @@ responden y que cada uno recibe un `diagnosticoId` **único** (sin corrupción d
 | Firmas ECDSA | `GET .../firmas/verificacion`: 3 firmas EIP-191 válidas con `ecrecover`, 3 cuentas distintas | ✓ |
 | Firma falsa | firma de billetera que no corresponde a la dirección → HTTP 400 | ✓ |
 | Notificaciones | `GET /ia/notificaciones?propuestaId=`: operador (1/3) → prosumidor (2/3) → desenlace | ✓ |
-| Capacidades | `GET /ia/capacidades`: estado calculado en vivo (6 operativas, 4 con respaldo local, 1 pendiente) | ✓ |
+| Capacidades | `GET /ia/capacidades`: estado calculado en vivo; RAG, Evals, firmas, gobernanza y notificaciones OPERATIVAS | ✓ |
 
 Estados de `/ia/capacidades`: **OPERATIVO** (funciona de punta a punta), **LOCAL** (funciona con respaldo local porque falta un recurso externo) y **PENDIENTE** (requiere acción externa). Hoy PENDIENTE solo el despliegue de `MultiFirmaAccionDER` en Amoy (falta POL de prueba).
 

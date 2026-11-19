@@ -222,7 +222,7 @@ export class IaComponent implements OnInit, OnDestroy {
     H: { hipotesis: 'El servicio rechaza entradas inválidas y es reproducible.', metodo: 'Payload sin activoId, Assistant sobre id inexistente, mismo input dos veces', endpoints: ['POST /ia/diagnostico/der', 'POST /ia/asistente/preguntar'], umbral: 'HTTP 4xx · diagnóstico idéntico' },
     J: { hipotesis: 'La latencia del motor local es apta para operación.', metodo: '8 diagnósticos secuenciales, percentiles p50/p95', endpoints: ['POST /ia/diagnostico/der'], umbral: 'p50 ≤ 2 s' },
     K: { hipotesis: 'Entre dos versiones de prompt se elige la apta con mejor acierto.', metodo: 'Comparación asistente-prosumidor vs asistente-operador', endpoints: ['GET /ia/evals'], umbral: 'versión ganadora apta' },
-    N: { hipotesis: 'Las integraciones funcionan de punta a punta: el RAG recupera del corpus, las Evals corren el dataset, las firmas se verifican con ecrecover y las notificaciones llegan a cada rol.', metodo: 'Consulta BM25, corrida de Evals, verificación de las 3 firmas, firma de billetera falsa, bandeja y capacidades', endpoints: ['GET /conocimiento/buscar', 'GET /evals/reporte', 'GET .../firmas/verificacion', 'GET /notificaciones', 'GET /capacidades'], umbral: 'doc correcto · 6 familias aptas · 3/3 firmas válidas · firma falsa 4xx · 3 avisos · ≥ 6 operativas' },
+    N: { hipotesis: 'Las integraciones funcionan de punta a punta: el RAG recupera del corpus, las Evals corren el dataset, las firmas se verifican con ecrecover y las notificaciones llegan a cada rol.', metodo: 'Consulta BM25, corrida de Evals, verificación de las 3 firmas, firma de billetera falsa, bandeja y capacidades', endpoints: ['GET /conocimiento/buscar', 'GET /evals/reporte', 'GET .../firmas/verificacion', 'GET /notificaciones', 'GET /capacidades'], umbral: 'doc correcto · 6 familias aptas · 3/3 firmas válidas · firma falsa 4xx · 3 avisos · 5 capacidades internas operativas' },
     L: { hipotesis: 'Peticiones paralelas no corrompen el estado.', metodo: '5 diagnósticos simultáneos', endpoints: ['POST /ia/diagnostico/der'], umbral: '5 respuestas · 5 ids únicos' },
   };
 
@@ -755,7 +755,8 @@ export class IaComponent implements OnInit, OnDestroy {
       add('N · Bandeja: operador → prosumidor → desenlace', tiposN === 'OPERADOR:FIRMA_PENDIENTE,PROSUMIDOR:FIRMA_PENDIENTE,TODOS:DESENLACE', tiposN);
       const cap = await firstValueFrom(this.svc.capacidades());
       this.capacidades = cap;
-      add('N · Capacidades calculadas por el backend', (cap.resumen['OPERATIVO'] ?? 0) >= 6, JSON.stringify(cap.resumen));
+      const internas = cap.capacidades.filter((c) => ['rag', 'evals', 'firmas', 'gobernanza', 'notificaciones'].includes(c.clave) && c.estado === 'OPERATIVO').length;
+      add('N · Capacidades calculadas por el backend (5 internas operativas)', internas === 5, JSON.stringify(cap.resumen));
 
       // C · Responsible AI del Assistant (no persuasión + por audiencia)
       const r = await firstValueFrom(this.svc.preguntarAsistente(d.diagnosticoId, 'PROSUMIDOR', '¿qué pasa si no apruebo?'));

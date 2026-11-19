@@ -215,8 +215,8 @@ NOT=$(curl -s --max-time 40 "$IA/api/v1/ia/notificaciones?propuestaId=$PID")
 NOTT=$(printf '%s' "$NOT" | jqpy "','.join(sorted(n['destinatario']+':'+n['tipo'] for n in d))")
 [ "$NOTT" = "OPERADOR:FIRMA_PENDIENTE,PROSUMIDOR:FIRMA_PENDIENTE,TODOS:DESENLACE" ] && ok "bandeja de notificaciones: operador → prosumidor → desenlace" || bad "notificaciones inesperadas ($NOTT)"
 CAP=$(curl -s --max-time 60 "$IA/api/v1/ia/capacidades")
-CAPN=$(printf '%s' "$CAP" | jqpy "d['resumen'].get('OPERATIVO',0)")
-[ "${CAPN:-0}" -ge 6 ] && ok "capacidades calculadas en vivo: $CAPN operativas ($(printf '%s' "$CAP" | jqpy "d['resumen']"))" || bad "capacidades insuficientes ($CAPN)"
+CAPN=$(printf '%s' "$CAP" | jqpy "len([c for c in d['capacidades'] if c['clave'] in ('rag','evals','firmas','gobernanza','notificaciones') and c['estado']=='OPERATIVO'])")
+[ "${CAPN:-0}" = "5" ] && ok "capacidades calculadas en vivo: RAG, Evals, firmas, gobernanza y notificaciones OPERATIVAS ($(printf '%s' "$CAP" | jqpy "d['resumen']"))" || bad "capacidades internas no operativas ($CAPN/5)"
 # ---------------------------------------------------------------------------
 echo ""
 echo "── EXPERIMENTO C · Responsible AI del Assistant (no persuasión + por audiencia)"
