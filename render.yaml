@@ -47,6 +47,8 @@ services:
         sync: false
       - key: VOLTERA_BLOCKCHAIN_CERTIFICADO_NFT
         sync: false
+      - key: VOLTERA_BLOCKCHAIN_GOBERNANZA_ADDRESS
+        sync: false               # contrato de gobernanza (multi-firma 3/3); se define en el dashboard
 
   # Capa GenAI (Entrega 5): Copiloto de Siniestros. Del lado de la nube.
   - type: web
@@ -82,3 +84,5 @@ services:
         value: "https://voltera-blockchain-gateway.onrender.com"
       - key: IA_TOOL_SINIESTROS_URL
         sync: false               # opcional: URL pública si se expone el servicio
+      - key: IA_TOOL_TELEMETRIA_URL
+        sync: false               # opcional: URL pública de telemetria-service

@@ -9,7 +9,7 @@
 #   2) Login al registry:  docker login 192.168.3.13 -u voltera-user
 #   3) Ejecutar:           docker compose -f docker-compose.deploy.yml up -d
 #
-# Los puertos 8081-8088 y 8761 quedan expuestos en la IP del Synology,
+# Puertos reales de cada modulo (ver application.yml) y 8761 quedan expuestos en la IP del Synology,
 # que es lo que consumira Postman (urlX = http://192.168.3.13:<puerto>).
 
 services:
@@ -34,6 +34,23 @@ services:
     container_name: voltera-facturacion
     restart: unless-stopped
     ports:
+      - "8088:8088"
+    environment:
+      - EUREKA_ENABLED=true
+      - EUREKA_URL=http://service-registry:8761/eureka/
+    depends_on:
+      service-registry:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  liquidacion-p2p-service:
+    image: 192.168.3.13/app-voltaire/liquidacion-p2p-service:1.0.0
+    container_name: voltera-liquidacion-p2p
+    restart: unless-stopped
+    ports:
       - "8081:8081"
     environment:
       - EUREKA_ENABLED=true
@@ -46,9 +63,9 @@ services:
         limits:
           memory: 512M
 
-  liquidacion-service:
-    image: 192.168.3.13/app-voltaire/liquidacion-service:1.0.0
-    container_name: voltera-liquidacion
+  liquidacion-mensual-service:
+    image: 192.168.3.13/app-voltaire/liquidacion-mensual-service:1.0.0
+    container_name: voltera-liquidacion-mensual
     restart: unless-stopped
     ports:
       - "8082:8082"
@@ -119,41 +136,7 @@ services:
     container_name: voltera-notificaciones
     restart: unless-stopped
     ports:
-      - "8086:8086"
-    environment:
-      - EUREKA_ENABLED=true
-      - EUREKA_URL=http://service-registry:8761/eureka/
-    depends_on:
-      service-registry:
-        condition: service_healthy
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-
-  reportes-service:
-    image: 192.168.3.13/app-voltaire/reportes-service:1.0.0
-    container_name: voltera-reportes
-    restart: unless-stopped
-    ports:
-      - "8087:8087"
-    environment:
-      - EUREKA_ENABLED=true
-      - EUREKA_URL=http://service-registry:8761/eureka/
-    depends_on:
-      service-registry:
-        condition: service_healthy
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-
-  comunidades-service:
-    image: 192.168.3.13/app-voltaire/comunidades-service:1.0.0
-    container_name: voltera-comunidades
-    restart: unless-stopped
-    ports:
-      - "8088:8088"
+      - "8099:8099"
     environment:
       - EUREKA_ENABLED=true
       - EUREKA_URL=http://service-registry:8761/eureka/

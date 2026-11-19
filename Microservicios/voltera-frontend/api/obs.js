@@ -9,7 +9,7 @@
 //
 // Opcional (métricas Istio por salto ENTRE micros): OBS_PROMETHEUS=https://…
 //
-// Env (defaults para la demo):
+// Env (WSO2_CONSUMER_KEY y WSO2_CONSUMER_SECRET son obligatorias, sin default):
 //   OBS_GATEWAY_BASE (https://atiesia.synology.me:3000)
 //   WSO2_TOKEN_URL / WSO2_CONSUMER_KEY / WSO2_CONSUMER_SECRET
 //   OBS_PROMETHEUS (opcional)
@@ -19,8 +19,6 @@ import https from 'node:https';
 
 const GATEWAY = process.env.OBS_GATEWAY_BASE || 'https://atiesia.synology.me:3000';
 const TOKEN_URL = process.env.WSO2_TOKEN_URL || 'https://atiesia.synology.me:3001/oauth2/token';
-const CK = process.env.WSO2_CONSUMER_KEY || 'ndzpaXfp_KkDgRacWPzwfZvAjLMa';
-const CS = process.env.WSO2_CONSUMER_SECRET || 'mQHpTjKHPHCNViwFNBsTCnfffDMa';
 const PROM = process.env.OBS_PROMETHEUS || '';
 
 const SERVICIOS = [
@@ -46,6 +44,10 @@ const SERVICIOS = [
   { key: 'notificaciones', workload: 'notificaciones-service' },
 ];
 
+/** Devuelve el nombre de las variables WSO2 obligatorias que faltan (nunca sus valores). */
+function missingCredentials() {
+  return ['WSO2_CONSUMER_KEY', 'WSO2_CONSUMER_SECRET'].filter((k) => !process.env[k]);
+}
 function request(rawUrl, { method = 'GET', headers = {}, body = null, timeout = 8000 } = {}) {
   return new Promise((resolve) => {
     const t0 = Date.now();
@@ -71,7 +73,7 @@ function request(rawUrl, { method = 'GET', headers = {}, body = null, timeout = 
 }
 
 async function getToken() {
-  const basic = Buffer.from(`${CK}:${CS}`).toString('base64');
+  const basic = Buffer.from(`${process.env.WSO2_CONSUMER_KEY}:${process.env.WSO2_CONSUMER_SECRET}`).toString('base64');
   const r = await request(TOKEN_URL, {
     method: 'POST',
     headers: { Authorization: `Basic ${basic}`, 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -103,6 +105,13 @@ function baseSnapshot() {
 
 export default async function handler(req, res) {
   const snap = baseSnapshot();
+  const missing = missingCredentials();
+  if (missing.length) {
+    snap.error = `Falta configurar la variable de entorno: ${missing.join(', ')}`;
+    snap.missingEnv = missing;
+    res.setHeader('Content-Type', 'application/json');
+    return res.status(500).send(JSON.stringify(snap));
+  }
   try {
     const token = await getToken();
     const authH = token ? { Authorization: `Bearer ${token}` } : {};

@@ -9,20 +9,23 @@
 //   - Oculta el consumerSecret: nunca viaja al navegador.
 //   - Evita problemas de CORS del navegador contra el gateway.
 //
-// Config por variables de entorno de Vercel (con defaults para la demo):
+// Config por variables de entorno de Vercel. WSO2_CONSUMER_KEY y WSO2_CONSUMER_SECRET
+// son OBLIGATORIAS (sin valor por defecto); si faltan, responde 500 nombrándolas.
 //   WSO2_TOKEN_URL, WSO2_CONSUMER_KEY, WSO2_CONSUMER_SECRET
 
 import https from 'node:https';
 
 const TOKEN_URL = process.env.WSO2_TOKEN_URL || 'https://atiesia.synology.me:3001/oauth2/token';
-const CK = process.env.WSO2_CONSUMER_KEY || 'ndzpaXfp_KkDgRacWPzwfZvAjLMa';
-const CS = process.env.WSO2_CONSUMER_SECRET || 'mQHpTjKHPHCNViwFNBsTCnfffDMa';
+/** Devuelve el nombre de las variables WSO2 obligatorias que faltan (nunca sus valores). */
+function missingCredentials() {
+  return ['WSO2_CONSUMER_KEY', 'WSO2_CONSUMER_SECRET'].filter((k) => !process.env[k]);
+}
 
 /** POST server-to-server ignorando el certificado autofirmado del gateway. */
 function requestToken() {
   return new Promise((resolve, reject) => {
     const url = new URL(TOKEN_URL);
-    const basic = Buffer.from(`${CK}:${CS}`).toString('base64');
+    const basic = Buffer.from(`${process.env.WSO2_CONSUMER_KEY}:${process.env.WSO2_CONSUMER_SECRET}`).toString('base64');
     const payload = 'grant_type=client_credentials';
 
     const req = https.request(
@@ -56,6 +59,13 @@ export default async function handler(req, res) {
   if (req.method !== 'POST' && req.method !== 'GET') {
     res.setHeader('Allow', 'GET, POST');
     return res.status(405).json({ error: 'method_not_allowed' });
+  }
+  const missing = missingCredentials();
+  if (missing.length) {
+    return res.status(500).json({
+      error: 'missing_env',
+      message: `Falta configurar la variable de entorno: ${missing.join(', ')}`,
+    });
   }
   try {
     const r = await requestToken();
