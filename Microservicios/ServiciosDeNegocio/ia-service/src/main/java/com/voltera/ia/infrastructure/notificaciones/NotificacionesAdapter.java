@@ -30,15 +30,23 @@ public class NotificacionesAdapter implements NotificadorPort {
     private final String webhookUrl;
     private final WebClient http;
 
+    private final com.voltera.ia.domain.port.out.AgentRegistryPort agentes;
+
     public NotificacionesAdapter(BandejaNotificaciones bandeja,
+                                 com.voltera.ia.domain.port.out.AgentRegistryPort agentes,
                                  @Value("${ia.notificaciones.webhook-url:}") String webhookUrl) {
         this.bandeja = bandeja;
+        this.agentes = agentes;
         this.webhookUrl = webhookUrl == null ? "" : webhookUrl.trim();
         this.http = WebClient.builder().build();
     }
 
     /** Entrega en la bandeja y, si hay webhook, lo envía sin bloquear el flujo. */
     private String entregar(String destinatario, String tipo, PropuestaAccion p, String msg, boolean urgente) {
+        if (!agentes.habilitado("Agente-Notificador")) {
+            log.warn("[notificador] dado de baja en el Agent Registry: no se entrega {} a {}", tipo, destinatario);
+            return "notif:omitida-agente-de-baja";
+        }
         String canalWebhook = webhookUrl.isEmpty() ? "no configurado" : "enviado";
         var n = bandeja.agregar(destinatario, tipo, p.propuestaId().toString(), p.activoId(),
                 p.estado().name(), p.firmasResumen(), msg, urgente, canalWebhook);

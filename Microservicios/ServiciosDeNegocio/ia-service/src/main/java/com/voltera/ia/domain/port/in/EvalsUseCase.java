@@ -23,4 +23,10 @@ public interface EvalsUseCase {
 
     /** Igual que {@link #ejecutar()}, forzando una corrida nueva si {@code forzar} es true. */
     ReporteEvals ejecutar(boolean forzar);
+
+    /** Corre el dataset con cada versión registrada del diagnosticador (producción y candidatas). */
+    List<ReporteEvals.ComparacionVersion> compararVersionesDiagnosticador();
+
+    /** Corrida con una versión concreta del diagnosticador (para la compuerta de promoción). */
+    ReporteEvals ejecutarConVersion(String versionDiagnosticador);
 }

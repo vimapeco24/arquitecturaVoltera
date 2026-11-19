@@ -72,8 +72,26 @@ public class DiagnosticoDerService implements DiagnosticoDerUseCase {
         this.repositorio = repositorio;
     }
 
+    /** Métricas donde un valor MENOR al umbral es la anomalía (desde diagnosticador@v4). */
+    private static final java.util.Map<String, java.math.BigDecimal> MENOR_ES_PEOR = java.util.Map.of(
+            "soh", new java.math.BigDecimal("70"),   // ficha: SoH < 70 % exige retiro
+            "soc", new java.math.BigDecimal("10"));  // ficha: SoC no debe bajar de 10 %
+
     @Override
     public DiagnosticoDer diagnosticar(AlertaTelemetria alertaCruda) {
+        return diagnosticar(alertaCruda, null);
+    }
+
+    @Override
+    public DiagnosticoDer diagnosticar(AlertaTelemetria alertaCruda, String versionDiagnosticador) {
+        // Caja 4 · Agent Registry: un agente dado de baja detiene el flujo (fail-closed).
+        for (String requerido : List.of("Agente-Monitor", "Agente-Diagnosticador")) {
+            if (!agentRegistry.habilitado(requerido)) {
+                throw new com.voltera.ia.domain.exception.AgenteDeBajaException(requerido);
+            }
+        }
+        String version = versionDiagnosticador != null ? versionDiagnosticador : promptRegistry.versionPrompt("diagnosticador");
+        boolean consideraDireccion = numeroVersion(version) >= 4;
         List<PasoFlujo> traza = new ArrayList<>();
         int paso = 0;
 
@@ -102,12 +120,17 @@ public class DiagnosticoDerService implements DiagnosticoDerUseCase {
                         + "). Delegación entre agentes con permisos declarados."));
 
         // ---------------- Agente-Monitor ----------------
-        boolean anomalia = alerta.fueraDeRango() || alerta.sinSenal();
+        java.math.BigDecimal limiteCritico = consideraDireccion
+                ? MENOR_ES_PEOR.get(alerta.metrica() == null ? "" : alerta.metrica().toLowerCase()) : null;
+        boolean menorEsPeor = limiteCritico != null;
+        boolean fueraDeRango = menorEsPeor ? alerta.valor().compareTo(alerta.umbral()) < 0 : alerta.fueraDeRango();
+        boolean anomalia = fueraDeRango || alerta.sinSenal();
         String obsMonitor = alerta.sinSenal()
                 ? ("Activo sin señal hace " + alerta.minutosSinSenal() + " min.")
-                : (alerta.fueraDeRango()
+                : (fueraDeRango
                     ? ("Métrica '" + alerta.metrica() + "'=" + alerta.valor().toPlainString()
-                       + " supera el umbral " + alerta.umbral().toPlainString() + ".")
+                       + (menorEsPeor ? " está por debajo del mínimo " : " supera el umbral ")
+                       + alerta.umbral().toPlainString() + ".")
                     : "Métrica dentro de umbrales adaptativos.");
         traza.add(PasoFlujo.de(++paso, "agente-monitor", "AI Flows · evaluación de umbrales",
                 "Agente-Monitor: " + obsMonitor));
@@ -126,29 +149,37 @@ public class DiagnosticoDerService implements DiagnosticoDerUseCase {
                 "Herramientas MCP consultadas (solo lectura, autorización firmada): telemetría en "
                         + "tiempo real, historial de comandos y topología de red del activo."));
 
-        Severidad severidad = calcularSeveridad(alerta, anomalia, evidencias);
+        Severidad severidad = menorEsPeor
+                ? (!anomalia ? Severidad.INFO : alerta.valor().compareTo(limiteCritico) < 0 ? Severidad.CRITICA : Severidad.ADVERTENCIA)
+                : calcularSeveridad(alerta, anomalia, evidencias);
         traza.add(PasoFlujo.de(++paso, "agente-diagnosticador", "ReAct · correlación con patrones",
-                "Agente-Diagnosticador: correlaciona la anomalía con patrones conocidos del RAG "
-                        + "y clasifica severidad=" + severidad + "."));
+                "Agente-Diagnosticador (" + version + "): correlaciona la anomalía con patrones conocidos del RAG "
+                        + "y clasifica severidad=" + severidad + (menorEsPeor ? " (métrica donde menor es peor)" : "") + "."));
 
         // ---------------- Agente-Acción ----------------
         TipoAccion accion = proponerAccion(alerta, severidad, anomalia);
+        boolean accionDeBaja = !agentRegistry.habilitado("Agente-Accion");
+        if (accionDeBaja) accion = TipoAccion.MONITOREAR;   // sin Agente-Acción no se propone nada
         boolean requiereHumano = exigeAprobacionHumana(accion);
         traza.add(PasoFlujo.de(++paso, "agente-accion", "Tool calling = capa DER como herramienta",
-                "Agente-Acción propone: " + accion + ". "
+                accionDeBaja ? "Agente-Acción dado de baja en el Agent Registry: no se propone acción, solo monitoreo."
+                        : "Agente-Acción propone: " + accion + ". "
                         + (requiereHumano
                             ? "Acción sobre infraestructura crítica → EXIGE aprobación humana."
                             : "Acción no intrusiva → dentro de los límites del agente.")));
 
         // Caja 6 · Prompt & Model Registry + Model Gateway: redacción del diagnóstico.
-        String promptVersion = promptRegistry.versionPrompt("diagnosticador");
+        String promptVersion = version;
         String motor;
         String diagnosticoTexto;
-        var redaccion = modelGateway.redactarJustificacion(
-                new com.voltera.ia.domain.model.SolicitudCopiloto(
-                        alerta.activoId(), alerta.comunidadId(), usuario,
-                        descripcionSegura, alerta.valor(), true),
-                evidencias);
+        var redaccion = modelGateway.redactar("diagnostico-der", promptRegistry.promptActivo("diagnosticador"),
+                promptUsuario(alerta, severidad, accion, evidencias), seEnmascaro ? "RESTRINGIDO" : "INTERNO");
+        // Guardrail de salida (formato): la redacción del modelo debe nombrar la severidad y la acción.
+        if (redaccion.isPresent() && !(redaccion.get().toUpperCase().contains(severidad.name())
+                && redaccion.get().toUpperCase().contains(accion.name()))) {
+            guardrails.registrarActivacion("SAL-FORMATO");
+            redaccion = java.util.Optional.empty();
+        }
         if (redaccion.isPresent()) {
             diagnosticoTexto = guardrails.enmascararPII(redaccion.get());
             motor = modelGateway.identificadorMotor();
@@ -182,6 +213,25 @@ public class DiagnosticoDerService implements DiagnosticoDerUseCase {
     }
 
     // ------------------------------------------------------------------ heurística
+
+    private static int numeroVersion(String version) {
+        try {
+            return Integer.parseInt(version.substring(version.lastIndexOf("@v") + 2));
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private static String promptUsuario(AlertaTelemetria a, Severidad sev, TipoAccion accion, List<Evidencia> ev) {
+        StringBuilder sb = new StringBuilder("Activo ").append(a.activoId()).append(" (").append(a.tipoActivo())
+                .append(", comunidad ").append(a.comunidadId()).append("). Métrica '").append(a.metrica())
+                .append("' = ").append(a.valor().toPlainString()).append(", umbral ").append(a.umbral().toPlainString())
+                .append(", minutos sin señal ").append(a.minutosSinSenal()).append(".\n")
+                .append("Clasificación de las reglas: severidad ").append(sev).append(", acción ").append(accion)
+                .append(". Debes nombrar ambas tal cual.\nEvidencia:\n");
+        for (Evidencia e : ev) sb.append("- [").append(e.fuente()).append("] ").append(e.titulo()).append(": ").append(e.detalle()).append("\n");
+        return sb.append("Redacta el diagnóstico en un párrafo, citando la evidencia.").toString();
+    }
 
     private Severidad calcularSeveridad(AlertaTelemetria a, boolean anomalia, List<Evidencia> ev) {
         if (!anomalia) return Severidad.INFO;
@@ -229,10 +279,10 @@ public class DiagnosticoDerService implements DiagnosticoDerUseCase {
         if (a.sinSenal()) {
             sb.append("El activo no reporta telemetría hace ").append(a.minutosSinSenal())
               .append(" minutos (posible medidor sin señal o caída de conectividad). ");
-        } else if (a.fueraDeRango()) {
+        } else if (sev != Severidad.INFO) {
             sb.append("La métrica '").append(a.metrica()).append("' = ").append(a.valor().toPlainString())
-              .append(" supera el umbral esperado ").append(a.umbral().toPlainString())
-              .append(" (posible degradación/activo fuera de rango). ");
+              .append(" está fuera del rango esperado (umbral ").append(a.umbral().toPlainString())
+              .append("): posible degradación o activo fuera de rango. ");
         } else {
             sb.append("Las métricas están dentro de los umbrales adaptativos. ");
         }

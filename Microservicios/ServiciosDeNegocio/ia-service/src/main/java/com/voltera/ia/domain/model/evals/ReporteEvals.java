@@ -20,8 +20,17 @@ public record ReporteEvals(
         String dataset,
         int totalCasos,
         List<ResultadoEval> familias,
-        List<ResultadoCaso> casos
+        List<ResultadoCaso> casos,
+        /** Versión del diagnosticador con la que se corrió (la de producción salvo en comparaciones). */
+        String versionDiagnosticador,
+        /** Cuántos casos vienen de correcciones humanas (Human Review). */
+        int casosRetroalimentacion
 ) {
+    /** Resultado de una versión del diagnosticador sobre el mismo dataset (compuerta de promoción). */
+    public record ComparacionVersion(String version, String estado, double aciertoMonitor, double aciertoDiagnosticador,
+                                     double aciertoAccion, double citas, int inventados, boolean apta,
+                                     List<String> fallidos) {}
+
     /** Resultado de un caso: lo esperado, lo obtenido y si coincide. */
     public record ResultadoCaso(
             String id, String descripcion, String tipoActivo, String metrica,
@@ -30,6 +39,6 @@ public record ReporteEvals(
             String accionEsperada, String accionObtenida,
             boolean humanoEsperado, boolean humanoObtenido,
             boolean severidadOk, boolean accionOk, boolean citasOk,
-            int fuentesRag, int fuentesMcp, long ms, String nota
+            int fuentesRag, int fuentesMcp, long ms, String nota, String origen
     ) {}
 }

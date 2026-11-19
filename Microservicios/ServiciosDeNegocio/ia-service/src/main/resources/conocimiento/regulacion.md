@@ -2,6 +2,7 @@ id: regulacion
 titulo: Marco regulatorio y de seguridad aplicable
 categoria: procedimiento-campo
 activos: GENERAL
+acceso: OPERADOR
 fuente: Resumen interno de normativa colombiana (demostración; consultar la norma vigente)
 ---
 ## Autogeneración y generación distribuida

@@ -29,4 +29,14 @@ public interface ModelGatewayPort {
 
     /** Identificador del motor para auditoria: "llm:<modelo>" o "local". */
     String identificadorMotor();
+
+    /**
+     * Redacción genérica a través del gateway: ruteo por clasificación del dato
+     * (RESTRINGIDO nunca sale a un proveedor externo), presupuesto de tokens, caché,
+     * timeout y respaldo. Vacío = usar el motor local.
+     */
+    default Optional<String> redactar(String funcionalidad, String promptSistema, String promptUsuario,
+                                      String clasificacion) {
+        return Optional.empty();
+    }
 }

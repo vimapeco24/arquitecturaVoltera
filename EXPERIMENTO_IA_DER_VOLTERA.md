@@ -8,7 +8,7 @@
 > (b) por consola con `Microservicios/experimento-ia-der.sh` (guarda evidencia JSON),
 > (c) por los tests automatizados (`ia-service` JUnit + `MultiFirmaAccionDER` Hardhat).
 >
-> **Última corrida: 54/54 criterios superados** (incluye el bloque N de integraciones reales) · antes: 46/46 (ia-service local con los endpoints nuevos; Render 44/44 antes de redesplegar B7)
+> **Última corrida local: 68/68 criterios** (bloques Pre, A–L, N y O; sin el bloque M on-chain) · producción anterior: 55/55 (ia-service local con los endpoints nuevos; Render 44/44 antes de redesplegar B7)
 > (incluye el bloque M on-chain; con `--con-tests` suma además JUnit + Hardhat). Genera evidencia en JSON, Markdown y HTML.
 > El front `/ia` ejecuta los bloques P, A–L (con B5/B6) agrupados por bloque, con barra de progreso y descarga de evidencia JSON.
 
@@ -173,6 +173,24 @@ responden y que cada uno recibe un `diagnosticoId` **único** (sin corrupción d
 | Capacidades | `GET /ia/capacidades`: estado calculado en vivo; RAG, Evals, firmas, gobernanza y notificaciones OPERATIVAS | ✓ |
 
 Estados de `/ia/capacidades`: **OPERATIVO** (funciona de punta a punta), **LOCAL** (funciona con respaldo local porque falta un recurso externo) y **PENDIENTE** (requiere acción externa). Hoy PENDIENTE solo el despliegue de `MultiFirmaAccionDER` en Amoy (falta POL de prueba).
+
+---
+
+## Experimento O · Gobierno y operación (cajas 1, 4, 5, 6, 8 y KPI del caso)
+
+| Caja / pieza | Criterio | Endpoint |
+|---|---|---|
+| 6 · Prompt & Model Registry | v3 (producción) falla EV-19/EV-20 (SoH); la candidata v4 los resuelve sobre el mismo dataset | `GET /ia/prompts/diagnosticador/comparacion` |
+| 6 · Compuerta de promoción | v4 se promueve (apta y no peor); con v4 el SoH 72 % sale ADVERTENCIA; promover v2 (peor) → 409; rollback → v3 | `POST /ia/prompts/{f}/promover`, `/rollback` |
+| 1 · Human Review | la revisión del operador queda como caso etiquetado `HR-xx` y entra a la siguiente corrida de Evals | `POST /ia/diagnostico/{id}/retroalimentacion` |
+| 4 · Agent Registry | con el Agente-Diagnosticador de baja el flujo responde 503; de alta vuelve a 200 | `POST /ia/agentes/{nombre}/estado` |
+| 5 · Guardrails | el Assistant rechaza temas fuera de alcance y responde por intención; 6 políticas versionadas con contador | `GET /ia/guardrails` |
+| 2 · RAG con permisos | el prosumidor no ve documentos internos; el operador sí | `GET /ia/conocimiento/buscar?rol=` |
+| Model Gateway | una alerta con PII se clasifica RESTRINGIDO y no sale del servicio | `GET /ia/model-gateway` |
+| 8 · Audit & Retention | quedan propuestas, firmas, promociones, rollback, bajas y revisiones; retención 365 días | `GET /ia/auditoria` |
+| KPI del caso | MTTD medido < 5 min (línea base 45 min) y latencia de los 8 pasos del flujo | `GET /ia/observabilidad` |
+
+El experimento deja el registro como estaba (promueve v4 y hace rollback a v3) y registra una revisión **de acuerdo**, para que repetirlo no cambie el resultado. Una corrección de SoH hecha desde el front sí hace fallar a v3 en la siguiente corrida: es el comportamiento esperado de Human Review → Evals.
 
 ---
 

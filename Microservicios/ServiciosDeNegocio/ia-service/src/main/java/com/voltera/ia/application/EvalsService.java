@@ -57,17 +57,24 @@ public class EvalsService implements EvalsUseCase {
     private final DiagnosticoDerUseCase diagnosticador;
     private final AsistenteUseCase asistente;
     private final Supplier<PropuestaRepositoryPort> repoPropuestas;
-    private final List<CasoEval> dataset;
+    private final Supplier<List<CasoEval>> dataset;
     private final String nombreDataset;
 
     public EvalsService(PromptModelRegistryPort promptRegistry, DiagnosticoDerUseCase diagnosticador,
                         AsistenteUseCase asistente, Supplier<PropuestaRepositoryPort> repoPropuestas,
                         List<CasoEval> dataset, String nombreDataset) {
+        this(promptRegistry, diagnosticador, asistente, repoPropuestas, () -> dataset, nombreDataset, true);
+    }
+
+    /** Dataset dinámico: casos curados + correcciones de Human Review. */
+    public EvalsService(PromptModelRegistryPort promptRegistry, DiagnosticoDerUseCase diagnosticador,
+                        AsistenteUseCase asistente, Supplier<PropuestaRepositoryPort> repoPropuestas,
+                        Supplier<List<CasoEval>> dataset, String nombreDataset, boolean dinamico) {
         this.promptRegistry = promptRegistry;
         this.diagnosticador = diagnosticador;
         this.asistente = asistente;
         this.repoPropuestas = repoPropuestas;
-        this.dataset = List.copyOf(dataset);
+        this.dataset = dataset;
         this.nombreDataset = nombreDataset;
     }
 
@@ -92,14 +99,45 @@ public class EvalsService implements EvalsUseCase {
     /** Reutiliza la última corrida si tiene menos de 60 s, salvo que se fuerce una nueva. */
     @Override
     public synchronized ReporteEvals ejecutar(boolean forzar) {
-        if (!forzar && ultimo != null && Duration.between(ultimo.ejecutadoEn(), Instant.now()).getSeconds() < 60) {
+        String activa = promptRegistry.versionPrompt("diagnosticador");
+        if (!forzar && ultimo != null && activa.equals(ultimo.versionDiagnosticador())
+                && ultimo.totalCasos() == dataset.get().size()
+                && Duration.between(ultimo.ejecutadoEn(), Instant.now()).getSeconds() < 60) {
             return ultimo;
         }
-        ultimo = correr();
+        ultimo = correr(activa);
         return ultimo;
     }
 
-    private ReporteEvals correr() {
+    @Override
+    public synchronized ReporteEvals ejecutarConVersion(String versionDiagnosticador) {
+        return correr(versionDiagnosticador);
+    }
+
+    @Override
+    public synchronized List<ReporteEvals.ComparacionVersion> compararVersionesDiagnosticador() {
+        List<ReporteEvals.ComparacionVersion> out = new ArrayList<>();
+        for (var v : promptRegistry.versiones("diagnosticador")) {
+            if (PromptModelRegistryPort.RETIRADA.equals(v.estado())
+                    && !v.version().equals(promptRegistry.versionPrompt("diagnosticador"))
+                    && numero(v.version()) < 3) continue;   // las muy antiguas no se re-evalúan
+            ReporteEvals r = correr(v.version());
+            java.util.function.Function<String, ResultadoEval> f = n -> r.familias().stream()
+                    .filter(x -> x.agente().equals(n)).findFirst().orElseThrow();
+            ResultadoEval mon = f.apply("monitor"), dia = f.apply("diagnosticador"), acc = f.apply("accion");
+            out.add(new ReporteEvals.ComparacionVersion(v.version(), v.estado(), mon.acierto(), dia.acierto(),
+                    acc.acierto(), dia.citasValidas(), dia.comandosInventados(), mon.apta() && dia.apta() && acc.apta(),
+                    r.casos().stream().filter(c -> !c.severidadOk() || !c.accionOk()).map(ReporteEvals.ResultadoCaso::id).toList()));
+        }
+        return out;
+    }
+
+    private static int numero(String v) {
+        try { return Integer.parseInt(v.substring(v.lastIndexOf("@v") + 2)); } catch (Exception e) { return 0; }
+    }
+
+    private ReporteEvals correr(String versionDiag) {
+        List<CasoEval> dataset = this.dataset.get();
         long t0 = System.nanoTime();
         List<ResultadoCaso> casos = new ArrayList<>();
         List<DiagnosticoDer> diagnosticos = new ArrayList<>();
@@ -109,7 +147,7 @@ public class EvalsService implements EvalsUseCase {
             long tc = System.nanoTime();
             DiagnosticoDer d = diagnosticador.diagnosticar(new AlertaTelemetria(
                     "EVAL-" + c.id(), c.tipoActivo(), "COM-EVALS", c.metrica(), c.valor(), c.umbral(),
-                    c.minutosSinSenal(), "", "evals@voltera"));
+                    c.minutosSinSenal(), "", "evals@voltera"), versionDiag);
             diagnosticos.add(d);
             boolean anomEsp = c.severidadEsperada() != com.voltera.ia.domain.model.der.Severidad.INFO;
             boolean anomObt = d.severidad() != com.voltera.ia.domain.model.der.Severidad.INFO;
@@ -131,22 +169,24 @@ public class EvalsService implements EvalsUseCase {
                     c.severidadEsperada().name(), d.severidad().name(),
                     c.accionEsperada().name(), d.accionPropuesta().name(),
                     c.requiereHumanoEsperado(), d.requiereAprobacionHumana(),
-                    sevOk, accOk, citas, rag, mcp, (System.nanoTime() - tc) / 1_000_000, c.nota()));
+                    sevOk, accOk, citas, rag, mcp, (System.nanoTime() - tc) / 1_000_000, c.nota(),
+                    c.origen() == null ? CasoEval.DATASET : c.origen()));
         }
         int n = dataset.size();
         double citasFrac = frac(okCitas, n);
 
         List<ResultadoEval> fam = new ArrayList<>();
         fam.add(ResultadoEval.evaluar("monitor", promptRegistry.versionPrompt("monitor"), n, frac(okMonitor, n), citasFrac, inventados));
-        fam.add(ResultadoEval.evaluar("diagnosticador", promptRegistry.versionPrompt("diagnosticador"), n, frac(okSev, n), citasFrac, inventados));
+        fam.add(ResultadoEval.evaluar("diagnosticador", versionDiag, n, frac(okSev, n), citasFrac, inventados));
         fam.add(ResultadoEval.evaluar("accion", promptRegistry.versionPrompt("accion"), n, frac(okAcc, n), citasFrac, inventados));
         fam.add(evaluarNotificador(diagnosticos));
         fam.add(evaluarAsistente(diagnosticos, Audiencia.PROSUMIDOR, "asistente-prosumidor"));
         fam.add(evaluarAsistente(diagnosticos, Audiencia.OPERADOR, "asistente-operador"));
         fam.sort(java.util.Comparator.comparing(ResultadoEval::agente));
 
+        int deRevision = (int) dataset.stream().filter(c -> CasoEval.HUMAN_REVIEW.equals(c.origen())).count();
         return new ReporteEvals(Instant.now(), (System.nanoTime() - t0) / 1_000_000, nombreDataset, n,
-                List.copyOf(fam), List.copyOf(casos));
+                List.copyOf(fam), List.copyOf(casos), versionDiag, deRevision);
     }
 
     /** El aviso debe llegar al operador al proponer, al prosumidor tras 2/3, y el desenlace al cerrar. */

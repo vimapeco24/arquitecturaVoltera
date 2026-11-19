@@ -95,10 +95,11 @@ public class BeanConfiguration {
      */
     @Bean
     public AsistenteService asistenteService(
+            AgentRegistryPort agentRegistry,
             DiagnosticoRepositoryPort diagnosticoRepositorio,
             GuardrailsPort guardrails,
             PromptModelRegistryPort promptRegistry) {
-        return new AsistenteService(diagnosticoRepositorio, guardrails, promptRegistry);
+        return new AsistenteService(diagnosticoRepositorio, guardrails, promptRegistry).conRegistro(agentRegistry);
     }
 
     /** Evals & Tracing (Tema 5): compuerta de calidad de cada versión de prompt. */
@@ -110,15 +111,33 @@ public class BeanConfiguration {
             AgentRegistryPort agentRegistry,
             GuardrailsPort guardrails,
             ModelGatewayPort modelGateway,
-            com.voltera.ia.infrastructure.evals.DatasetEvalsLoader dataset) {
+            com.voltera.ia.infrastructure.evals.DatasetEvalsLoader dataset,
+            com.voltera.ia.infrastructure.revision.DatasetRetroalimentacion retro) {
         // Instancias aisladas: las corridas de Evals no tocan diagnósticos, propuestas ni eventos de producción.
         var repoEvals = new com.voltera.ia.infrastructure.persistence.InMemoryDiagnosticoRepository();
+        // Registro de agentes propio: dar de baja un agente en producción no rompe la corrida de Evals.
         var diagnosticadorEvals = new DiagnosticoDerService(
-                conocimientoDer, herramientasDer, agentRegistry, guardrails, modelGateway, promptRegistry,
-                d -> { }, e -> true, repoEvals);
+                conocimientoDer, herramientasDer, new com.voltera.ia.infrastructure.registry.InMemoryAgentRegistry(),
+                guardrails, sinLlm(), promptRegistry, d -> { }, e -> true, repoEvals);
         var asistenteEvals = new AsistenteService(repoEvals, guardrails, promptRegistry);
         return new EvalsService(promptRegistry, diagnosticadorEvals, asistenteEvals,
                 com.voltera.ia.infrastructure.persistence.InMemoryPropuestaRepository::new,
-                dataset.casos(), dataset.nombre());
+                () -> {
+                    var todos = new java.util.ArrayList<>(dataset.casos());
+                    todos.addAll(retro.casos());
+                    return todos;
+                }, dataset.nombre(), true);
+    }
+
+    /** Las Evals miden las reglas y el RAG sin gastar tokens del proveedor externo. */
+    private static ModelGatewayPort sinLlm() {
+        return new ModelGatewayPort() {
+            @Override public java.util.Optional<String> redactarJustificacion(com.voltera.ia.domain.model.SolicitudCopiloto s,
+                                                                            java.util.List<com.voltera.ia.domain.model.Evidencia> e) {
+                return java.util.Optional.empty();
+            }
+            @Override public boolean proveedorActivo() { return false; }
+            @Override public String identificadorMotor() { return "local"; }
+        };
     }
 }

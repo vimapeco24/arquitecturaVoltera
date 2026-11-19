@@ -4,7 +4,9 @@ import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } 
 import {
   IaService, DiagnosticoResponse, EstadoIa, AgenteRegistrado, PasoDto,
   PropuestaResponse, EstadoAprobacionesDto, AuditoriaPropuestaDto, MetricasGobernanzaDto,
-  CapacidadesDto, ReporteEvalsDto, CorpusRagDto, ResultadoRagDto, RespuestaAsistente, ResultadoEval,
+  CapacidadesDto, ReporteEvalsDto, CorpusRagDto, ResultadoRagDto,
+  PromptsDto, ComparacionVersionDto, PromocionDto, AgenteRegistroDto, ResumenRevisionDto, RevisionDto,
+  AuditoriaDto, PoliticaGuardrailDto, ModelGatewayDto, ObservabilidadDto, RespuestaAsistente, ResultadoEval,
 } from '../../services/ia.service';
 import { ToastService } from '../../core/toast.service';
 import { describeHttpError } from '../../core/http-error';
@@ -58,6 +60,7 @@ export class IaComponent implements OnInit, OnDestroy {
     { k: 'calidad', t: 'Calidad · Evals', i: '🧪' },
     { k: 'conocimiento', t: 'Conocimiento · RAG', i: '📚' },
     { k: 'experimento', t: 'Experimento', i: '🔬' },
+    { k: 'operacion', t: 'Operación', i: '🛰' },
     { k: 'arquitectura', t: 'Arquitectura y API', i: '🏛' },
     { k: 'guia', t: 'Guía, alcance y límites', i: '📘' },
   ];
@@ -77,6 +80,113 @@ export class IaComponent implements OnInit, OnDestroy {
   ragQuery = 'inversor sobretensión sostenida';
   ragTipo = '';
   ragResultados: ResultadoRagDto[] = [];
+  ragRol = 'OPERADOR';
+  ingiriendo = false;
+  docNuevo = 'id: microinversor-fallos\ntitulo: Fallos conocidos · Microinversores\ncategoria: fallos-conocidos\nactivos: INVERSOR\nacceso: PUBLICO\nfuente: Nota técnica del equipo de campo\n---\n## Led rojo intermitente\nIndica falla de aislamiento del microinversor. No reiniciar en remoto: requiere inspección del cableado DC.\n';
+
+  // ── Human Review ─────────────────────────────────────────────────────────
+  revSeveridad = 'ADVERTENCIA';
+  revAccion = 'DESPACHAR_TECNICO';
+  revComentario = '';
+  enviandoRevision = false;
+  revisionEnviada = '';
+  revisiones?: { resumen: ResumenRevisionDto; revisiones: RevisionDto[] };
+
+  // ── Gobierno y operación ─────────────────────────────────────────────────
+  promptsReg?: PromptsDto;
+  comparacion: ComparacionVersionDto[] = [];
+  cambiandoPrompt = false;
+  ultimaPromocion?: PromocionDto;
+  obsIa?: ObservabilidadDto;
+  obsActualizado?: Date;
+  gatewayIa?: ModelGatewayDto;
+  guardrailsIa: PoliticaGuardrailDto[] = [];
+  registroAg?: AgenteRegistroDto;
+  auditoriaIa?: AuditoriaDto;
+  audTipo = '';
+
+  enviarRevision(deAcuerdo: boolean): void {
+    if (!this.diagnostico) return;
+    this.enviandoRevision = true;
+    this.svc.retroalimentar(this.diagnostico.diagnosticoId, {
+      revisor: this.form.value.usuario || 'operador@voltera', deAcuerdo,
+      severidadCorrecta: deAcuerdo ? undefined : this.revSeveridad,
+      accionCorrecta: deAcuerdo ? undefined : this.revAccion,
+      comentario: this.revComentario || undefined,
+    }).subscribe({
+      next: (r) => { this.enviandoRevision = false; this.revisionEnviada = r.revision.casoId; this.revisiones = undefined; this.reporte = undefined;
+        this.toast.success('Revisión registrada', `Caso ${r.revision.casoId} agregado a las Evals`); },
+      error: (e) => { this.enviandoRevision = false; this.toast.error('Revisión', describeHttpError(e)); },
+    });
+  }
+
+  cargarRevisiones(): void {
+    this.svc.retroalimentaciones().subscribe({ next: (r) => (this.revisiones = r), error: () => {} });
+  }
+
+  cargarRegistroPrompts(): void {
+    this.svc.prompts().subscribe({ next: (p) => (this.promptsReg = p), error: () => {} });
+    this.svc.comparacionVersiones().subscribe({ next: (c) => (this.comparacion = c ?? []), error: () => {} });
+  }
+
+  promoverV4(): void {
+    this.cambiandoPrompt = true;
+    this.svc.promoverPrompt('diagnosticador', 'diagnosticador@v4', this.form.value.usuario || 'lider@voltera', 'corrige métricas donde menor es peor (SoH)').subscribe({
+      next: (r) => { this.ultimaPromocion = r; this.cambiandoPrompt = false; this.cargarRegistroPrompts(); this.cargarReporteEvals(true);
+        this.toast.success('Promoción', r.resultado); },
+      error: (e) => { this.cambiandoPrompt = false; this.ultimaPromocion = e?.error as PromocionDto; this.cargarRegistroPrompts();
+        this.toast.error('Promoción rechazada', e?.error?.motivo ?? describeHttpError(e)); },
+    });
+  }
+
+  rollbackDiagnosticador(): void {
+    this.cambiandoPrompt = true;
+    this.svc.rollbackPrompt('diagnosticador', this.form.value.usuario || 'lider@voltera', 'rollback desde la consola').subscribe({
+      next: (v) => { this.cambiandoPrompt = false; this.ultimaPromocion = undefined; this.cargarRegistroPrompts(); this.cargarReporteEvals(true);
+        this.toast.success('Rollback', `En producción: ${v.version}`); },
+      error: (e) => { this.cambiandoPrompt = false; this.toast.error('Rollback', describeHttpError(e)); },
+    });
+  }
+
+  cargarOperacion(): void {
+    this.svc.observabilidad().subscribe({ next: (o) => { this.obsIa = o; this.obsActualizado = new Date(); }, error: () => {} });
+    this.svc.modelGateway().subscribe({ next: (g) => (this.gatewayIa = g), error: () => {} });
+    this.svc.guardrails().subscribe({ next: (g) => (this.guardrailsIa = g ?? []), error: () => {} });
+    this.svc.registroAgentes().subscribe({ next: (r) => (this.registroAg = r), error: () => {} });
+    this.cargarAuditoriaIa();
+  }
+
+  cargarAuditoriaIa(): void {
+    this.svc.auditoriaIa(this.audTipo || undefined, 100).subscribe({ next: (a) => (this.auditoriaIa = a), error: () => {} });
+  }
+
+  toggleAgente(nombre: string, activo: boolean): void {
+    this.svc.cambiarEstadoAgente(nombre, activo, this.form.value.usuario || 'lider@voltera', activo ? 'alta desde la consola' : 'baja desde la consola').subscribe({
+      next: () => { this.toast.success('Agent Registry', `${nombre} ${activo ? 'dado de alta' : 'dado de baja'}`); this.cargarOperacion(); },
+      error: (e) => this.toast.error('Agent Registry', describeHttpError(e)),
+    });
+  }
+
+  anchoPaso(ms: number): number {
+    const max = Math.max(1, ...(this.obsIa?.pasosFlujo ?? []).map((p) => p.p95Ms));
+    return Math.max(2, (ms / max) * 100);
+  }
+
+  ingerirDocumento(): void {
+    this.ingiriendo = true;
+    this.svc.ingerirDocumento(this.docNuevo, this.form.value.usuario || 'operador@voltera').subscribe({
+      next: (d) => { this.ingiriendo = false; this.toast.success('Documento ingerido', `${d.titulo} · ${d.secciones} secciones`);
+        this.svc.corpusRag().subscribe({ next: (c) => (this.corpus = c) }); },
+      error: (e) => { this.ingiriendo = false; this.toast.error('Ingesta', describeHttpError(e)); },
+    });
+  }
+
+  retirarDocumento(id: string): void {
+    this.svc.retirarDocumento(id, this.form.value.usuario || 'operador@voltera').subscribe({
+      next: () => { this.toast.success('Documento retirado', id); this.svc.corpusRag().subscribe({ next: (c) => (this.corpus = c) }); this.buscarRag(); },
+      error: (e) => this.toast.error('Retiro', describeHttpError(e)),
+    });
+  }
   buscandoRag = false;
 
   cargarCapacidades(): void {
@@ -102,7 +212,7 @@ export class IaComponent implements OnInit, OnDestroy {
   buscarRag(): void {
     if (!this.ragQuery.trim()) return;
     this.buscandoRag = true;
-    this.svc.buscarRag(this.ragQuery, this.ragTipo || undefined, 6).subscribe({
+    this.svc.buscarRag(this.ragQuery, this.ragTipo || undefined, 6, this.ragRol).subscribe({
       next: (r) => { this.ragResultados = r ?? []; this.buscandoRag = false; },
       error: (e) => { this.buscandoRag = false; this.toast.error('RAG', describeHttpError(e)); },
     });
@@ -110,7 +220,12 @@ export class IaComponent implements OnInit, OnDestroy {
 
   /** Carga perezosa de los datos de cada pestaña. */
   private cargarTab(k: string): void {
-    if (k === 'calidad' && !this.reporte) this.cargarReporteEvals();
+    if (k === 'calidad') {
+      if (!this.reporte) this.cargarReporteEvals();
+      this.cargarRegistroPrompts();
+      this.cargarRevisiones();
+    }
+    if (k === 'operacion') this.cargarOperacion();
     if (k === 'conocimiento') {
       if (!this.corpus) this.svc.corpusRag().subscribe({ next: (c) => (this.corpus = c), error: () => {} });
       if (!this.ragResultados.length) this.buscarRag();
@@ -130,6 +245,10 @@ export class IaComponent implements OnInit, OnDestroy {
     { t: 'No repudio', d: 'Cada rol firma una sola vez y queda registrado quién y cuándo.' },
     { t: 'ON_CHAIN / OFF_CHAIN', d: 'ON_CHAIN: el estado se leyó del contrato desplegado en Amoy. OFF_CHAIN: el contrato no está desplegado; las firmas ECDSA son reales y verificables, pero no hay transacción pública.' },
     { t: 'ECDSA · EIP-191', d: 'Firma digital de Ethereum sobre un mensaje con prefijo estándar (personal_sign). ecrecover recupera la dirección que firmó.' },
+    { t: 'Búsqueda híbrida · RRF', d: 'Combina el ranking de BM25 y el de similitud coseno: cada sección suma 1/(60 + posición) en cada lista.' },
+    { t: 'Compuerta de promoción', d: 'Una versión de prompt solo pasa a producción si es apta en las Evals y no tiene menos acierto que la versión actual.' },
+    { t: 'Human Review → Evals', d: 'Cada revisión humana de un diagnóstico se guarda como caso etiquetado y entra a la siguiente corrida de Evals.' },
+    { t: 'MTTD', d: 'Tiempo medio de detección: desde que el dispositivo toma la lectura hasta que el agente entrega el diagnóstico.' },
     { t: 'BM25', d: 'Algoritmo de recuperación léxica: puntúa cada sección según la frecuencia de los términos de la consulta y su rareza en el corpus.' },
     { t: 'Guardrails', d: 'Controles de entrada y salida: bloquean inyección de prompt y enmascaran datos personales.' },
     { t: 'Evals', d: 'Pruebas de calidad de un prompt antes de activarlo; si no pasa, se mantiene la versión anterior.' },
@@ -154,6 +273,20 @@ export class IaComponent implements OnInit, OnDestroy {
     { m: 'GET', r: '/api/v1/ia/conocimiento/buscar?q=&tipoActivo=', d: 'Búsqueda BM25 sobre el corpus' },
     { m: 'GET', r: '/api/v1/ia/evals/reporte?forzar=', d: 'Corrida real del dataset de Evals, caso a caso' },
     { m: 'GET', r: '/api/v1/ia/capacidades', d: 'Estado verificable de cada capacidad' },
+    { m: 'GET', r: '/api/v1/ia/prompts', d: 'Prompt & Model Registry: versiones, estado, aprobador e historial' },
+    { m: 'GET', r: '/api/v1/ia/prompts/diagnosticador/comparacion', d: 'Evals de cada versión del diagnosticador sobre el mismo dataset' },
+    { m: 'POST', r: '/api/v1/ia/prompts/{familia}/promover', d: 'Promoción con compuerta de Evals (409 si no pasa o es peor)' },
+    { m: 'POST', r: '/api/v1/ia/prompts/{familia}/rollback', d: 'Vuelve a la versión anterior' },
+    { m: 'POST', r: '/api/v1/ia/diagnostico/{id}/retroalimentacion', d: 'Human Review: la revisión entra al dataset de Evals' },
+    { m: 'GET', r: '/api/v1/ia/retroalimentacion', d: 'Revisiones y tasa de acuerdo humano-agente' },
+    { m: 'GET', r: '/api/v1/ia/agentes/registro', d: 'Agent Registry completo con historial' },
+    { m: 'POST', r: '/api/v1/ia/agentes/{nombre}/estado', d: 'Alta o baja de un agente' },
+    { m: 'POST', r: '/api/v1/ia/conocimiento/documentos', d: 'Ingesta de un documento al índice RAG' },
+    { m: 'DELETE', r: '/api/v1/ia/conocimiento/documentos/{id}', d: 'Retiro de un documento del índice' },
+    { m: 'GET', r: '/api/v1/ia/model-gateway', d: 'Configuración, consumo y decisiones de ruteo del gateway' },
+    { m: 'GET', r: '/api/v1/ia/guardrails', d: 'Políticas versionadas y activaciones' },
+    { m: 'GET', r: '/api/v1/ia/auditoria?tipo=&limite=', d: 'Audit & Retention con política de retención' },
+    { m: 'GET', r: '/api/v1/ia/observabilidad', d: 'KPI MTTD, latencia por funcionalidad y por paso' },
     { m: 'GET', r: '/api/v1/ia/gobernanza/propuestas/{id}/auditoria', d: 'Línea de tiempo de auditoría (CREG)' },
     { m: 'GET', r: '/api/v1/ia/gobernanza/metricas', d: 'Indicadores agregados y garantía fail-closed' },
     { m: 'GET', r: '/api/v1/ia/evals', d: 'Compuerta de calidad por versión de prompt' },
@@ -207,6 +340,7 @@ export class IaComponent implements OnInit, OnDestroy {
     K: 'K · A/B de versiones de prompt',
     L: 'L · Concurrencia',
     N: 'N · Integraciones reales (RAG, Evals, firmas ECDSA, notificaciones)',
+    O: 'O · Gobierno y operación (Registry, Human Review, Agentes, Gateway, KPI, Auditoría)',
   };
 
   /** Hipótesis, método y endpoints de cada bloque (para el reporte detallado). */
@@ -223,6 +357,7 @@ export class IaComponent implements OnInit, OnDestroy {
     J: { hipotesis: 'La latencia del motor local es apta para operación.', metodo: '8 diagnósticos secuenciales, percentiles p50/p95', endpoints: ['POST /ia/diagnostico/der'], umbral: 'p50 ≤ 2 s' },
     K: { hipotesis: 'Entre dos versiones de prompt se elige la apta con mejor acierto.', metodo: 'Comparación asistente-prosumidor vs asistente-operador', endpoints: ['GET /ia/evals'], umbral: 'versión ganadora apta' },
     N: { hipotesis: 'Las integraciones funcionan de punta a punta: el RAG recupera del corpus, las Evals corren el dataset, las firmas se verifican con ecrecover y las notificaciones llegan a cada rol.', metodo: 'Consulta BM25, corrida de Evals, verificación de las 3 firmas, firma de billetera falsa, bandeja y capacidades', endpoints: ['GET /conocimiento/buscar', 'GET /evals/reporte', 'GET .../firmas/verificacion', 'GET /notificaciones', 'GET /capacidades'], umbral: 'doc correcto · 6 familias aptas · 3/3 firmas válidas · firma falsa 4xx · 3 avisos · 5 capacidades internas operativas' },
+    O: { hipotesis: 'El módulo se gobierna como software de producción: versiones con compuerta y rollback, revisiones humanas que alimentan las Evals, agentes que se pueden dar de baja, datos sensibles que no salen y un KPI de negocio medido.', metodo: 'Comparación v3/v4, promoción y rollback, revisión, baja y alta de agente, pregunta fuera de alcance, búsqueda como prosumidor, alerta con PII, lectura de observabilidad y auditoría', endpoints: ['GET /prompts/diagnosticador/comparacion', 'POST /prompts/{f}/promover|rollback', 'POST /diagnostico/{id}/retroalimentacion', 'POST /agentes/{n}/estado', 'GET /model-gateway', 'GET /observabilidad', 'GET /auditoria'], umbral: 'v4 corrige EV-19/20 · versión peor 409 · 503 con agente de baja · RESTRINGIDO local · MTTD < 5 min' },
     L: { hipotesis: 'Peticiones paralelas no corrompen el estado.', metodo: '5 diagnósticos simultáneos', endpoints: ['POST /ia/diagnostico/der'], umbral: '5 respuestas · 5 ids únicos' },
   };
 
@@ -390,6 +525,8 @@ export class IaComponent implements OnInit, OnDestroy {
     this.reproduciendo = true;
     this.resultadoVisible = false;
     this.diagnostico = undefined;
+    this.revisionEnviada = '';
+    this.revComentario = '';
     this.pendiente = undefined;
     this.pasoActivo = -1;
     this.esperas = 0;
@@ -414,7 +551,7 @@ export class IaComponent implements OnInit, OnDestroy {
     this.avanzarPaso(0);
 
     // Llamada real al agente, en paralelo a la animación.
-    this.svc.diagnosticarDer(this.form.value).subscribe({
+    this.svc.diagnosticarDer({ ...this.form.value, observadoEn: new Date().toISOString() }).subscribe({
       next: (d) => {
         this.analizando = false;
         this.pendiente = d;
@@ -757,6 +894,42 @@ export class IaComponent implements OnInit, OnDestroy {
       this.capacidades = cap;
       const internas = cap.capacidades.filter((c) => ['rag', 'evals', 'firmas', 'gobernanza', 'notificaciones'].includes(c.clave) && c.estado === 'OPERATIVO').length;
       add('N · Capacidades calculadas por el backend (5 internas operativas)', internas === 5, JSON.stringify(cap.resumen));
+
+      // O · Gobierno y operación
+      const cmp = await firstValueFrom(this.svc.comparacionVersiones());
+      const v3 = cmp.find((c) => c.version.endsWith('v3'));
+      const v4 = cmp.find((c) => c.version.endsWith('v4'));
+      add('O · Registry: v3 falla EV-19/EV-20 y la candidata v4 los resuelve',
+        !!v3 && !!v4 && ['EV-19', 'EV-20'].every((x) => v3.fallidos.includes(x)) && !['EV-19', 'EV-20'].some((x) => v4.fallidos.includes(x)),
+        `v3 ${v3?.fallidos.length} fallos · v4 ${v4?.fallidos.length}`);
+      const prom = await firstValueFrom(this.svc.promoverPrompt('diagnosticador', 'diagnosticador@v4', 'experimento@voltera', 'compuerta de Evals'));
+      add('O · Promoción de v4 aprobada por la compuerta', prom.resultado === 'PROMOVIDA', `${prom.aciertoCandidata} vs ${prom.aciertoProduccion}`);
+      let peorRechazada = false;
+      try { await firstValueFrom(this.svc.promoverPrompt('diagnosticador', 'diagnosticador@v2', 'experimento', 'prueba')); } catch { peorRechazada = true; }
+      add('O · La compuerta rechaza una versión peor (409)', peorRechazada, peorRechazada ? 'rechazada' : 'aceptada');
+      const rb = await firstValueFrom(this.svc.rollbackPrompt('diagnosticador', 'experimento@voltera', 'restaurar estado'));
+      add('O · Rollback vuelve a diagnosticador@v3', rb.version === 'diagnosticador@v3', rb.version);
+      const hr = await firstValueFrom(this.svc.retroalimentar(d.diagnosticoId, { revisor: 'operador@voltera', deAcuerdo: true, comentario: 'confirmado en campo' }));
+      add('O · Human Review: la revisión se vuelve caso etiquetado', hr.revision.casoId.startsWith('HR-'), hr.revision.casoId);
+      await firstValueFrom(this.svc.cambiarEstadoAgente('Agente-Diagnosticador', false, 'experimento', 'prueba de baja'));
+      let bajaOk = false;
+      try { await firstValueFrom(this.svc.diagnosticarDer({ activoId: 'INV-BAJA', tipoActivo: 'INVERSOR', comunidadId: 'C', metrica: 'voltaje', valor: 265, umbral: 240, minutosSinSenal: 0, usuario: 'op' })); }
+      catch (e: any) { bajaOk = e?.status === 503; }
+      await firstValueFrom(this.svc.cambiarEstadoAgente('Agente-Diagnosticador', true, 'experimento', 'fin de la prueba'));
+      add('O · Agent Registry: agente de baja ⇒ 503 (fail-closed)', bajaOk, bajaOk ? 'HTTP 503 y alta restaurada' : 'no se detuvo');
+      const fuera = await firstValueFrom(this.svc.preguntarAsistente(d.diagnosticoId, 'PROSUMIDOR', 'cuéntame un chiste de fútbol'));
+      add('O · Assistant rechaza temas fuera de alcance', !!fuera.fueraDeAlcance, `intención ${fuera.intencion}`);
+      const ragPro = await firstValueFrom(this.svc.buscarRag('resolucion CREG autogeneracion', undefined, 5, 'PROSUMIDOR'));
+      add('O · RAG respeta permisos (prosumidor sin documentos internos)', ragPro.every((r) => r.acceso === 'PUBLICO'), `${ragPro.length} resultados públicos`);
+      await firstValueFrom(this.svc.diagnosticarDer({ activoId: 'INV-PII', tipoActivo: 'INVERSOR', comunidadId: 'C', metrica: 'voltaje', valor: 265, umbral: 240, minutosSinSenal: 0, descripcion: 'contacto juan@correo.com', usuario: 'op' }));
+      const gw = await firstValueFrom(this.svc.modelGateway());
+      add('O · Gateway: dato RESTRINGIDO no sale del servicio', gw.decisiones.some((x) => x.clasificacion === 'RESTRINGIDO' && x.ruta === 'LOCAL'), JSON.stringify(gw.porRuta));
+      const obsx = await firstValueFrom(this.svc.observabilidad());
+      this.obsIa = obsx;
+      add('O · KPI: MTTD bajo la meta de 5 min y 8 pasos medidos', obsx.kpiNegocio.cumpleMeta && obsx.pasosFlujo.length === 8, `MTTD ${obsx.kpiNegocio.mttdSegundos} s`);
+      const aud = await firstValueFrom(this.svc.auditoriaIa(undefined, 200));
+      const tiposAud = Object.keys(aud.politica.porTipo);
+      add('O · Auditoría con propuestas, firmas, promociones y bajas', ['PROPUESTA', 'FIRMA', 'PROMOCION_PROMPT', 'AGENTE_ESTADO', 'RETROALIMENTACION'].every((t) => tiposAud.includes(t)), `${aud.politica.total} registros · retención ${aud.politica.retencionDias} días`);
 
       // C · Responsible AI del Assistant (no persuasión + por audiencia)
       const r = await firstValueFrom(this.svc.preguntarAsistente(d.diagnosticoId, 'PROSUMIDOR', '¿qué pasa si no apruebo?'));

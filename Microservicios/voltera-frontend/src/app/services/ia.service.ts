@@ -25,6 +25,8 @@ export interface DiagnosticarRequest {
   minutosSinSenal: number;
   descripcion?: string;
   usuario?: string;
+  /** Instante en que el dispositivo tomó la lectura (mide el tiempo de detección). */
+  observadoEn?: string;
 }
 
 export interface EvidenciaDto {
@@ -174,6 +176,8 @@ export interface RespuestaAsistente {
   promptVersion: string;
   noPersuasion: boolean;
   generadoEn: string;
+  intencion?: string;
+  fueraDeAlcance?: boolean;
 }
 
 /** Hito de la línea de tiempo de auditoría de una propuesta. */
@@ -251,7 +255,7 @@ export interface CasoEvalDto {
   minutosSinSenal: number; severidadEsperada: string; severidadObtenida: string;
   accionEsperada: string; accionObtenida: string; humanoEsperado: boolean; humanoObtenido: boolean;
   severidadOk: boolean; accionOk: boolean; citasOk: boolean; fuentesRag: number; fuentesMcp: number;
-  ms: number; nota: string;
+  ms: number; nota: string; origen: 'DATASET' | 'HUMAN_REVIEW';
 }
 export interface ReporteEvalsDto {
   ejecutadoEn: string;
@@ -260,14 +264,68 @@ export interface ReporteEvalsDto {
   totalCasos: number;
   familias: ResultadoEval[];
   casos: CasoEvalDto[];
+  versionDiagnosticador: string;
+  casosRetroalimentacion: number;
 }
 /** Fragmento recuperado por el RAG BM25. */
 export interface ResultadoRagDto {
   docId: string; titulo: string; categoria: string; seccion: string; texto: string;
-  fuente: string; score: number; terminos: string[];
+  fuente: string; score: number; terminos: string[]; bm25: number; coseno: number; cobertura: number; acceso: string;
 }
 export interface DocumentoRagDto {
   id: string; titulo: string; categoria: string; activos: string[]; fuente: string; secciones: number;
+  acceso: string; origen: string;
+}
+// ── Gobierno y operación ────────────────────────────────────────────────────
+export interface VersionPromptDto {
+  familia: string; version: string; estado: 'PRODUCCION' | 'CANDIDATA' | 'RETIRADA'; descripcion: string;
+  aprobadaPor: string | null; aprobadaEn: string | null; plantilla: string;
+}
+export interface CambioVersionDto { instante: string; familia: string; desde: string; hacia: string; tipo: string; responsable: string; motivo: string; }
+export interface PromptsDto {
+  familias: { familia: string; produccion: string; versiones: VersionPromptDto[] }[];
+  historial: CambioVersionDto[];
+  compuerta: string;
+}
+export interface ComparacionVersionDto {
+  version: string; estado: string; aciertoMonitor: number; aciertoDiagnosticador: number; aciertoAccion: number;
+  citas: number; inventados: number; apta: boolean; fallidos: string[];
+}
+export interface PromocionDto {
+  resultado: 'PROMOVIDA' | 'RECHAZADA'; motivo?: string; aciertoProduccion?: number; aciertoCandidata?: number;
+  compuerta?: ResultadoEval[]; produccion?: VersionPromptDto;
+}
+export interface AgenteRegistroDto {
+  agentes: AgenteRegistrado[];
+  historial: { instante: string; agente: string; activo: boolean; responsable: string; motivo: string }[];
+}
+export interface RevisionDto {
+  id: string; instante: string; diagnosticoId: string; revisor: string; severidadAgente: string; severidadCorrecta: string;
+  accionAgente: string; accionCorrecta: string; deAcuerdo: boolean; comentario: string; casoId: string;
+}
+export interface ResumenRevisionDto { revisiones: number; deAcuerdo: number; corregidas: number; tasaAcuerdo: number; casosAgregadosAEvals: number; }
+export interface RegistroAuditoriaDto { id: string; instante: string; tipo: string; actor: string; recurso: string; detalle: string; version: string | null; }
+export interface AuditoriaDto {
+  politica: { retencionDias: number; maximoRegistros: number; redaccion: string; seRegistra: string[]; total: number; porTipo: Record<string, number> };
+  registros: RegistroAuditoriaDto[];
+}
+export interface PoliticaGuardrailDto { id: string; tipo: string; version: string; descripcion: string; accion: string; activaciones: number; }
+export interface DecisionGatewayDto {
+  instante: string; funcionalidad: string; clasificacion: string; ruta: string; modelo: string; motivo: string;
+  tokensEntrada: number; tokensSalida: number; costoUsd: number; cache: boolean; latenciaMs: number;
+}
+export interface ModelGatewayDto {
+  proveedor: string; modelo: string; proveedorActivo: boolean; zeroRetention: boolean; maxTokens: number; timeoutMs: number;
+  presupuestoTokens: number; tokensUsados: number; costoUsd: number; precioUsd1kTokens: number; solicitudes: number;
+  aciertosCache: number; porRuta: Record<string, number>; reglas: string[]; decisiones: DecisionGatewayDto[];
+}
+export interface MetricaFuncionalidadDto { nombre: string; llamadas: number; errores: number; tasaError: number; p50Ms: number; p95Ms: number; maxMs: number; }
+export interface ObservabilidadDto {
+  kpiNegocio: { diagnosticos: number; mttdSegundos: number; p95DeteccionSegundos: number; lineaBaseMinutos: number; metaMinutos: number; cumpleMeta: boolean; nota: string };
+  funcionalidades: MetricaFuncionalidadDto[];
+  pasosFlujo: MetricaFuncionalidadDto[];
+  modelGateway: { solicitudes: number; tokensUsados: number; costoUsd: number; porRuta: Record<string, number> };
+  guardrails: PoliticaGuardrailDto[];
 }
 export interface CorpusRagDto {
   algoritmo: string;
@@ -440,9 +498,69 @@ export class IaService {
     return this.http.get<CorpusRagDto>(this.url('api/v1/ia/conocimiento/documentos'));
   }
 
-  buscarRag(q: string, tipoActivo?: string, k = 5): Observable<ResultadoRagDto[]> {
-    let u = `api/v1/ia/conocimiento/buscar?q=${encodeURIComponent(q)}&k=${k}`;
+  buscarRag(q: string, tipoActivo?: string, k = 5, rol = 'OPERADOR'): Observable<ResultadoRagDto[]> {
+    let u = `api/v1/ia/conocimiento/buscar?q=${encodeURIComponent(q)}&k=${k}&rol=${rol}`;
     if (tipoActivo) u += '&tipoActivo=' + encodeURIComponent(tipoActivo);
     return this.http.get<ResultadoRagDto[]>(this.url(u));
+  }
+
+  ingerirDocumento(contenido: string, responsable: string): Observable<DocumentoRagDto> {
+    return this.http.post<DocumentoRagDto>(this.url('api/v1/ia/conocimiento/documentos'), { contenido, responsable });
+  }
+
+  retirarDocumento(id: string, responsable: string): Observable<unknown> {
+    return this.http.delete(this.url(`api/v1/ia/conocimiento/documentos/${encodeURIComponent(id)}?responsable=${encodeURIComponent(responsable)}`));
+  }
+
+  // ── Gobierno y operación ─────────────────────────────────────────────────
+
+  prompts(): Observable<PromptsDto> {
+    return this.http.get<PromptsDto>(this.url('api/v1/ia/prompts'));
+  }
+
+  comparacionVersiones(): Observable<ComparacionVersionDto[]> {
+    return this.http.get<ComparacionVersionDto[]>(this.url('api/v1/ia/prompts/diagnosticador/comparacion'));
+  }
+
+  promoverPrompt(familia: string, version: string, responsable: string, motivo: string): Observable<PromocionDto> {
+    return this.http.post<PromocionDto>(this.url(`api/v1/ia/prompts/${familia}/promover`), { version, responsable, motivo });
+  }
+
+  rollbackPrompt(familia: string, responsable: string, motivo: string): Observable<VersionPromptDto> {
+    return this.http.post<VersionPromptDto>(this.url(`api/v1/ia/prompts/${familia}/rollback`), { responsable, motivo });
+  }
+
+  registroAgentes(): Observable<AgenteRegistroDto> {
+    return this.http.get<AgenteRegistroDto>(this.url('api/v1/ia/agentes/registro'));
+  }
+
+  cambiarEstadoAgente(nombre: string, activo: boolean, responsable: string, motivo: string): Observable<AgenteRegistrado> {
+    return this.http.post<AgenteRegistrado>(this.url(`api/v1/ia/agentes/${encodeURIComponent(nombre)}/estado`), { activo, responsable, motivo });
+  }
+
+  retroalimentar(diagnosticoId: string, body: { revisor: string; deAcuerdo: boolean; severidadCorrecta?: string; accionCorrecta?: string; comentario?: string }):
+      Observable<{ revision: RevisionDto; casoEval: unknown; resumen: ResumenRevisionDto }> {
+    return this.http.post<{ revision: RevisionDto; casoEval: unknown; resumen: ResumenRevisionDto }>(
+      this.url(`api/v1/ia/diagnostico/${diagnosticoId}/retroalimentacion`), body);
+  }
+
+  retroalimentaciones(): Observable<{ resumen: ResumenRevisionDto; revisiones: RevisionDto[] }> {
+    return this.http.get<{ resumen: ResumenRevisionDto; revisiones: RevisionDto[] }>(this.url('api/v1/ia/retroalimentacion'));
+  }
+
+  auditoriaIa(tipo?: string, limite = 100): Observable<AuditoriaDto> {
+    return this.http.get<AuditoriaDto>(this.url(`api/v1/ia/auditoria?limite=${limite}` + (tipo ? '&tipo=' + tipo : '')));
+  }
+
+  guardrails(): Observable<PoliticaGuardrailDto[]> {
+    return this.http.get<PoliticaGuardrailDto[]>(this.url('api/v1/ia/guardrails'));
+  }
+
+  modelGateway(): Observable<ModelGatewayDto> {
+    return this.http.get<ModelGatewayDto>(this.url('api/v1/ia/model-gateway'));
+  }
+
+  observabilidad(): Observable<ObservabilidadDto> {
+    return this.http.get<ObservabilidadDto>(this.url('api/v1/ia/observabilidad'));
   }
 }

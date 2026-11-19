@@ -47,10 +47,13 @@ public class GobernanzaController {
 
     private final GobernanzaAccionUseCase gobernanza;
     private final DiagnosticoRepositoryPort diagnosticos;
+    private final com.voltera.ia.infrastructure.audit.AuditoriaIa auditoria;
 
-    public GobernanzaController(GobernanzaAccionUseCase gobernanza, DiagnosticoRepositoryPort diagnosticos) {
+    public GobernanzaController(GobernanzaAccionUseCase gobernanza, DiagnosticoRepositoryPort diagnosticos,
+                                com.voltera.ia.infrastructure.audit.AuditoriaIa auditoria) {
         this.gobernanza = gobernanza;
         this.diagnosticos = diagnosticos;
+        this.auditoria = auditoria;
     }
 
     @PostMapping("/propuestas/{diagnosticoId}")
@@ -58,6 +61,8 @@ public class GobernanzaController {
         DiagnosticoDer d = diagnosticos.porId(UUID.fromString(diagnosticoId)).orElseThrow(
                 () -> new IllegalArgumentException("Diagnóstico no encontrado: " + diagnosticoId));
         PropuestaAccion p = gobernanza.proponer(d);
+        auditoria.registrar("PROPUESTA", "agente-accion@voltera", p.propuestaId().toString(),
+                p.comando() + " · " + p.firmasResumen() + " · hash " + p.hashDiagnostico().substring(0, 18), p.versionPrompt());
         return ResponseEntity.ok(PropuestaResponse.desde(p));
     }
 
@@ -141,12 +146,18 @@ public class GobernanzaController {
     private ResponseEntity<PropuestaResponse> aprobar(String id, Firmante f, FirmaRequest req) {
         PropuestaAccion p = gobernanza.aprobar(UUID.fromString(id), f, req.identidad(), req.razon(),
                 req.direccion(), req.firma());
+        auditoria.registrar("FIRMA", req.identidad(), id, f + " aprueba · " + p.firmasResumen() + " · " + p.estado()
+                + (req.firma() != null && !req.firma().isBlank() ? " · billetera" : " · clave custodiada"), p.versionPrompt());
+        if (p.estado() == com.voltera.ia.domain.model.gobernanza.EstadoPropuesta.EJECUTADA) {
+            auditoria.registrar("EJECUCION", "agente-accion@voltera", id, p.comando() + " ejecutado con 3/3", p.versionPrompt());
+        }
         return ResponseEntity.ok(PropuestaResponse.desde(p));
     }
 
     private ResponseEntity<PropuestaResponse> rechazar(String id, Firmante f, FirmaRequest req) {
         PropuestaAccion p = gobernanza.rechazar(UUID.fromString(id), f, req.identidad(), req.razon(),
                 req.direccion(), req.firma());
+        auditoria.registrar("RECHAZO", req.identidad(), id, f + " rechaza · " + p.estado(), p.versionPrompt());
         return ResponseEntity.ok(PropuestaResponse.desde(p));
     }
 }

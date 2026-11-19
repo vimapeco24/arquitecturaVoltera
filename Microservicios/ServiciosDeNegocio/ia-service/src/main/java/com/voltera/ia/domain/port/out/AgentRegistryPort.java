@@ -19,4 +19,17 @@ public interface AgentRegistryPort {
 
     /** true si el agente existe y está habilitado para actuar. */
     boolean habilitado(String nombreAgente);
+
+    /** Cambio de estado (alta/baja) de un agente, con responsable y motivo. */
+    record CambioAgente(java.time.Instant instante, String agente, boolean activo, String responsable, String motivo) {}
+
+    /** Todos los agentes registrados, activos o dados de baja. */
+    default List<AgenteRegistrado> todos() { return agentesActivos(); }
+
+    /** Da de alta o de baja un agente. */
+    default AgenteRegistrado cambiarEstado(String nombre, boolean activo, String responsable, String motivo) {
+        throw new UnsupportedOperationException("registro de solo lectura");
+    }
+
+    default List<CambioAgente> historial() { return List.of(); }
 }

@@ -6,6 +6,21 @@
 > + Evals&Tracing + tópicos `der.*`. Diagrama `.drawio` actualizado y validado).
 > Lee este archivo primero al reconectar.
 
+## 2026-11-19 (noche) · MÓDULO 5 · Gobierno y operación del módulo de IA (revisión contra el curso)
+Pedido: revisar el módulo de IA y completarlo. Se contrastó con `IA/` (taller de propuesta, arquitectura de referencia GenAI, Solventa).
+- **Prompt & Model Registry** (`InMemoryPromptModelRegistry`): versiones con estado/aprobador, `promover`/`revertir` con historial; `diagnosticador@v4` candidata (métricas donde menor es peor: SoH < 70 % crítico, SoC < 10 %). Compuerta: apta en Evals y no peor que producción (`GobiernoIaController`).
+- **Evals** por versión (`compararVersionesDiagnosticador`, `ejecutarConVersion`) y dataset dinámico (curado + Human Review).
+- **Human Review → Evals** (`DatasetRetroalimentacion`, `RegistroAlertas`): `POST /ia/diagnostico/{id}/retroalimentacion`.
+- **Agent Registry** con alta/baja e historial; Monitor/Diagnosticador de baja ⇒ 503; Acción de baja ⇒ MONITOREAR; Notificador y Assistant respetan la baja.
+- **Guardrails** con catálogo versionado y contadores (`ENT-INYECCION`, `ENT-PII`, `ENT-ALCANCE`, `SAL-PII`, `SAL-PERSUASION`, `SAL-FORMATO`). **Assistant** con intención (EVIDENCIA, TIEMPO, COSTO, SEGURIDAD, PROCESO, CONSECUENCIAS) y fuera de alcance.
+- **Model Gateway**: `redactar()` con ruteo por clasificación, presupuesto de tokens, costo, caché y decisiones; corrige el bug de usar el prompt de siniestros en el caso DER (ahora usa la plantilla del registro).
+- **Audit & Retention** (`AuditoriaIa`): registro consultable, PII redactada, retención 365 días / 5000 registros.
+- **Observabilidad** (`ObservabilidadIa` + interceptor, Micrometer `ia_funcionalidad`): p50/p95 por funcionalidad y por paso; **KPI MTTD** (meta < 5 min, línea base 45 min) con `observadoEn` opcional en la alerta.
+- **RAG híbrido**: BM25 + coseno TF-IDF, RRF (k=60), reordenamiento por cobertura, permisos PUBLICO/OPERADOR, ingesta y retiro en caliente.
+- **Front `/ia`**: pestaña nueva **Operación**; Calidad con Prompt Registry (comparación, promover, rollback, historial) y Human Review; Diagnóstico con panel de revisión; Conocimiento con rol, puntajes BM25/coseno/cobertura e ingesta. Experimento: bloque O.
+- **Tests:** 50 JUnit verdes (8 nuevos en `GobiernoIaTest`). Experimento local 68/68 (dos corridas seguidas).
+- **Diagrama:** celda del ia-service ampliada con las piezas de gobierno; XML revalidado.
+---
 ## 2026-11-19 (tarde) · MÓDULO 5 · Integraciones reales en ia-service + front
 Pedido: «no quiero nada simulado; todo real y orquestado desde backend y front».
 - **RAG real:** `Bm25ConocimientoDer` (BM25 k1=1.2 b=0.75) sobre `resources/conocimiento/*.md` (12 documentos, ~35 secciones). Reemplaza `StubConocimientoDer` (eliminado). API `GET /ia/conocimiento/documentos|buscar`.

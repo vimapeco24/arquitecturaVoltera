@@ -2,6 +2,7 @@ id: procedimientos-campo
 titulo: Procedimientos de campo · Atención de activos DER
 categoria: procedimiento-campo
 activos: GENERAL
+acceso: OPERADOR
 fuente: Manual operativo de la comunidad (demostración)
 ---
 ## Reinicio controlado de inversor

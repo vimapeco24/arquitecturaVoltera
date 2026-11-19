@@ -29,4 +29,16 @@ public interface GuardrailsPort {
     default String neutralizarPersuasion(String texto) {
         return texto == null ? "" : texto;
     }
+
+    /** Política declarada y versionada, con su número de activaciones. */
+    record Politica(String id, String tipo, String version, String descripcion, String accion, long activaciones) {}
+
+    /** Catálogo de políticas vigentes. */
+    default java.util.List<Politica> politicas() { return java.util.List.of(); }
+
+    /** true si la pregunta está fuera del alcance del Assistant (no es sobre el diagnóstico). */
+    default boolean fueraDeAlcance(String texto) { return false; }
+
+    /** Registra la activación de una política (para observabilidad y auditoría). */
+    default void registrarActivacion(String politicaId) { }
 }

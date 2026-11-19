@@ -16,7 +16,7 @@ import java.util.List;
 @Component
 public class InMemoryAgentRegistry implements AgentRegistryPort {
 
-    private static final List<AgenteRegistrado> AGENTES = List.of(
+    private final List<AgenteRegistrado> agentes = new java.util.concurrent.CopyOnWriteArrayList<>(List.of(
             new AgenteRegistrado("Agente-Monitor", "Equipo Operaciones de Red",
                     "Evalúa umbrales adaptativos sobre la telemetría entrante",
                     "lectura:telemetria", true),
@@ -32,15 +32,40 @@ public class InMemoryAgentRegistry implements AgentRegistryPort {
                     "notificaciones:enviar", true),
             new AgenteRegistrado("Assistant", "Equipo Operaciones de Red",
                     "Conversa sobre un diagnóstico antes de firmar (sin herramientas de acción; no persuade)",
-                    "lectura:diagnostico", true));
+                    "lectura:diagnostico", true)));
+    private final List<CambioAgente> cambios = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     @Override
     public List<AgenteRegistrado> agentesActivos() {
-        return AGENTES.stream().filter(AgenteRegistrado::activo).toList();
+        return agentes.stream().filter(AgenteRegistrado::activo).toList();
     }
 
     @Override
     public boolean habilitado(String nombreAgente) {
-        return AGENTES.stream().anyMatch(a -> a.nombre().equalsIgnoreCase(nombreAgente) && a.activo());
+        return agentes.stream().anyMatch(a -> a.nombre().equalsIgnoreCase(nombreAgente) && a.activo());
+    }
+
+    @Override
+    public List<AgenteRegistrado> todos() {
+        return List.copyOf(agentes);
+    }
+
+    @Override
+    public synchronized AgenteRegistrado cambiarEstado(String nombre, boolean activo, String responsable, String motivo) {
+        for (int i = 0; i < agentes.size(); i++) {
+            AgenteRegistrado a = agentes.get(i);
+            if (a.nombre().equalsIgnoreCase(nombre)) {
+                AgenteRegistrado n = new AgenteRegistrado(a.nombre(), a.dueno(), a.capacidad(), a.permisos(), activo);
+                agentes.set(i, n);
+                cambios.add(0, new CambioAgente(java.time.Instant.now(), a.nombre(), activo, responsable, motivo));
+                return n;
+            }
+        }
+        throw new IllegalArgumentException("Agente desconocido: " + nombre);
+    }
+
+    @Override
+    public List<CambioAgente> historial() {
+        return List.copyOf(cambios);
     }
 }

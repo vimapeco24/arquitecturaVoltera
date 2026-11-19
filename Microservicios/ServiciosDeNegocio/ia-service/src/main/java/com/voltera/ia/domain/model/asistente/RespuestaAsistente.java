@@ -23,11 +23,20 @@ public record RespuestaAsistente(
         List<Evidencia> evidencias,
         String promptVersion,
         boolean noPersuasion,
-        Instant generadoEn
+        Instant generadoEn,
+        /** Intención detectada en la pregunta (CONSECUENCIAS, EVIDENCIA, TIEMPO, COSTO, PROCESO, SEGURIDAD, GENERAL). */
+        String intencion,
+        /** true si la pregunta no era sobre el diagnóstico (guardrail ENT-ALCANCE). */
+        boolean fueraDeAlcance
 ) {
     public static RespuestaAsistente de(String diagnosticoId, String respuesta,
                                         List<Evidencia> evidencias, String promptVersion) {
+        return de(diagnosticoId, respuesta, evidencias, promptVersion, "GENERAL", false);
+    }
+
+    public static RespuestaAsistente de(String diagnosticoId, String respuesta, List<Evidencia> evidencias,
+                                        String promptVersion, String intencion, boolean fueraDeAlcance) {
         return new RespuestaAsistente(diagnosticoId, respuesta, List.copyOf(evidencias),
-                promptVersion, true, Instant.now());
+                promptVersion, true, Instant.now(), intencion, fueraDeAlcance);
     }
 }

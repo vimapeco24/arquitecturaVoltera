@@ -12,4 +12,9 @@ import com.voltera.ia.domain.model.der.DiagnosticoDer;
 public interface DiagnosticoDerUseCase {
 
     DiagnosticoDer diagnosticar(AlertaTelemetria alerta);
+
+    /** Ejecuta el flujo con una versión concreta del diagnosticador (Evals de versiones candidatas). */
+    default DiagnosticoDer diagnosticar(AlertaTelemetria alerta, String versionDiagnosticador) {
+        return diagnosticar(alerta);
+    }
 }

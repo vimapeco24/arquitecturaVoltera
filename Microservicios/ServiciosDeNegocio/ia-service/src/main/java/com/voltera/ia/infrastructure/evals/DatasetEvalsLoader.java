@@ -34,7 +34,7 @@ public class DatasetEvalsLoader {
                         new BigDecimal(c.path("valor").asText("0")), new BigDecimal(c.path("umbral").asText("0")),
                         c.path("minutosSinSenal").asInt(0),
                         Severidad.valueOf(e.path("severidad").asText()), TipoAccion.valueOf(e.path("accion").asText()),
-                        e.path("requiereHumano").asBoolean(), c.path("nota").asText("")));
+                        e.path("requiereHumano").asBoolean(), c.path("nota").asText(""), CasoEval.DATASET));
             }
         } catch (IOException ex) {
             throw new UncheckedIOException("No se pudo cargar el dataset de Evals", ex);

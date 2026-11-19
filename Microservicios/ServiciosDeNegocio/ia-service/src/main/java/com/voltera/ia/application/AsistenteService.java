@@ -10,6 +10,8 @@ import com.voltera.ia.domain.port.out.DiagnosticoRepositoryPort;
 import com.voltera.ia.domain.port.out.GuardrailsPort;
 import com.voltera.ia.domain.port.out.PromptModelRegistryPort;
 
+import java.util.List;
+
 /**
  * Assistant conversacional acotado al diagnóstico, previo a la firma (opción B
  * del documento). Responde SOLO con el diagnóstico, la propuesta y la evidencia
@@ -30,6 +32,8 @@ public class AsistenteService implements AsistenteUseCase {
     private final GuardrailsPort guardrails;
     private final PromptModelRegistryPort promptRegistry;
 
+    private com.voltera.ia.domain.port.out.AgentRegistryPort agentRegistry;
+
     public AsistenteService(DiagnosticoRepositoryPort diagnosticos, GuardrailsPort guardrails,
                             PromptModelRegistryPort promptRegistry) {
         this.diagnosticos = diagnosticos;
@@ -37,8 +41,17 @@ public class AsistenteService implements AsistenteUseCase {
         this.promptRegistry = promptRegistry;
     }
 
+    /** Respeta las bajas del Agent Registry: un Assistant dado de baja no responde. */
+    public AsistenteService conRegistro(com.voltera.ia.domain.port.out.AgentRegistryPort agentRegistry) {
+        this.agentRegistry = agentRegistry;
+        return this;
+    }
+
     @Override
     public RespuestaAsistente responder(PreguntaAsistente pregunta) {
+        if (agentRegistry != null && !agentRegistry.habilitado("Assistant")) {
+            throw new com.voltera.ia.domain.exception.AgenteDeBajaException("Assistant");
+        }
         // Guardrail de entrada: rechaza inyección de prompt.
         guardrails.validarEntrada(pregunta.texto());
 
@@ -51,14 +64,58 @@ public class AsistenteService implements AsistenteUseCase {
         String agentePrompt = audiencia == Audiencia.OPERADOR ? "asistente-operador" : "asistente-prosumidor";
         String promptVersion = promptRegistry.versionPrompt(agentePrompt);
 
-        String cuerpo = audiencia == Audiencia.OPERADOR
+        // Guardrail de alcance: solo se conversa sobre este diagnóstico.
+        if (guardrails.fueraDeAlcance(pregunta.texto())) {
+            String alcance = "Solo puedo responder preguntas sobre este diagnóstico del activo " + d.activoId()
+                    + ": qué se detectó, con qué evidencia, qué acción se propone y qué pasa si apruebas o si rechazas.";
+            return RespuestaAsistente.de(d.diagnosticoId().toString(), alcance, List.of(), promptVersion, "FUERA_DE_ALCANCE", true);
+        }
+
+        String intencion = intencion(pregunta.texto());
+        String base = audiencia == Audiencia.OPERADOR
                 ? redactarOperador(d, pregunta.texto())
                 : redactarProsumidor(d, pregunta.texto());
+        String cuerpo = responderIntencion(d, intencion, audiencia) + " " + base;
 
         // Guardrail de salida: enmascara PII y neutraliza cualquier persuasión.
         String seguro = guardrails.neutralizarPersuasion(guardrails.enmascararPII(cuerpo));
 
-        return RespuestaAsistente.de(d.diagnosticoId().toString(), seguro, d.evidencias(), promptVersion);
+        return RespuestaAsistente.de(d.diagnosticoId().toString(), seguro, d.evidencias(), promptVersion, intencion, false);
+    }
+
+    // ------------------------------------------------------------- intención
+
+    /** Clasifica la pregunta por palabras clave (determinista y auditable). */
+    static String intencion(String texto) {
+        String t = texto == null ? "" : texto.toLowerCase();
+        if (t.matches(".*(por qu|evidencia|fuente|c[oó]mo sab|en qu[eé] se basa|prueba).*")) return "EVIDENCIA";
+        if (t.matches(".*(cu[aá]nto tarda|cu[aá]ndo|tiempo|demora|plazo|vence).*")) return "TIEMPO";
+        if (t.matches(".*(cu[aá]nto cuesta|costo|cobr|pagar|factura|precio).*")) return "COSTO";
+        if (t.matches(".*(peligro|seguro|riesgo|incendio|da[nñ]o).*")) return "SEGURIDAD";
+        if (t.matches(".*(qui[eé]n firma|firmas|proceso|c[oó]mo funciona|pasos|3/3).*")) return "PROCESO";
+        if (t.matches(".*(qu[eé] pasa|si no apruebo|si rechazo|si apruebo|consecuencia).*")) return "CONSECUENCIAS";
+        return "GENERAL";
+    }
+
+    private String responderIntencion(DiagnosticoDer d, String intencion, Audiencia aud) {
+        boolean simple = aud != Audiencia.OPERADOR;
+        return switch (intencion) {
+            case "EVIDENCIA" -> "La conclusión se apoya en " + d.evidencias().size() + " fuentes: "
+                    + String.join("; ", d.evidencias().stream().limit(4).map(e -> e.titulo()).toList()) + ".";
+            case "TIEMPO" -> simple
+                    ? "La propuesta tiene un plazo para reunir las tres firmas; si vence, no se hace nada sobre tu equipo."
+                    : "La propuesta vence según su TTL (crítica 30 min, resto 4 h); vencida sin 3/3 queda VENCIDA y no se ejecuta.";
+            case "COSTO" -> simple
+                    ? "Este asistente no calcula cobros. Lo que sí se sabe: con el equipo fuera de rango pueden quedar lecturas de energía erróneas que afectan la liquidación."
+                    : "El diagnóstico no estima costos. El fallo conocido asociado indica riesgo de lecturas erróneas que afectan la liquidación y la facturación.";
+            case "SEGURIDAD" -> "La severidad registrada es " + d.severidad() + ". "
+                    + (d.accionPropuesta() == com.voltera.ia.domain.model.der.TipoAccion.DESPACHAR_TECNICO
+                        ? "Se propone una visita técnica porque la causa puede requerir inspección física."
+                        : "Ninguna acción se ejecuta sobre el equipo sin las tres firmas.");
+            case "PROCESO" -> "Firman tres partes: el agente IA al proponer, el operador al validar técnicamente y el prosumidor al consentir. Sin las tres no se ejecuta nada.";
+            case "CONSECUENCIAS" -> "Sobre tu pregunta:";
+            default -> "";
+        };
     }
 
     // ------------------------------------------------------------- redacción

@@ -191,6 +191,26 @@
           </ol>
         </div>
 
+
+        <!-- ============ Human Review · la corrección vuelve a las Evals ============ -->
+        <div class="detail-box revision">
+          <h4>🧑‍⚖️ Revisión humana del diagnóstico</h4>
+          <p class="hint">Confirma o corrige lo que propuso el agente. La revisión entra como caso etiquetado a la siguiente corrida de Evals (pestaña Calidad).</p>
+          <div class="rev-row" *ngIf="!revisionEnviada; else revOk">
+            <button type="button" class="v-btn" (click)="enviarRevision(true)" [disabled]="enviandoRevision">✔ De acuerdo</button>
+            <span class="hint">o corrige:</span>
+            <select class="v-select mini" [(ngModel)]="revSeveridad">
+              <option *ngFor="let s of ['INFO','ADVERTENCIA','CRITICA']" [value]="s">{{ s }}</option>
+            </select>
+            <select class="v-select mini" [(ngModel)]="revAccion">
+              <option *ngFor="let a of ['MONITOREAR','DESPACHAR_TECNICO','COMANDO_FISICO','CORTAR_SUMINISTRO']" [value]="a">{{ a }}</option>
+            </select>
+            <input class="v-input mini" [(ngModel)]="revComentario" placeholder="motivo (opcional)" />
+            <button type="button" class="v-btn primary" (click)="enviarRevision(false)" [disabled]="enviandoRevision">Enviar corrección</button>
+          </div>
+          <ng-template #revOk><p class="rev-ok">✓ Revisión registrada como caso <code>{{ revisionEnviada }}</code>. Se usará en la próxima corrida de Evals.</p></ng-template>
+        </div>
+
         <!-- ============ Assistant · conversación acotada antes de firmar ============ -->
         <div class="detail-box asistente" *ngIf="d.requiereAprobacionHumana">
           <h4>💬 Assistant · pregunta antes de firmar</h4>
@@ -339,7 +359,7 @@
         <span class="v-spinner" *ngIf="cargandoReporte"></span>↻ Re-ejecutar dataset
       </button>
     </div>
-    <p class="sub">Dataset <code>{{ r.dataset }}</code> · {{ r.totalCasos }} casos · {{ r.duracionMs }} ms · ejecutado {{ r.ejecutadoEn | date:'dd/MM HH:mm:ss' }}</p>
+    <p class="sub">Dataset <code>{{ r.dataset }}</code> · {{ r.totalCasos }} casos ({{ r.casosRetroalimentacion }} de Human Review) · diagnosticador <code>{{ r.versionDiagnosticador }}</code> · {{ r.duracionMs }} ms · ejecutado {{ r.ejecutadoEn | date:'dd/MM HH:mm:ss' }}</p>
     <table class="eval-table">
       <thead><tr><th>Familia</th><th>Versión</th><th>Casos</th><th>Acierto</th><th>Citas</th><th>Inventados</th><th>Veredicto</th></tr></thead>
       <tbody>
@@ -358,7 +378,7 @@
       <thead><tr><th>Id</th><th>Caso</th><th>Severidad esperada → obtenida</th><th>Acción esperada → obtenida</th><th>Citas</th><th>ms</th></tr></thead>
       <tbody>
         <tr *ngFor="let c of casosVisibles(r)" [class.fila-bad]="!c.severidadOk || !c.accionOk">
-          <td><code>{{ c.id }}</code></td>
+          <td><code>{{ c.id }}</code><div *ngIf="c.origen === 'HUMAN_REVIEW'"><span class="v-badge mini info">revisión</span></div></td>
           <td>{{ c.descripcion }}<div class="hint" *ngIf="c.nota">{{ c.nota }}</div></td>
           <td>{{ c.severidadEsperada }} → <b [class.txt-bad]="!c.severidadOk">{{ c.severidadObtenida }}</b></td>
           <td>{{ c.accionEsperada }} → <b [class.txt-bad]="!c.accionOk">{{ c.accionObtenida }}</b></td>
@@ -370,14 +390,68 @@
     <p class="hint">GET <code>/api/v1/ia/evals/reporte</code> · resultado en caché 60 s; «Re-ejecutar» fuerza una corrida nueva.</p>
   </div>
   <ng-template #cargandoEvals><div class="v-card evals"><p class="hint">Ejecutando el dataset de Evals…</p></div></ng-template>
+
+  <!-- Prompt & Model Registry -->
+  <div class="evals v-card" *ngIf="promptsReg as pr">
+    <div class="exp-head">
+      <h3>🗃 Prompt &amp; Model Registry</h3>
+      <div class="gh-actions">
+        <button class="v-btn primary" (click)="promoverV4()" [disabled]="cambiandoPrompt">⇪ Promover diagnosticador&#64;v4 (con compuerta)</button>
+        <button class="v-btn" (click)="rollbackDiagnosticador()" [disabled]="cambiandoPrompt">↶ Rollback</button>
+      </div>
+    </div>
+    <p class="sub">Compuerta de promoción: {{ pr.compuerta }}; además la candidata no puede tener menos acierto que la versión en producción.</p>
+    <div class="tblw"><table class="arq-t">
+      <thead><tr><th>Familia</th><th>En producción</th><th>Versiones (estado · aprobada por)</th></tr></thead>
+      <tbody><tr *ngFor="let f of pr.familias">
+        <td><b>{{ f.familia }}</b></td><td><code>{{ f.produccion }}</code></td>
+        <td><span class="ver" *ngFor="let v of f.versiones" [title]="v.descripcion">
+          <span class="v-badge mini" [ngClass]="v.estado === 'PRODUCCION' ? 'ok' : v.estado === 'CANDIDATA' ? 'info' : 'warn'">{{ v.version }} · {{ v.estado }}</span>
+          <small class="hint" *ngIf="v.aprobadaPor">{{ v.aprobadaPor }}</small></span></td>
+      </tr></tbody>
+    </table></div>
+    <h4 class="sub-h">Comparación de versiones del diagnosticador sobre el mismo dataset</h4>
+    <div class="tblw"><table class="arq-t" *ngIf="comparacion.length">
+      <thead><tr><th>Versión</th><th>Estado</th><th>Monitor</th><th>Diagnosticador</th><th>Acción</th><th>Citas</th><th>Casos fallidos</th><th>Compuerta</th></tr></thead>
+      <tbody><tr *ngFor="let c of comparacion">
+        <td><code>{{ c.version }}</code></td><td>{{ c.estado }}</td>
+        <td>{{ c.aciertoMonitor * 100 | number:'1.0-1' }} %</td><td>{{ c.aciertoDiagnosticador * 100 | number:'1.0-1' }} %</td>
+        <td>{{ c.aciertoAccion * 100 | number:'1.0-1' }} %</td><td>{{ c.citas * 100 | number:'1.0-0' }} %</td>
+        <td>{{ c.fallidos.length ? c.fallidos.join(', ') : '—' }}</td>
+        <td><span class="v-badge mini" [ngClass]="c.apta ? 'ok' : 'err'">{{ c.apta ? 'APTA' : 'NO apta' }}</span></td>
+      </tr></tbody>
+    </table></div>
+    <p class="rev-ok" *ngIf="ultimaPromocion as up" [class.txt-bad]="up.resultado === 'RECHAZADA'">{{ up.resultado }}{{ up.motivo ? ': ' + up.motivo : '' }}<ng-container *ngIf="up.aciertoCandidata !== undefined"> · candidata {{ up.aciertoCandidata! * 100 | number:'1.0-1' }} % frente a producción {{ up.aciertoProduccion! * 100 | number:'1.0-1' }} %</ng-container></p>
+    <h4 class="sub-h" *ngIf="pr.historial.length">Historial de cambios</h4>
+    <ul class="docs" *ngIf="pr.historial.length">
+      <li *ngFor="let h of pr.historial">{{ h.instante | date:'dd/MM HH:mm:ss' }} · <b>{{ h.tipo }}</b> {{ h.familia }}: {{ h.desde }} → {{ h.hacia }} · {{ h.responsable }}<span *ngIf="h.motivo"> · {{ h.motivo }}</span></li>
+    </ul>
+  </div>
+
+  <!-- Human Review → Evals -->
+  <div class="evals v-card" *ngIf="revisiones as rv">
+    <h3>🧑‍⚖️ Human Review → dataset de Evals</h3>
+    <p class="sub">{{ rv.resumen.revisiones }} revisiones · {{ rv.resumen.deAcuerdo }} de acuerdo · {{ rv.resumen.corregidas }} corregidas · tasa de acuerdo humano-agente {{ rv.resumen.tasaAcuerdo * 100 | number:'1.0-0' }} % · {{ rv.resumen.casosAgregadosAEvals }} casos agregados al dataset.</p>
+    <div class="empty" *ngIf="!rv.revisiones.length">Aún no hay revisiones. Revisa un diagnóstico en la pestaña «Diagnóstico y agentes».</div>
+    <div class="tblw" *ngIf="rv.revisiones.length"><table class="arq-t">
+      <thead><tr><th>Caso</th><th>Revisor</th><th>Agente</th><th>Revisor dice</th><th>Comentario</th></tr></thead>
+      <tbody><tr *ngFor="let r of rv.revisiones" [class.fila-bad]="!r.deAcuerdo">
+        <td><code>{{ r.casoId }}</code></td><td>{{ r.revisor }}</td>
+        <td>{{ r.severidadAgente }} · {{ r.accionAgente }}</td><td>{{ r.deAcuerdo ? 'de acuerdo' : r.severidadCorrecta + ' · ' + r.accionCorrecta }}</td>
+        <td>{{ r.comentario }}</td>
+      </tr></tbody>
+    </table></div>
+  </div>
   </section>
 
   <!-- ============ Conocimiento (RAG BM25) ============ -->
   <section *ngIf="tab === 'conocimiento'">
 <details class="ayuda" open><summary>ℹ ¿Qué estoy viendo?</summary><ul>
 <li><b>Corpus:</b> los documentos que consulta el Agente-Diagnosticador: fichas técnicas, fallos conocidos, procedimientos de campo y regulación. Cada documento se divide en secciones.</li>
-<li><b>Búsqueda:</b> recuperación léxica BM25 (k1 = 1,2; b = 0,75). El puntaje sube cuando los términos de la consulta son frecuentes en la sección y raros en el resto del corpus.</li>
-<li><b>En el diagnóstico:</b> el agente toma la mejor sección de cada categoría y la cita con documento, sección y puntaje. Es recuperación léxica, no semántica: sinónimos que no aparecen en el texto no se encuentran.</li>
+<li><b>Búsqueda híbrida:</b> dos recuperadores sobre las mismas secciones, BM25 (palabras clave, k1 = 1,2; b = 0,75) y similitud coseno de vectores TF-IDF. Se combinan con Reciprocal Rank Fusion (k = 60) y se reordenan según cuántos términos de la consulta cubre cada sección. «Puntaje» es el resultado final relativo al mejor (1,0).</li>
+<li><b>Permisos:</b> cada documento es PUBLICO u OPERADOR. Con rol PROSUMIDOR no aparecen los documentos internos (procedimientos y regulación), igual que en un RAG con los permisos del usuario.</li>
+<li><b>Índice vivo:</b> el índice es una proyección. Puedes ingerir un documento nuevo (queda buscable de inmediato) o retirarlo (la supresión se propaga). Ambas operaciones quedan en la auditoría.</li>
+<li><b>Límite:</b> sigue siendo léxico: sinónimos que no aparecen en el texto no se encuentran. El siguiente paso sería un modelo de embeddings.</li>
 </ul></details>
   <div class="layout rag">
     <div class="v-card panel">
@@ -390,22 +464,137 @@
           <option value="">Todos</option>
           <option *ngFor="let t of ['INVERSOR','BATERIA','PANEL_SOLAR','CARGADOR_EV','MEDIDOR']" [value]="t">{{ t }}</option>
         </select></div>
+      <div class="v-field"><label>Rol de quien consulta (permisos)</label>
+        <select class="v-select" [(ngModel)]="ragRol">
+          <option value="OPERADOR">OPERADOR · ve todo</option>
+          <option value="PROSUMIDOR">PROSUMIDOR · solo documentos públicos</option>
+        </select></div>
       <div class="form-actions"><button class="v-btn primary" (click)="buscarRag()" [disabled]="buscandoRag">Buscar</button></div>
       <h4 class="sub-h" *ngIf="corpus as cp">Corpus · {{ cp.documentos.length }} documentos · {{ cp.fragmentos }} secciones</h4>
       <ul class="docs" *ngIf="corpus as cp">
-        <li *ngFor="let d of cp.documentos"><span class="v-badge mini info">{{ d.categoria }}</span> {{ d.titulo }} <small class="hint">· {{ d.secciones }} secc. · {{ d.activos.join(', ') }}</small></li>
+        <li *ngFor="let d of cp.documentos"><span class="v-badge mini info">{{ d.categoria }}</span> {{ d.titulo }}
+          <span class="v-badge mini" [ngClass]="d.acceso === 'PUBLICO' ? 'ok' : 'warn'">{{ d.acceso }}</span>
+          <small class="hint">· {{ d.secciones }} secc. · {{ d.activos.join(', ') }}</small>
+          <button class="lnk-x" *ngIf="d.origen === 'INGESTA'" (click)="retirarDocumento(d.id)" title="Retirar del índice">✕ retirar</button></li>
       </ul>
+      <h4 class="sub-h">➕ Ingerir un documento</h4>
+      <p class="hint">Formato: encabezado con <code>id</code>, <code>titulo</code>, <code>categoria</code> (ficha-tecnica · fallos-conocidos · procedimiento-campo), <code>activos</code> y opcional <code>acceso</code>; luego <code>---</code> y secciones que empiezan con <code>## </code>.</p>
+      <textarea class="v-input" rows="8" [(ngModel)]="docNuevo"></textarea>
+      <div class="form-actions"><button class="v-btn" (click)="ingerirDocumento()" [disabled]="ingiriendo">Ingerir y reindexar</button></div>
     </div>
     <div class="v-card result">
       <div class="result-head"><h3>Resultados</h3><span class="count">{{ ragResultados.length }} fragmentos</span></div>
       <div class="empty" *ngIf="!ragResultados.length">Sin resultados todavía.</div>
       <div class="rag-item" *ngFor="let r of ragResultados; let i = index">
-        <div class="rag-top"><b>#{{ i + 1 }} · {{ r.titulo }}</b><span class="v-badge mini ok">BM25 {{ r.score }}</span></div>
+        <div class="rag-top"><b>#{{ i + 1 }} · {{ r.titulo }}</b><span class="v-badge mini ok">puntaje {{ r.score }}</span></div>
+        <div class="rag-scores"><span>BM25 <b>{{ r.bm25 }}</b></span><span>coseno <b>{{ r.coseno }}</b></span><span>cobertura <b>{{ r.cobertura * 100 | number:'1.0-0' }} %</b></span><span class="v-badge mini" [ngClass]="r.acceso === 'PUBLICO' ? 'ok' : 'warn'">{{ r.acceso }}</span></div>
         <div class="hint">§ {{ r.seccion }} · <code>{{ r.docId }}</code> · {{ r.categoria }} · términos: {{ r.terminos.join(', ') }}</div>
         <p>{{ r.texto }}</p>
         <div class="hint">Fuente: {{ r.fuente }}</div>
       </div>
     </div>
+  </div>
+  </section>
+
+
+  <!-- ============ Operación: observabilidad, gateway, guardrails, agentes, auditoría ============ -->
+  <section *ngIf="tab === 'operacion'">
+<details class="ayuda" open><summary>ℹ ¿Qué estoy viendo?</summary><ul>
+<li><b>KPI del caso:</b> el caso de negocio promete bajar el tiempo medio de detección de 45 min a menos de 5. Aquí se mide desde que el dispositivo tomó la lectura (<code>observadoEn</code>) hasta que el agente entrega el diagnóstico.</li>
+<li><b>Funcionalidades y pasos:</b> latencia p50/p95 y errores de cada endpoint del módulo, y cuánto tarda cada paso del flujo agéntico. Lo mismo se publica en <code>/actuator/prometheus</code> para Grafana.</li>
+<li><b>Model Gateway:</b> por dónde sale cada solicitud de redacción: si el dato es RESTRINGIDO (traía PII) nunca sale del servicio; sin proveedor o sin presupuesto se usa el motor local; las repetidas salen de caché.</li>
+<li><b>Guardrails:</b> las políticas son declaradas y versionadas, no texto dentro del prompt; cada una cuenta sus activaciones.</li>
+<li><b>Agent Registry:</b> dar de baja un agente detiene su parte del flujo (fail-closed). Prueba bajar el Agente-Diagnosticador y diagnosticar: el servicio responde 503.</li>
+<li><b>Auditoría:</b> qué se registra, con qué redacción y por cuánto tiempo.</li>
+</ul></details>
+  <div class="exp-head op-head"><span class="hint" *ngIf="obsIa">actualizado {{ obsActualizado | date:'HH:mm:ss' }}</span><button class="v-btn" (click)="cargarOperacion()">↻ Actualizar</button></div>
+
+  <div class="kpi-neg" *ngIf="obsIa as o">
+    <div class="v-card kpi-big" [class.ok]="o.kpiNegocio.cumpleMeta">
+      <span class="kb-l">MTTD medido</span>
+      <span class="kb-n">{{ o.kpiNegocio.mttdSegundos | number:'1.0-1' }} s</span>
+      <span class="kb-s">p95 {{ o.kpiNegocio.p95DeteccionSegundos | number:'1.0-1' }} s · {{ o.kpiNegocio.diagnosticos }} diagnósticos</span>
+    </div>
+    <div class="v-card kpi-big"><span class="kb-l">Meta del caso</span><span class="kb-n">&lt; {{ o.kpiNegocio.metaMinutos }} min</span><span class="kb-s">{{ o.kpiNegocio.cumpleMeta ? '✔ se cumple' : '✘ no se cumple' }}</span></div>
+    <div class="v-card kpi-big"><span class="kb-l">Línea base</span><span class="kb-n">{{ o.kpiNegocio.lineaBaseMinutos }} min</span><span class="kb-s">revisión manual de dashboards</span></div>
+    <div class="v-card kpi-big"><span class="kb-l">Gateway</span><span class="kb-n">{{ o.modelGateway.solicitudes }}</span><span class="kb-s">solicitudes · {{ o.modelGateway.tokensUsados }} tokens · US$ {{ o.modelGateway.costoUsd }}</span></div>
+  </div>
+  <p class="hint" *ngIf="obsIa">{{ obsIa.kpiNegocio.nota }}</p>
+
+  <div class="arq-grid" *ngIf="obsIa as o">
+    <div class="v-card arq-card">
+      <h3>⏱ Latencia por funcionalidad</h3>
+      <div class="tblw"><table class="arq-t">
+        <thead><tr><th>Funcionalidad</th><th>Llamadas</th><th>Errores</th><th>p50</th><th>p95</th></tr></thead>
+        <tbody><tr *ngFor="let f of o.funcionalidades"><td>{{ f.nombre }}</td><td>{{ f.llamadas }}</td><td [class.txt-bad]="f.errores > 0">{{ f.errores }}</td><td>{{ f.p50Ms }} ms</td><td>{{ f.p95Ms }} ms</td></tr></tbody>
+      </table></div>
+    </div>
+    <div class="v-card arq-card">
+      <h3>🧭 Duración por paso del flujo</h3>
+      <div class="paso-bar" *ngFor="let p of o.pasosFlujo">
+        <span class="pb-n">{{ p.nombre }}</span>
+        <span class="pb-b"><i [style.width.%]="anchoPaso(p.p95Ms)"></i></span>
+        <span class="pb-v">p50 {{ p.p50Ms }} · p95 {{ p.p95Ms }} ms</span>
+      </div>
+      <p class="hint" *ngIf="!o.pasosFlujo.length">Diagnostica una alerta para ver los tiempos.</p>
+    </div>
+  </div>
+
+  <div class="v-card arq-wide" *ngIf="gatewayIa as g">
+    <h3>🚦 Model Gateway</h3>
+    <div class="gw-conf">
+      <span>proveedor <b>{{ g.proveedor }}</b></span><span>modelo <b>{{ g.modelo }}</b></span>
+      <span>zero-retention <b>{{ g.zeroRetention ? 'sí' : 'no' }}</b></span><span>timeout <b>{{ g.timeoutMs }} ms</b></span>
+      <span>presupuesto <b>{{ g.tokensUsados }} / {{ g.presupuestoTokens }} tokens</b></span><span>caché <b>{{ g.aciertosCache }} aciertos</b></span>
+      <span *ngFor="let r of g.porRuta | keyvalue">{{ r.key }} <b>{{ r.value }}</b></span>
+    </div>
+    <ul class="arq-list"><li *ngFor="let r of g.reglas">{{ r }}</li></ul>
+    <div class="tblw"><table class="arq-t">
+      <thead><tr><th>Hora</th><th>Funcionalidad</th><th>Clasificación</th><th>Ruta</th><th>Motivo</th><th>Tokens</th><th>Costo</th></tr></thead>
+      <tbody><tr *ngFor="let d of g.decisiones | slice:0:15">
+        <td>{{ d.instante | date:'HH:mm:ss' }}</td><td>{{ d.funcionalidad }}</td>
+        <td><span class="v-badge mini" [ngClass]="d.clasificacion === 'RESTRINGIDO' ? 'warn' : 'info'">{{ d.clasificacion }}</span></td>
+        <td><b>{{ d.ruta }}</b></td><td>{{ d.motivo }}</td><td>{{ d.tokensEntrada + d.tokensSalida }}</td><td>US$ {{ d.costoUsd }}</td>
+      </tr></tbody>
+    </table></div>
+  </div>
+
+  <div class="arq-grid">
+    <div class="v-card arq-card" *ngIf="guardrailsIa.length">
+      <h3>🛡 Guardrails (políticas versionadas)</h3>
+      <div class="tblw"><table class="arq-t">
+        <thead><tr><th>Política</th><th>Tipo</th><th>Acción</th><th>Activaciones</th></tr></thead>
+        <tbody><tr *ngFor="let g of guardrailsIa"><td><code>{{ g.id }}</code> <small class="hint">{{ g.version }}</small><div class="hint">{{ g.descripcion }}</div></td><td>{{ g.tipo }}</td><td>{{ g.accion }}</td><td><b>{{ g.activaciones }}</b></td></tr></tbody>
+      </table></div>
+    </div>
+    <div class="v-card arq-card" *ngIf="registroAg as ra">
+      <h3>🗂 Agent Registry · alta y baja</h3>
+      <div class="ag-row" *ngFor="let a of ra.agentes">
+        <div><b>{{ a.nombre }}</b><div class="hint">{{ a.permisos }}</div></div>
+        <span class="v-badge mini" [ngClass]="a.activo ? 'ok' : 'err'">{{ a.activo ? 'activo' : 'de baja' }}</span>
+        <button class="v-btn ghost" (click)="toggleAgente(a.nombre, !a.activo)">{{ a.activo ? 'Dar de baja' : 'Dar de alta' }}</button>
+      </div>
+      <h4 class="sub-h" *ngIf="ra.historial.length">Historial</h4>
+      <ul class="docs"><li *ngFor="let h of ra.historial | slice:0:8">{{ h.instante | date:'HH:mm:ss' }} · {{ h.agente }} → {{ h.activo ? 'alta' : 'baja' }} · {{ h.responsable }} · {{ h.motivo }}</li></ul>
+    </div>
+  </div>
+
+  <div class="v-card arq-wide" *ngIf="auditoriaIa as au">
+    <div class="exp-head">
+      <h3>🧾 Audit &amp; Retention</h3>
+      <select class="v-select mini" [(ngModel)]="audTipo" (ngModelChange)="cargarAuditoriaIa()">
+        <option value="">Todos los tipos</option>
+        <option *ngFor="let t of au.politica.seRegistra" [value]="t">{{ t }} ({{ au.politica.porTipo[t] || 0 }})</option>
+      </select>
+    </div>
+    <p class="sub">Retención {{ au.politica.retencionDias }} días · tope {{ au.politica.maximoRegistros }} registros · {{ au.politica.total }} registros. {{ au.politica.redaccion }}</p>
+    <div class="tblw"><table class="arq-t">
+      <thead><tr><th>Hora</th><th>Tipo</th><th>Actor</th><th>Recurso</th><th>Detalle (redactado)</th><th>Versión</th></tr></thead>
+      <tbody><tr *ngFor="let r of au.registros | slice:0:40">
+        <td>{{ r.instante | date:'dd/MM HH:mm:ss' }}</td><td><span class="v-badge mini info">{{ r.tipo }}</span></td><td>{{ r.actor }}</td>
+        <td><code>{{ r.recurso | slice:0:14 }}</code></td><td>{{ r.detalle }}</td><td><code>{{ r.version || '—' }}</code></td>
+      </tr></tbody>
+    </table></div>
   </div>
   </section>
 

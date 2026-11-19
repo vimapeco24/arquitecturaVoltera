@@ -20,7 +20,9 @@ public record DiagnosticarRequest(
         BigDecimal umbral,
         int minutosSinSenal,
         String descripcion,
-        String usuario
+        String usuario,
+        /** Opcional: instante en que el dispositivo tomó la lectura (para medir el tiempo de detección). */
+        java.time.Instant observadoEn
 ) {
     public AlertaTelemetria aDominio() {
         return new AlertaTelemetria(

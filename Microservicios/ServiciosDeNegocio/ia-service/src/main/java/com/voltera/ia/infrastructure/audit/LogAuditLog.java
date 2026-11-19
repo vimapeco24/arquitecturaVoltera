@@ -17,6 +17,11 @@ import org.springframework.stereotype.Component;
 public class LogAuditLog implements AuditLogPort {
 
     private static final Logger audit = LoggerFactory.getLogger("VOLTERA.AUDIT.IA");
+    private final AuditoriaIa auditoria;
+
+    public LogAuditLog(AuditoriaIa auditoria) {
+        this.auditoria = auditoria;
+    }
 
     @Override
     public void registrar(DiagnosticoDer d) {
@@ -25,5 +30,9 @@ public class LogAuditLog implements AuditLogPort {
                 d.diagnosticoId(), d.usuario(), d.activoId(), d.tipoActivo(), d.comunidadId(),
                 d.severidad(), d.accionPropuesta(), d.requiereAprobacionHumana(), d.motor(),
                 d.promptVersion(), d.datosEnmascarados(), d.generadoEn());
+        auditoria.registrar("DIAGNOSTICO", d.usuario(), d.diagnosticoId().toString(),
+                d.activoId() + " · " + d.tipoActivo() + " · severidad " + d.severidad() + " · acción " + d.accionPropuesta()
+                        + " · humano=" + d.requiereAprobacionHumana() + " · motor " + d.motor()
+                        + (d.datosEnmascarados() ? " · PII enmascarada" : ""), d.promptVersion());
     }
 }

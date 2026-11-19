@@ -21,5 +21,10 @@ public record CasoEval(
         Severidad severidadEsperada,
         TipoAccion accionEsperada,
         boolean requiereHumanoEsperado,
-        String nota
-) {}
+        String nota,
+        /** DATASET (curado) o HUMAN_REVIEW (corrección de un revisor convertida en caso etiquetado). */
+        String origen
+) {
+    public static final String DATASET = "DATASET";
+    public static final String HUMAN_REVIEW = "HUMAN_REVIEW";
+}

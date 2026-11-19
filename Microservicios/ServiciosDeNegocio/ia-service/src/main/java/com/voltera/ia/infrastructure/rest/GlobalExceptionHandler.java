@@ -15,6 +15,16 @@ import java.util.Map;
 public class GlobalExceptionHandler {
 
     /** Un guardrail bloqueo la solicitud: 422 (contenido no procesable). */
+    @ExceptionHandler(com.voltera.ia.domain.exception.AgenteDeBajaException.class)
+    public ResponseEntity<Map<String, Object>> agenteDeBaja(com.voltera.ia.domain.exception.AgenteDeBajaException ex) {
+        return build(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
+    }
+
+    @ExceptionHandler(UnsupportedOperationException.class)
+    public ResponseEntity<Map<String, Object>> noSoportado(UnsupportedOperationException ex) {
+        return build(HttpStatus.NOT_IMPLEMENTED, ex.getMessage());
+    }
+
     @ExceptionHandler(GuardrailViolationException.class)
     public ResponseEntity<Map<String, Object>> guardrail(GuardrailViolationException ex) {
         return build(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());

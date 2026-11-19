@@ -30,15 +30,26 @@ public class DiagnosticoDerController {
 
     private final DiagnosticoDerUseCase diagnostico;
     private final AgentRegistryPort agentRegistry;
+    private final com.voltera.ia.infrastructure.revision.RegistroAlertas alertas;
+    private final com.voltera.ia.infrastructure.observabilidad.ObservabilidadIa obs;
 
-    public DiagnosticoDerController(DiagnosticoDerUseCase diagnostico, AgentRegistryPort agentRegistry) {
+    public DiagnosticoDerController(DiagnosticoDerUseCase diagnostico, AgentRegistryPort agentRegistry,
+                                    com.voltera.ia.infrastructure.revision.RegistroAlertas alertas,
+                                    com.voltera.ia.infrastructure.observabilidad.ObservabilidadIa obs) {
         this.diagnostico = diagnostico;
         this.agentRegistry = agentRegistry;
+        this.alertas = alertas;
+        this.obs = obs;
     }
 
     @PostMapping("/diagnostico/der")
     public ResponseEntity<DiagnosticoResponse> diagnosticar(@Valid @RequestBody DiagnosticarRequest req) {
-        DiagnosticoDer d = diagnostico.diagnosticar(req.aDominio());
+        java.time.Instant llegada = java.time.Instant.now();
+        var alerta = req.aDominio();
+        DiagnosticoDer d = diagnostico.diagnosticar(alerta);
+        java.time.Instant observado = req.observadoEn() != null && req.observadoEn().isBefore(llegada) ? req.observadoEn() : llegada;
+        alertas.guardar(d.diagnosticoId(), alerta, observado, d.generadoEn());
+        obs.registrarTraza(d.traza(), llegada);
         return ResponseEntity.ok(DiagnosticoResponse.desde(d));
     }
 

@@ -89,9 +89,28 @@ public class CapacidadesController {
                 "POST /api/v1/ia/diagnostico/der",
                 modelGateway.proveedorActivo() ? "" : "IA_PROVIDER=openai-compatible + IA_LLM_API_KEY para redactar con un LLM"));
         c.add(new Capacidad("rag", "RAG · Knowledge Service", "OPERATIVO",
-                "BM25 sobre " + rag.documentos().size() + " documentos y " + rag.totalFragmentos()
-                        + " fragmentos; cada evidencia cita documento, sección y puntaje.",
-                "GET /api/v1/ia/conocimiento/buscar?q=…", ""));
+                "Búsqueda híbrida (BM25 + coseno TF-IDF, fusión RRF y reordenamiento) sobre " + rag.documentos().size()
+                        + " documentos y " + rag.totalFragmentos() + " secciones, con permisos por rol e ingesta en caliente.",
+                "GET /api/v1/ia/conocimiento/buscar?q=…&rol=PROSUMIDOR", "Índice vectorial con embeddings para búsqueda semántica"));
+        c.add(new Capacidad("prompt-registry", "Prompt & Model Registry", "OPERATIVO",
+                "Versiones por familia (producción, candidata, retirada), aprobador, promoción con compuerta de Evals (apta y no peor) y rollback con historial.",
+                "GET /api/v1/ia/prompts · POST /api/v1/ia/prompts/{familia}/promover", ""));
+        c.add(new Capacidad("human-review", "Human Review → Evals", "OPERATIVO",
+                "Cada revisión de un diagnóstico (de acuerdo o corregida) entra como caso etiquetado a la siguiente corrida de Evals.",
+                "POST /api/v1/ia/diagnostico/{id}/retroalimentacion", ""));
+        c.add(new Capacidad("agent-registry", "Agent Registry (A2A)", "OPERATIVO",
+                "Catálogo con dueño, capacidad y permisos; alta y baja con historial; un agente de baja detiene su parte del flujo.",
+                "POST /api/v1/ia/agentes/{nombre}/estado", ""));
+        c.add(new Capacidad("model-gateway", "Model Gateway", "OPERATIVO",
+                "Ruteo por clasificación del dato (RESTRINGIDO no sale), presupuesto de tokens, costo, caché, timeout y respaldo; registra cada decisión.",
+                "GET /api/v1/ia/model-gateway",
+                modelGateway.proveedorActivo() ? "" : "IA_PROVIDER + IA_LLM_API_KEY para rutear también a un proveedor externo"));
+        c.add(new Capacidad("auditoria", "Audit & Retention", "OPERATIVO",
+                "Registro consultable con PII redactada y política de retención (días y tope de registros).",
+                "GET /api/v1/ia/auditoria", ""));
+        c.add(new Capacidad("observabilidad", "Observabilidad y KPI del caso", "OPERATIVO",
+                "Latencia p50/p95 y errores por funcionalidad, duración por paso del flujo, métricas Micrometer y MTTD frente a la meta de 5 min.",
+                "GET /api/v1/ia/observabilidad · /actuator/prometheus", ""));
         c.add(new Capacidad("evals", "Evals & Tracing", "OPERATIVO",
                 "Corrida en vivo de " + dataset.casos().size() + " casos etiquetados (" + dataset.nombre()
                         + ") contra el flujo de agentes; métricas calculadas en cada consulta.",
