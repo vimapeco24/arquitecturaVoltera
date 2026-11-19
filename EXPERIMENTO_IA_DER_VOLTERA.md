@@ -154,6 +154,32 @@ responden y que cada uno recibe un `diagnosticoId` **único** (sin corrupción d
 
 ---
 
+## Aprobaciones múltiples (3/3): cómo verlas
+
+Endpoint de lectura: `GET /api/v1/ia/gobernanza/propuestas/{id}/aprobaciones` (ia-service, :8104).
+Devuelve firmantes requeridos, quién firmó (marca de tiempo, `txHash`, `explorerUrl` si es un hash real),
+quién falta, `estado` (PENDIENTE / APROBADA / EJECUTADA / RECHAZADA / VENCIDA), `progreso` (X/3) y `modo`
+(`ON_CHAIN` o `SIMULADO`). El ia-service consulta al blockchain-gateway
+`GET /api/v1/gobernanza/propuestas/{id}/estado`, que lee el contrato `MultiFirmaAccionDER` solo si están
+definidas `VOLTERA_BLOCKCHAIN_RPC_URL` y `VOLTERA_BLOCKCHAIN_GOBERNANZA_ADDRESS`; si no, responde `SIMULADO`.
+El id on-chain es `keccak256(UTF-8 del UUID)`.
+
+```bash
+IA=http://localhost:8104
+D=$(curl -s -X POST $IA/api/v1/ia/diagnostico/der -H 'Content-Type: application/json' \
+  -d '{"activoId":"INV-1","tipoActivo":"INVERSOR","comunidadId":"C","metrica":"voltaje","valor":265,"umbral":240,"minutosSinSenal":0,"usuario":"u"}' | python3 -c "import sys,json;print(json.load(sys.stdin)['diagnosticoId'])")
+P=$(curl -s -X POST $IA/api/v1/ia/gobernanza/propuestas/$D | python3 -c "import sys,json;print(json.load(sys.stdin)['propuestaId'])")   # firma 1/3 (agente)
+curl -s -X POST $IA/api/v1/ia/gobernanza/propuestas/$P/firmas/operador   -H 'Content-Type: application/json' -d '{"identidad":"operador@voltera","razon":"ok"}'   # 2/3
+curl -s -X POST $IA/api/v1/ia/gobernanza/propuestas/$P/firmas/prosumidor -H 'Content-Type: application/json' -d '{"identidad":"prosumidor@casa","razon":"autorizo"}' # 3/3
+curl -s $IA/api/v1/ia/gobernanza/propuestas/$P/aprobaciones | python3 -m json.tool
+# lectura directa on-chain (blockchain-gateway :8101)
+curl -s http://localhost:8101/api/v1/gobernanza/propuestas/$P/estado
+```
+
+- **Front:** `/ia` → crear propuesta y firmar; el panel «Aprobaciones múltiples» muestra cada firmante, estado, X de 3, etiqueta On-chain/Simulado y el enlace `tx` al explorador.
+- **Polygonscan:** con contrato desplegado, `https://amoy.polygonscan.com/tx/<txHash>` (o `/address/<contrato>#events`). Hoy el contrato **no está desplegado en Amoy (falta gas)**, por eso el modo es `SIMULADO` y las referencias `demo:` no existen en el explorador.
+- **Script:** el bloque B6 de `experimento-ia-der.sh` verifica este endpoint.
+
 ## Evidencia real (contra el `ia-service` LIVE en Render)
 
 Última corrida: **39/39 criterios superados** (más JUnit + Hardhat con `--con-tests`). Se generan tres

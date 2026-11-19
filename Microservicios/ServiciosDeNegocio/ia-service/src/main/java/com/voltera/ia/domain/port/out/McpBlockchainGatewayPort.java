@@ -1,6 +1,7 @@
 package com.voltera.ia.domain.port.out;
 
 import com.voltera.ia.domain.model.gobernanza.Firma;
+import com.voltera.ia.domain.model.gobernanza.LecturaOnChain;
 import com.voltera.ia.domain.model.gobernanza.PropuestaAccion;
 
 /**
@@ -25,4 +26,13 @@ public interface McpBlockchainGatewayPort {
 
     /** Emite la ejecución del comando aprobado (solo si la propuesta está 3/3). */
     String ejecutarAccion(PropuestaAccion propuesta);
+
+    /**
+     * Lectura (solo lectura, sin gas) del estado de la propuesta en el contrato
+     * vía blockchain-gateway. Debe devolver modo SIMULADO, sin fallar, cuando no
+     * hay contrato/RPC configurados o el gateway no responde.
+     */
+    default LecturaOnChain leerEstado(PropuestaAccion propuesta) {
+        return LecturaOnChain.simulada("lectura on-chain no disponible en este adaptador");
+    }
 }

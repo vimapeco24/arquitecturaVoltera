@@ -1,6 +1,7 @@
 package com.voltera.ia.domain.port.in;
 
 import com.voltera.ia.domain.model.der.DiagnosticoDer;
+import com.voltera.ia.domain.model.gobernanza.EstadoAprobaciones;
 import com.voltera.ia.domain.model.gobernanza.Firmante;
 import com.voltera.ia.domain.model.gobernanza.PropuestaAccion;
 
@@ -35,4 +36,11 @@ public interface GobernanzaAccionUseCase {
     Optional<PropuestaAccion> consultar(UUID propuestaId);
 
     List<PropuestaAccion> listar();
+
+    /**
+     * Vista de las aprobaciones múltiples de una propuesta: firmantes requeridos,
+     * quién firmó (con tx y marca de tiempo), quién falta, estado global y modo
+     * ON_CHAIN/SIMULADO. Vacío si la propuesta no existe.
+     */
+    Optional<EstadoAprobaciones> aprobaciones(UUID propuestaId);
 }

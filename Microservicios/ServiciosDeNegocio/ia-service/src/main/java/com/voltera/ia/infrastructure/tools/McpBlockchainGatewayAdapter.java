@@ -2,6 +2,7 @@ package com.voltera.ia.infrastructure.tools;
 
 import com.voltera.ia.domain.model.gobernanza.EstadoPropuesta;
 import com.voltera.ia.domain.model.gobernanza.Firma;
+import com.voltera.ia.domain.model.gobernanza.LecturaOnChain;
 import com.voltera.ia.domain.model.gobernanza.PropuestaAccion;
 import com.voltera.ia.domain.port.out.McpBlockchainGatewayPort;
 import org.slf4j.Logger;
@@ -12,6 +13,9 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -82,6 +86,55 @@ public class McpBlockchainGatewayAdapter implements McpBlockchainGatewayPort {
         cuerpo.put("activoId", p.activoId());
         cuerpo.put("comando", p.comando());
         return enviar("/api/v1/gobernanza/ejecuciones", cuerpo, "ejecucion", p.propuestaId().toString());
+    }
+
+    /**
+     * Lectura solo-lectura del contrato vía GET al blockchain-gateway. Nunca falla:
+     * si el gateway está apagado, tarda o responde modo SIMULADO, devuelve SIMULADO.
+     */
+    @Override
+    @SuppressWarnings("unchecked")
+    public LecturaOnChain leerEstado(PropuestaAccion p) {
+        if (!enabled) return LecturaOnChain.simulada("herramientas deshabilitadas (ia.tools.enabled=false)");
+        try {
+            Map<String, Object> resp = gatewayClient.get()
+                    .uri("/api/v1/gobernanza/propuestas/{id}/estado", p.propuestaId().toString())
+                    .retrieve().bodyToMono(Map.class)
+                    .timeout(timeout).onErrorResume(e -> Mono.empty()).block();
+            if (resp == null) return LecturaOnChain.simulada("blockchain-gateway no respondió");
+            return parsearLectura(resp);
+        } catch (Exception e) {
+            log.debug("Lectura on-chain no disponible: {}", e.getMessage());
+            return LecturaOnChain.simulada("lectura on-chain no disponible");
+        }
+    }
+
+    /** Convierte la respuesta JSON del gateway en {@link LecturaOnChain} (visible para pruebas). */
+    @SuppressWarnings("unchecked")
+    static LecturaOnChain parsearLectura(Map<String, Object> m) {
+        String modo = String.valueOf(m.getOrDefault("modo", LecturaOnChain.SIMULADO));
+        List<LecturaOnChain.FirmaOnChain> firmas = new ArrayList<>();
+        Object raw = m.get("firmas");
+        if (raw instanceof List<?> lista) {
+            for (Object o : lista) {
+                if (o instanceof Map<?, ?> f) {
+                    Object ts = f.get("firmadoEn");
+                    Instant cuando = null;
+                    try { if (ts != null) cuando = Instant.parse(String.valueOf(ts)); } catch (Exception ignored) { }
+                    firmas.add(new LecturaOnChain.FirmaOnChain(
+                            str(f.get("rol")), str(f.get("firmante")), str(f.get("txHash")), cuando));
+                }
+            }
+        }
+        int aprob = m.get("aprobaciones") instanceof Number n ? n.intValue() : 0;
+        return new LecturaOnChain(
+                LecturaOnChain.ON_CHAIN.equals(modo) ? LecturaOnChain.ON_CHAIN : LecturaOnChain.SIMULADO,
+                Boolean.TRUE.equals(m.get("existe")), str(m.get("estado")), aprob, firmas,
+                str(m.get("contrato")), str(m.get("red")), str(m.get("mensaje")));
+    }
+
+    private static String str(Object o) {
+        return o == null ? null : String.valueOf(o);
     }
 
     @SuppressWarnings("unchecked")

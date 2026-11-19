@@ -26,6 +26,8 @@ public class BlockchainProperties {
     private String contractAddress = "";
     /** Direccion del contrato CertificadoOrigenNFT (ERC-721) desplegado. */
     private String certificadoNftAddress = "";
+    /** Direccion del contrato MultiFirmaAccionDER (solo lectura; sin clave). */
+    private String gobernanzaAddress = "";
     /** chainId de la red (Amoy = 80002). */
     private long chainId = 80002L;
     /** Nombre logico de la red para los eventos. */
@@ -91,6 +93,8 @@ public class BlockchainProperties {
     public void setContractAddress(String contractAddress) { this.contractAddress = limpiar(contractAddress); }
     public String getCertificadoNftAddress() { return certificadoNftAddress; }
     public void setCertificadoNftAddress(String certificadoNftAddress) { this.certificadoNftAddress = limpiar(certificadoNftAddress); }
+    public String getGobernanzaAddress() { return gobernanzaAddress; }
+    public void setGobernanzaAddress(String a) { this.gobernanzaAddress = limpiar(a); }
     public long getChainId() { return chainId; }
     public void setChainId(long chainId) { this.chainId = chainId; }
     public String getNetwork() { return network; }

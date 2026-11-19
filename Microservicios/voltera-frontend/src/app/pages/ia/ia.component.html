@@ -243,6 +243,32 @@
               </li>
             </ul>
 
+            <!-- Aprobaciones múltiples (3/3) con evidencia on-chain -->
+            <div class="aprobaciones" *ngIf="aprobaciones as a">
+              <h5>
+                ✍ Aprobaciones múltiples
+                <span class="v-badge mini" [ngClass]="a.modo === 'ON_CHAIN' ? 'ok' : 'warn'">{{ a.modo === 'ON_CHAIN' ? 'On-chain' : 'Simulado' }}</span>
+                <span class="v-badge mini" [ngClass]="badgeEstadoPropuesta(a.estado)">{{ a.estado }}</span>
+              </h5>
+              <p class="hint">{{ a.estadoGlobal }}</p>
+              <div class="aprob-progress">
+                <strong>{{ a.firmasAprobadas }} de {{ a.firmasRequeridas }}</strong> firmas
+                <div class="bar"><div class="fill" [style.width.%]="(a.firmasAprobadas / a.firmasRequeridas) * 100"></div></div>
+              </div>
+              <ul class="firmas aprob-list">
+                <li *ngFor="let f of a.firmantes">
+                  <span class="v-badge" [ngClass]="badgeFirmante(f.estado)">{{ f.firmante }}</span>
+                  <span>{{ f.estado === 'FIRMO' ? '✔ firmó' : f.estado === 'RECHAZO' ? '✘ rechazó' : '⏳ pendiente' }}</span>
+                  <span class="f-id" *ngIf="f.firmadoEn">{{ f.firmadoEn | date:'dd/MM HH:mm:ss' }}</span>
+                  <span class="v-badge mini" *ngIf="f.modo" [ngClass]="f.modo === 'ON_CHAIN' ? 'ok' : 'warn'">{{ f.modo === 'ON_CHAIN' ? 'On-chain' : 'Simulado' }}</span>
+                  <a *ngIf="f.txHash && f.explorerUrl" [href]="f.explorerUrl" target="_blank" rel="noopener" class="f-id">tx {{ f.txHash | slice:0:12 }}…</a>
+                  <span class="f-id" *ngIf="f.txHash && !f.explorerUrl">ref {{ f.txHash | slice:0:18 }}…</span>
+                </li>
+              </ul>
+              <p class="hint" *ngIf="a.contrato">Contrato <code>{{ a.contrato }}</code> · {{ a.red }}</p>
+              <p class="hint" *ngIf="a.modo === 'SIMULADO'">Modo simulado: el contrato no está desplegado/configurado; las referencias <code>demo:</code> no existen en Polygonscan.</p>
+              <p class="hint" *ngIf="a.txEjecucionUrl">Ejecución: <a [href]="a.txEjecucionUrl" target="_blank" rel="noopener">ver en el explorador</a></p>
+            </div>
             <!-- Acciones de firma (según el firmante pendiente) -->
             <div class="firma-actions" *ngIf="p.estado === 'PENDIENTE'">
               <ng-container *ngIf="p.siguienteFirmante === 'OPERADOR'">

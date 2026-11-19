@@ -32,6 +32,7 @@ voltera:
     private-key: ${VOLTERA_BLOCKCHAIN_PRIVATE_KEY:}
     private-keys: ${VOLTERA_BLOCKCHAIN_PRIVATE_KEYS:}
     contract-address: ${VOLTERA_BLOCKCHAIN_CONTRACT_ADDRESS:}
+    gobernanza-address: ${VOLTERA_BLOCKCHAIN_GOBERNANZA_ADDRESS:}
     certificado-nft-address: ${VOLTERA_BLOCKCHAIN_CERTIFICADO_NFT:}
     chain-id: ${VOLTERA_BLOCKCHAIN_CHAIN_ID:80002}
     network: ${VOLTERA_BLOCKCHAIN_NETWORK:polygon-amoy}

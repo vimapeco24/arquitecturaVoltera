@@ -45,6 +45,8 @@ public final class PropuestaAccion {
     private final Map<Firmante, Firma> firmas = new EnumMap<>(Firmante.class);
     private EstadoPropuesta estado = EstadoPropuesta.PENDIENTE;
     private String resultadoEjecucion;
+    private final Map<Firmante, String> txPorFirmante = new EnumMap<>(Firmante.class);
+    private String txEjecucion;
 
     private PropuestaAccion(UUID diagnosticoId, String activoId, String comunidadId,
                             TipoAccion tipoAccion, String comando, String parametros,
@@ -140,6 +142,17 @@ public final class PropuestaAccion {
         }
         return Firmante.OPERADOR;
     }
+
+    /** Asocia a la firma de un firmante la referencia de transacción (txHash o demo) devuelta por el gateway. */
+    public void registrarTx(Firmante firmante, String tx) {
+        if (tx != null) txPorFirmante.put(firmante, tx);
+    }
+
+    public void registrarTxEjecucion(String tx) { this.txEjecucion = tx; }
+
+    public String txDe(Firmante firmante) { return txPorFirmante.get(firmante); }
+
+    public String txEjecucion() { return txEjecucion; }
 
     public UUID propuestaId() { return propuestaId; }
     public UUID diagnosticoId() { return diagnosticoId; }

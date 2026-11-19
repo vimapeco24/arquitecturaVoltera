@@ -1,6 +1,7 @@
 package com.voltera.ia.infrastructure.rest;
 
 import com.voltera.ia.domain.model.der.DiagnosticoDer;
+import com.voltera.ia.domain.model.gobernanza.EstadoAprobaciones;
 import com.voltera.ia.domain.model.gobernanza.Firmante;
 import com.voltera.ia.domain.model.gobernanza.PropuestaAccion;
 import com.voltera.ia.domain.port.in.GobernanzaAccionUseCase;
@@ -30,6 +31,8 @@ import java.util.UUID;
  *   <li>POST .../propuestas/{id}/rechazos/operador|prosumidor — rechazo.</li>
  *   <li>POST .../vencidas — caduca las propuestas cuyo TTL expiró.</li>
  *   <li>GET  .../propuestas[/{id}] — estado del ciclo (0/3 → 3/3).</li>
+ *   <li>GET  .../propuestas/{id}/aprobaciones — firmantes requeridos, quién firmó
+ *       (tx + enlace al explorador), quién falta, estado global y modo ON_CHAIN/SIMULADO.</li>
  * </ul>
  *
  * La firma es un control explícito y separado de la conversación del Assistant.
@@ -88,6 +91,13 @@ public class GobernanzaController {
     public ResponseEntity<PropuestaResponse> consultar(@PathVariable String id) {
         return gobernanza.consultar(UUID.fromString(id))
                 .map(p -> ResponseEntity.ok(PropuestaResponse.desde(p)))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/propuestas/{id}/aprobaciones")
+    public ResponseEntity<EstadoAprobaciones> aprobaciones(@PathVariable String id) {
+        return gobernanza.aprobaciones(UUID.fromString(id))
+                .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 

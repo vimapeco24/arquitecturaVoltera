@@ -252,3 +252,9 @@
   margin: 6px 0 0; padding: 8px 12px; border-radius: 8px; font-size: 12.5px;
   background: rgba(214,158,46,0.12); color: #9a6a00; border: 1px solid rgba(214,158,46,0.35);
 }
+
+/* ---------- Aprobaciones múltiples ---------- */
+.aprobaciones { margin: 12px 0; padding: 12px; border: 1px solid var(--v-border, #e2e8f0); border-radius: 10px; }
+.aprobaciones h5 { margin: 0 0 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.aprob-progress .bar { height: 6px; background: #e2e8f0; border-radius: 4px; margin-top: 4px; overflow: hidden; }
+.aprob-progress .fill { height: 100%; background: #16a34a; transition: width .3s; }

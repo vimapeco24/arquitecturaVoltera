@@ -1,7 +1,11 @@
 package com.voltera.ia.application;
 
 import com.voltera.ia.domain.model.der.DiagnosticoDer;
+import com.voltera.ia.domain.model.gobernanza.EstadoAprobaciones;
+import com.voltera.ia.domain.model.gobernanza.EstadoAprobaciones.FirmanteEstado;
+import com.voltera.ia.domain.model.gobernanza.EstadoPropuesta;
 import com.voltera.ia.domain.model.gobernanza.EventoGobernanza;
+import com.voltera.ia.domain.model.gobernanza.LecturaOnChain;
 import com.voltera.ia.domain.model.gobernanza.Firma;
 import com.voltera.ia.domain.model.gobernanza.Firmante;
 import com.voltera.ia.domain.model.gobernanza.PropuestaAccion;
@@ -14,9 +18,12 @@ import com.voltera.ia.domain.port.out.PropuestaRepositoryPort;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 /**
  * Orquesta la gobernanza multi-firma 3/3 del documento (Módulo 5). Reúne al
@@ -38,9 +45,22 @@ public class GobernanzaAccionService implements GobernanzaAccionUseCase {
     private final Duration ttlCritica;
     private final Duration ttlNormal;
 
+    private final String explorerBase;
+
+    private static final Pattern TX_HASH = Pattern.compile("^0x[0-9a-fA-F]{64}$");
+    static final String EXPLORER_POR_DEFECTO = "https://amoy.polygonscan.com";
+
     public GobernanzaAccionService(McpBlockchainGatewayPort gateway, NotificadorPort notificador,
                                    PropuestaRepositoryPort repositorio, GobernanzaEventPublisherPort eventos,
                                    Duration ttlCritica, Duration ttlNormal) {
+        this(gateway, notificador, repositorio, eventos, ttlCritica, ttlNormal, EXPLORER_POR_DEFECTO);
+    }
+
+    public GobernanzaAccionService(McpBlockchainGatewayPort gateway, NotificadorPort notificador,
+                                   PropuestaRepositoryPort repositorio, GobernanzaEventPublisherPort eventos,
+                                   Duration ttlCritica, Duration ttlNormal, String explorerBase) {
+        this.explorerBase = explorerBase == null || explorerBase.isBlank()
+                ? EXPLORER_POR_DEFECTO : explorerBase.replaceAll("/+$", "");
         this.gateway = gateway;
         this.notificador = notificador;
         this.repositorio = repositorio;
@@ -66,6 +86,7 @@ public class GobernanzaAccionService implements GobernanzaAccionUseCase {
 
         // Firma 1 ya aplicada en crear(). Se registra la propuesta on-chain.
         String tx = gateway.registrarPropuesta(p);
+        p.registrarTx(Firmante.AGENTE_IA, tx);       // la creación es la Firma 1
         repositorio.guardar(p);
         eventos.publicar(EventoGobernanza.de("PropuestaAccionCreada", p, tx));
 
@@ -83,6 +104,7 @@ public class GobernanzaAccionService implements GobernanzaAccionUseCase {
         Firma firma = Firma.aprobacion(firmante, identidad, razon);
         p.firmar(firma);
         String tx = gateway.registrarFirma(p, firma);
+        p.registrarTx(firmante, tx);
         eventos.publicar(EventoGobernanza.de("FirmaRegistrada", p, tx));
         repositorio.guardar(p);
 
@@ -106,6 +128,7 @@ public class GobernanzaAccionService implements GobernanzaAccionUseCase {
         Firma firma = Firma.rechazo(firmante, identidad, razon);
         p.firmar(firma);
         String tx = gateway.registrarFirma(p, firma);
+        p.registrarTx(firmante, tx);
         repositorio.guardar(p);
         eventos.publicar(EventoGobernanza.de("AccionRechazada", p, tx));
         notificador.notificarDesenlace(p);
@@ -135,10 +158,82 @@ public class GobernanzaAccionService implements GobernanzaAccionUseCase {
         return repositorio.listar();
     }
 
+    @Override
+    public Optional<EstadoAprobaciones> aprobaciones(UUID propuestaId) {
+        return repositorio.porId(propuestaId).map(this::construirAprobaciones);
+    }
+
     // ------------------------------------------------------------------ interno
+    private EstadoAprobaciones construirAprobaciones(PropuestaAccion p) {
+        LecturaOnChain lectura;
+        try {
+            lectura = gateway.leerEstado(p);
+        } catch (Exception e) {
+            lectura = LecturaOnChain.simulada("lectura on-chain no disponible: " + e.getMessage());
+        }
+        if (lectura == null) lectura = LecturaOnChain.simulada("sin lectura on-chain");
+
+        List<FirmanteEstado> firmantes = new ArrayList<>();
+        List<String> faltantes = new ArrayList<>();
+        boolean todasReales = true;
+        int conTx = 0;
+        for (Firmante f : Firmante.values()) {
+            Firma firma = p.firmas().stream().filter(x -> x.firmante() == f).findFirst().orElse(null);
+            if (firma == null) {
+                firmantes.add(new FirmanteEstado(f.name(), EstadoAprobaciones.PENDIENTE,
+                        null, null, null, null, null, LecturaOnChain.SIMULADO));
+                if (p.estado() == EstadoPropuesta.PENDIENTE) faltantes.add(f.name());
+                continue;
+            }
+            String tx = p.txDe(f);
+            Instant cuando = firma.firmadoEn();
+            if (lectura.esOnChain() && lectura.firmas() != null) {
+                for (LecturaOnChain.FirmaOnChain fo : lectura.firmas()) {
+                    if (f.name().equals(fo.rol()) && fo.txHash() != null && esHash(fo.txHash())) {
+                        tx = fo.txHash();
+                        if (fo.firmadoEn() != null) cuando = fo.firmadoEn();
+                    }
+                }
+            }
+            boolean real = esHash(tx);
+            if (tx != null) { conTx++; if (!real) todasReales = false; }
+            firmantes.add(new FirmanteEstado(f.name(),
+                    firma.aprueba() ? EstadoAprobaciones.FIRMO : EstadoAprobaciones.RECHAZO,
+                    firma.identidad(), firma.razon(), cuando, tx,
+                    real ? urlTx(tx) : null, real ? LecturaOnChain.ON_CHAIN : LecturaOnChain.SIMULADO));
+        }
+        boolean onChain = (lectura.esOnChain() && lectura.existe()) || (conTx > 0 && todasReales);
+        String txEj = p.txEjecucion();
+        return new EstadoAprobaciones(
+                p.propuestaId().toString(), p.activoId(), p.comando(),
+                p.estado().name(), etiquetaGlobal(p), 3, p.firmasAprobadas(), p.firmasResumen(),
+                onChain ? LecturaOnChain.ON_CHAIN : LecturaOnChain.SIMULADO,
+                lectura.red(), lectura.contrato(), explorerBase, p.creadaEn(), p.venceEn(),
+                firmantes, faltantes, txEj, esHash(txEj) ? urlTx(txEj) : null, lectura);
+    }
+
+    private String etiquetaGlobal(PropuestaAccion p) {
+        return switch (p.estado()) {
+            case PENDIENTE -> "PENDIENTE (" + p.firmasResumen() + "): faltan firmas, no se ejecuta";
+            case APROBADA -> "APROBADA 3-de-3";
+            case EJECUTADA -> "APROBADA 3-de-3 y EJECUTADA";
+            case RECHAZADA -> "RECHAZADA: un firmante rechazó, no se ejecuta";
+            case VENCIDA -> "VENCIDA: TTL expirado sin 3/3, no se ejecuta";
+        };
+    }
+
+    private boolean esHash(String tx) {
+        return tx != null && TX_HASH.matcher(tx).matches();
+    }
+
+    private String urlTx(String tx) {
+        return explorerBase + "/tx/" + tx;
+    }
+
 
     private void ejecutar(PropuestaAccion p) {
         String tx = gateway.ejecutarAccion(p);   // el gateway solo ejecuta si está 3/3
+        p.registrarTxEjecucion(tx);
         p.marcarEjecutada("comando emitido vía MCP Device Management · " + tx);
         repositorio.guardar(p);
         eventos.publicar(EventoGobernanza.de("AccionEjecutada", p, tx));

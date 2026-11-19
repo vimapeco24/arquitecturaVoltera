@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import {
   IaService, DiagnosticoResponse, EstadoIa, AgenteRegistrado, PasoDto,
-  PropuestaResponse, RespuestaAsistente, ResultadoEval,
+  PropuestaResponse, EstadoAprobacionesDto, RespuestaAsistente, ResultadoEval,
 } from '../../services/ia.service';
 import { ToastService } from '../../core/toast.service';
 import { describeHttpError } from '../../core/http-error';
@@ -54,6 +54,8 @@ export class IaComponent implements OnInit, OnDestroy {
 
   // ── Gobernanza multi-firma 3/3 ──────────────────────────────────────────
   propuesta?: PropuestaResponse;
+  /** Panel «Aprobaciones múltiples» (lectura GET .../aprobaciones). */
+  aprobaciones?: EstadoAprobacionesDto;
   proponiendo = false;
   firmando = false;
   /** Mensaje de conversación: lista de preguntas/respuestas del Assistant. */
@@ -175,6 +177,7 @@ export class IaComponent implements OnInit, OnDestroy {
     this.avisoColdStart = '';
     // Reinicia el flujo de gobernanza y la conversación del Assistant.
     this.propuesta = undefined;
+    this.aprobaciones = undefined;
     this.chat = [];
     this.preguntaTexto = '';
     this.flujo = this.guion.map((g) => ({ ...g, estado: 'pendiente' as const }));
@@ -281,6 +284,7 @@ export class IaComponent implements OnInit, OnDestroy {
       next: (p) => {
         this.proponiendo = false;
         this.propuesta = p;
+        this.cargarAprobaciones(p.propuestaId);
         this.toast.success('Propuesta creada', `Firma 1/3 del agente · ${p.firmas}`);
       },
       error: (e) => {
@@ -303,6 +307,7 @@ export class IaComponent implements OnInit, OnDestroy {
       next: (p) => {
         this.firmando = false;
         this.propuesta = p;
+        this.cargarAprobaciones(p.propuestaId);
         if (p.estado === 'EJECUTADA') this.toast.success('Acción ejecutada', '3/3 firmas · comando emitido');
         else this.toast.success('Firma registrada', `${p.firmas}`);
       },
@@ -326,6 +331,7 @@ export class IaComponent implements OnInit, OnDestroy {
       next: (p) => {
         this.firmando = false;
         this.propuesta = p;
+        this.cargarAprobaciones(p.propuestaId);
         this.toast.success('Acción rechazada', 'Queda registrada con la razón');
       },
       error: (e) => {
@@ -333,6 +339,20 @@ export class IaComponent implements OnInit, OnDestroy {
         this.toast.error('No se pudo rechazar', describeHttpError(e));
       },
     });
+  }
+
+  /** Carga el estado de aprobaciones múltiples; si falla, el panel simplemente no se muestra. */
+  cargarAprobaciones(propuestaId: string): void {
+    this.svc.aprobaciones(propuestaId).subscribe({
+      next: (a) => (this.aprobaciones = a),
+      error: () => (this.aprobaciones = undefined),
+    });
+  }
+
+  badgeFirmante(estado: string): string {
+    if (estado === 'FIRMO') return 'ok';
+    if (estado === 'RECHAZO') return 'err';
+    return 'warn';
   }
 
   badgeEstadoPropuesta(e: string): string {

@@ -113,6 +113,38 @@ export interface FirmaDto {
   firmadoEn: string;
 }
 
+/** Estado de un firmante requerido en las aprobaciones múltiples. */
+export interface FirmanteEstadoDto {
+  firmante: 'AGENTE_IA' | 'OPERADOR' | 'PROSUMIDOR';
+  estado: 'FIRMO' | 'PENDIENTE' | 'RECHAZO';
+  identidad: string | null;
+  razon: string | null;
+  firmadoEn: string | null;
+  txHash: string | null;
+  explorerUrl: string | null;
+  modo: 'ON_CHAIN' | 'SIMULADO' | null;
+}
+/** Vista de lectura de las aprobaciones múltiples (GET .../aprobaciones). */
+export interface EstadoAprobacionesDto {
+  propuestaId: string;
+  activoId: string;
+  comando: string;
+  estado: string;
+  estadoGlobal: string;
+  firmasRequeridas: number;
+  firmasAprobadas: number;
+  progreso: string;
+  modo: 'ON_CHAIN' | 'SIMULADO';
+  red: string | null;
+  contrato: string | null;
+  explorerBase: string | null;
+  creadaEn: string;
+  venceEn: string;
+  firmantes: FirmanteEstadoDto[];
+  faltantes: string[];
+  txEjecucion: string | null;
+  txEjecucionUrl: string | null;
+}
 /** Propuesta de acción gobernada por el contrato multi-firma 3/3. */
 export interface PropuestaResponse {
   propuestaId: string;
@@ -229,6 +261,12 @@ export class IaService {
   rechazarProsumidor(propuestaId: string, identidad: string, razon: string): Observable<PropuestaResponse> {
     return this.http.post<PropuestaResponse>(
       this.url(`api/v1/ia/gobernanza/propuestas/${propuestaId}/rechazos/prosumidor`), { identidad, razon });
+  }
+
+  /** Aprobaciones múltiples: firmantes, firmas con tx/explorador, faltantes y modo On-chain/Simulado. */
+  aprobaciones(propuestaId: string): Observable<EstadoAprobacionesDto> {
+    return this.http.get<EstadoAprobacionesDto>(
+      this.url(`api/v1/ia/gobernanza/propuestas/${propuestaId}/aprobaciones`));
   }
 
   propuestas(): Observable<PropuestaResponse[]> {

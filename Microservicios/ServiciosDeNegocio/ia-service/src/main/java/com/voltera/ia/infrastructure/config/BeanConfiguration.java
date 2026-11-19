@@ -80,10 +80,11 @@ public class BeanConfiguration {
             PropuestaRepositoryPort propuestaRepositorio,
             GobernanzaEventPublisherPort gobernanzaEventPublisher,
             @Value("${ia.gobernanza.ttl-critica-min:30}") long ttlCriticaMin,
-            @Value("${ia.gobernanza.ttl-normal-min:240}") long ttlNormalMin) {
+            @Value("${ia.gobernanza.ttl-normal-min:240}") long ttlNormalMin,
+            @Value("${ia.gobernanza.explorer-base:https://amoy.polygonscan.com}") String explorerBase) {
         return new GobernanzaAccionService(
                 gateway, notificador, propuestaRepositorio, gobernanzaEventPublisher,
-                Duration.ofMinutes(ttlCriticaMin), Duration.ofMinutes(ttlNormalMin));
+                Duration.ofMinutes(ttlCriticaMin), Duration.ofMinutes(ttlNormalMin), explorerBase);
     }
 
     /**

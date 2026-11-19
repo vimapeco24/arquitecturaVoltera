@@ -113,6 +113,25 @@ public class BeanConfiguration {
         return new Web3jCertificadoNftAdapter(web3j, selector, nft, props.getChainId());
     }
 
+    /** Lectura (solo lectura) del contrato multi-firma; SIMULADO si falta RPC o direccion. */
+    @Bean
+    public com.voltera.blockchain.domain.port.out.ContratoGobernanzaPort contratoGobernanza(
+            BlockchainProperties props, ObjectProvider<Web3j> web3jProvider) {
+        Web3j web3j = web3jProvider.getIfAvailable();
+        String addr = props.getGobernanzaAddress();
+        if (web3j == null || addr == null || addr.isBlank()) {
+            log.warn("MultiFirmaAccionDER NO configurado (falta VOLTERA_BLOCKCHAIN_GOBERNANZA_ADDRESS/RPC): lectura SIMULADA.");
+            return new com.voltera.blockchain.infrastructure.blockchain.ContratoGobernanzaNoConfigurado();
+        }
+        return new com.voltera.blockchain.infrastructure.blockchain.Web3jContratoGobernanzaAdapter(web3j, addr);
+    }
+
+    @Bean
+    public com.voltera.blockchain.domain.port.in.ConsultarGobernanzaUseCase consultarGobernanza(
+            com.voltera.blockchain.domain.port.out.ContratoGobernanzaPort contrato, BlockchainProperties props) {
+        return new com.voltera.blockchain.application.ConsultarGobernanzaService(contrato, props.getNetwork());
+    }
+
     @Bean
     public CertificadoService certificadoService(CertificadoNftPort nft) {
         return new CertificadoService(nft);

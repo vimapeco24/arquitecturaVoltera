@@ -6,6 +6,17 @@
 > + Evals&Tracing + tópicos `der.*`. Diagrama `.drawio` actualizado y validado).
 > Lee este archivo primero al reconectar.
 
+## 2026-11-19 · MÓDULO 5 · Aprobaciones múltiples visibles + lectura on-chain (solo lectura)
+Pedido: ver en código la integración IA↔blockchain con las aprobaciones 3/3 (no un informe).
+- **ia-service:** `GET /api/v1/ia/gobernanza/propuestas/{id}/aprobaciones` (`EstadoAprobaciones`, `LecturaOnChain`,
+  `McpBlockchainGatewayPort.leerEstado`); modo `ON_CHAIN`/`SIMULADO`, tx + enlace Polygonscan. Tests `GobernanzaAprobacionesTest` (7) + adapter (2).
+- **blockchain-gateway:** `GET /api/v1/gobernanza/propuestas/{id}/estado` (puerto `ContratoGobernanzaPort`, adaptador web3j solo-lectura
+  `eth_call`/`eth_getLogs`, `ConsultarGobernanzaService`). Env `VOLTERA_BLOCKCHAIN_GOBERNANZA_ADDRESS` (+ RPC); sin ellas → `SIMULADO`. Sin claves. 6 tests nuevos.
+- **Front `/ia`:** panel «Aprobaciones múltiples» (firmantes, X de 3, On-chain/Simulado, enlace tx). `npm run build` OK.
+- **Script:** bloque B6 en `experimento-ia-der.sh` (corrida local: 43/43 criterios). Docs en `EXPERIMENTO_IA_DER_VOLTERA.md`.
+- **Diagrama:** `Voltera_Arquitectura_Completa.drawio` — etiqueta de la arista MCP Blockchain Gateway ampliada con la lectura; XML revalidado.
+- **Pendiente:** desplegar `MultiFirmaAccionDER` en Amoy (gas) y definir la dirección en el gateway.
+---
 ## 2026-11-16 · MÓDULO 5 · Alinear el código al documento Final (Agente DER + gobernanza 3/3) — NUEVO
 
 Pedido: revisar `Voltera_Modulo5_Agente_Diagnostico_DER- Final.md` y, si faltaba algo, agregarlo al

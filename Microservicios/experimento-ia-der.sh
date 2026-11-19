@@ -15,6 +15,7 @@
 #      B3 un mismo rol no puede firmar dos veces (rechazo HTTP 4xx)
 #      B4 no se puede proponer sobre un diagnóstico sin acción (rechazo HTTP 4xx)
 #      B5 endpoint de caducidad de propuestas vencidas (TTL) responde
+#      B6 aprobaciones múltiples visibles: GET .../propuestas/{id}/aprobaciones (3/3, rechazo, 404)
 #   C  Responsible AI del Assistant: no persuasión + prompts por audiencia.
 #   D  Evals & Tracing (Tema 5): compuerta de calidad de prompts.
 #   E  Guardrails: inyección de prompt rechazada (HTTP 422) + PII enmascarada.
@@ -155,6 +156,20 @@ echo "── EXPERIMENTO B5 · Caducidad de propuestas vencidas (TTL · fail-clo
 HVENC=$(http_post "$IA/api/v1/ia/gobernanza/vencidas")
 [ "$HVENC" = "200" ] && ok "endpoint de caducidad de vencidas operativo (HTTP $HVENC)" || bad "endpoint de vencidas no responde (HTTP $HVENC)"
 
+echo ""
+echo "── EXPERIMENTO B6 · Aprobaciones múltiples visibles (GET .../aprobaciones)"
+AP=$(curl -s --max-time 40 "$IA/api/v1/ia/gobernanza/propuestas/$PID/aprobaciones")
+APN=$(printf '%s' "$AP" | jqpy "str(d.get('firmasAprobadas'))+'/'+str(d.get('firmasRequeridas'))")
+APF=$(printf '%s' "$AP" | jqpy "len([f for f in d.get('firmantes',[]) if f.get('estado')=='FIRMO' and f.get('firmadoEn')])")
+APM=$(printf '%s' "$AP" | jqpy "d.get('modo','')")
+APE=$(printf '%s' "$AP" | jqpy "d.get('estado','')")
+[ "$APN" = "3/3" ] && [ "$APF" = "3" ] && ok "estado de aprobaciones 3/3: los 3 firmantes con marca de tiempo (estado $APE)" || bad "aprobaciones 3/3 inesperadas ($APN, firmas con fecha=$APF)"
+{ [ "$APM" = "ON_CHAIN" ] || [ "$APM" = "SIMULADO" ]; } && ok "aprobaciones indican modo explícito ($APM)" || bad "sin campo modo ON_CHAIN/SIMULADO ($APM)"
+APR=$(curl -s --max-time 40 "$IA/api/v1/ia/gobernanza/propuestas/$PID2/aprobaciones")
+APRE=$(printf '%s' "$APR" | jqpy "d.get('estado','')+'|'+str(len([f for f in d.get('firmantes',[]) if f.get('estado')=='RECHAZO']))")
+[ "$APRE" = "RECHAZADA|1" ] && ok "aprobaciones de propuesta rechazada: estado RECHAZADA con 1 firmante en RECHAZO" || bad "aprobaciones de rechazo inesperadas ($APRE)"
+APX=$(curl -s -o /dev/null -w '%{http_code}' --max-time 40 "$IA/api/v1/ia/gobernanza/propuestas/00000000-0000-0000-0000-000000000000/aprobaciones")
+[ "$APX" = "404" ] && ok "aprobaciones de propuesta inexistente -> HTTP 404" || bad "inexistente no devolvió 404 (HTTP $APX)"
 # ---------------------------------------------------------------------------
 echo ""
 echo "── EXPERIMENTO C · Responsible AI del Assistant (no persuasión + por audiencia)"

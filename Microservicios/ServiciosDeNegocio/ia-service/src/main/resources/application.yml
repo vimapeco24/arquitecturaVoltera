@@ -63,6 +63,8 @@ ia:
     # ejecuta (fail-closed). No existe modo degradado 2/3.
     ttl-critica-min: ${IA_GOBERNANZA_TTL_CRITICA_MIN:30}
     ttl-normal-min: ${IA_GOBERNANZA_TTL_NORMAL_MIN:240}
+    # Explorador para los enlaces de tx de cada firma (Polygon Amoy).
+    explorer-base: ${IA_GOBERNANZA_EXPLORER:https://amoy.polygonscan.com}
   tools:
     # URLs base de los microservicios usados como herramientas (MCP/REST).
     # En modo NUBE: siniestros-service vive en la LAN privada y NO es alcanzable
