@@ -15,7 +15,8 @@ Pedido: «no quiero nada simulado; todo real y orquestado desde backend y front�
 - **Capacidades:** `GET /ia/capacidades` calcula OPERATIVO/LOCAL/PENDIENTE con sondas reales; el front ya no tiene estados escritos a mano.
 - **Modo de gobernanza:** `SIMULADO` → `OFF_CHAIN` (registro off-chain con firmas verificables); referencias `demo:` → `offchain:`.
 - **Front `/ia`:** pestaña nueva «Conocimiento · RAG», «Calidad» con corrida caso a caso, guía alimentada por `/capacidades`; consola de gobernanza con verificación ecrecover, firma con MetaMask y bandeja de notificaciones. Experimento: bloque N.
-- **Tests:** 42 JUnit verdes (13 nuevos). Experimento local 54/54.
+- **Tests:** 42 JUnit verdes (13 nuevos). Experimento local 54/54; **contra producción (Render) 55/55** incluido el bloque M on-chain (Hardhat).
+- **Desplegado:** backend en Render (auto por push, commits `00d18c4`, `b5c0658`) y front en Vercel producción (`vercel deploy --prod`, token de scope Vimapeco). Capturas verificadas de las pestañas Guía, Calidad y Conocimiento con datos reales.
 - **Diagrama:** `Voltera_Arquitectura_Completa.drawio` — celda RAG (BM25 + corpus), arista MCP Blockchain Gateway (OFF_CHAIN + ECDSA/ecrecover) y celda de gobernanza (Evals en vivo, bandeja, capacidades). XML revalidado.
 - **Sigue dependiendo de recursos externos:** contrato en Amoy (gas: wallet 0xa0A1…DF2 con 0,0011 POL; deploy ≈ 0,05 POL), LLM (API key), Kafka en nube, telemetría on-premise pública, base de datos.
 ---
