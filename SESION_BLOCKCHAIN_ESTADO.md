@@ -1171,3 +1171,6 @@ Origen: informe `.agents/tasks/REVISION_BACKEND_COMPLETO.md` (20 negocio + 1 reg
 - Item 10: `render.yaml` agrega `IA_TOOL_TELEMETRIA_URL` (opcional); sin URLs publicas de siniestros/telemetria el copiloto degrada. Commit e811409.
 ### Diagrama vivo
 `Modificados/Voltera_Arquitectura_Completa.drawio`: banda de capa 2 pasa de "Microservicios (17)" a "20 de negocio + 1 registry (service-registry :8761)"; nodo nuevo `ms-registry` (gris infra, :8761); nodo `ms-pagos` indica Outbox -> `topic.cobros.pago-confirmado`; `ms-p2p` ya reflejaba su Outbox. Se conserva "17 DestinationRules" (cuenta real de `02-destinationrules-circuitbreaker.yaml`). XML validado. Las menciones de 17 en `BITACORA_ENTREGA3_EDA.md` son historicas de la Entrega 3.
+
+### Credenciales WSO2 (cierre de brechas)
+Se vaciaron consumerKey/consumerSecret en `environment.ts` (ya vacios en `environment.prod.ts`, `api/token.js`, `api/obs.js`). Siguen en el historial de git: hay que rotar las credenciales OAuth2 de WSO2.

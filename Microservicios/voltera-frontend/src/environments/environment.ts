@@ -23,8 +23,8 @@ export const environment = {
   iaBase: '',
   /** Credenciales del cliente OAuth2 (client_credentials). */
   oauth: {
-    consumerKey: 'ndzpaXfp_KkDgRacWPzwfZvAjLMa',
-    consumerSecret: 'mQHpTjKHPHCNViwFNBsTCnfffDMa',
+    consumerKey: '',
+    consumerSecret: '',
   },
   // Tableros del clúster (LAN).
   observabilidad: {
