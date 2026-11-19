@@ -291,3 +291,10 @@
 .arq-t { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .arq-t th { text-align: left; color: var(--v-text-dim); font-size: 11px; text-transform: uppercase; padding: 8px 10px; border-bottom: 1px solid var(--v-border-strong); }
 .arq-t td { padding: 9px 10px; border-bottom: 1px solid var(--v-border); vertical-align: top; }
+
+.exp-info { display: grid; gap: 4px; font-size: 12px; color: var(--v-text-soft); padding: 10px 12px; margin: 6px 0 8px; border-left: 3px solid var(--v-accent); background: rgba(56,189,248,.06); border-radius: 0 8px 8px 0; }
+.exp-info b { display: inline-block; min-width: 86px; color: var(--v-text); }
+.exp-eps code { margin-right: 6px; font-size: 10.5px; }
+.exp-id { font-family: ui-monospace, monospace; font-size: 10.5px; color: var(--v-text-dim); min-width: 28px; }
+.exp-ms { font-size: 10.5px; color: var(--v-text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.exp-onchain { margin-top: 14px; padding: 16px 18px; }

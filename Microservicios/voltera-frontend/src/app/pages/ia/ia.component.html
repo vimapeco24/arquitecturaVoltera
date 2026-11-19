@@ -377,18 +377,35 @@
       <small>{{ experimentando ? expProgreso : expPorcentaje + ' % de criterios superados' }}</small>
     </div>
     <div class="exp-grupo" *ngFor="let g of expGrupos">
-      <h4>{{ g.titulo }} <span class="v-badge" [ngClass]="g.ok === g.total ? 'ok' : 'err'">{{ g.ok }}/{{ g.total }}</span></h4>
+      <h4>{{ g.titulo }}
+        <span class="v-badge" [ngClass]="g.ok === g.total ? 'ok' : 'err'">{{ g.ok }}/{{ g.total }}</span>
+        <small class="exp-ms">{{ msBloque(g.items) }} ms</small>
+      </h4>
+      <div class="exp-info" *ngIf="expInfo[g.clave] as inf">
+        <div><b>Hipótesis</b> {{ inf.hipotesis }}</div>
+        <div><b>Método</b> {{ inf.metodo }}</div>
+        <div><b>Aceptación</b> {{ inf.umbral }}</div>
+        <div class="exp-eps"><b>Endpoints</b> <code *ngFor="let e of inf.endpoints">{{ e }}</code></div>
+      </div>
       <ul class="exp-list">
         <li *ngFor="let r of g.items" [class.ok]="r.ok" [class.bad]="!r.ok">
+          <span class="exp-id">{{ r.id }}</span>
           <span class="exp-ic">{{ r.ok ? '✓' : '✗' }}</span>
           <span class="exp-nombre">{{ r.nombre }}</span>
           <code class="exp-detalle">{{ r.detalle }}</code>
+          <span class="exp-ms">{{ r.ms }} ms</span>
         </li>
       </ul>
     </div>
+    <div class="exp-onchain v-card">
+      <h4>⛓ Bloque M · evidencia on-chain (Hardhat, EVM real)</h4>
+      <p class="hint">26 criterios con transacciones reales del contrato <code>MultiFirmaAccionDER</code>: 3/3, rechazo, no repudio, roles, TTL, pausa y auditoría por eventos. Se reproduce con <code>npm run demo:multifirma</code> o con <code>experimento-ia-der.sh</code>.</p>
+      <button type="button" class="v-btn" (click)="irTab('gobernanza')">Ver transacciones, bloques y gas →</button>
+    </div>
     <div class="exp-resumen" *ngIf="expResumen">
       <span class="v-badge big" [ngClass]="expTodosOk ? 'ok' : 'err'">{{ expResumen }}</span>
-      <button type="button" class="v-btn" (click)="descargarEvidencia()">⬇ Descargar evidencia (JSON)</button>
+      <button type="button" class="v-btn" (click)="descargarEvidencia()">⬇ Evidencia (JSON)</button>
+      <button type="button" class="v-btn" (click)="descargarReporteMd()">⬇ Reporte (Markdown)</button>
     </div>
     <p class="hint">Equivalente a <code>Microservicios/experimento-ia-der.sh</code> · doc <code>EXPERIMENTO_IA_DER_VOLTERA.md</code></p>
   </div>
