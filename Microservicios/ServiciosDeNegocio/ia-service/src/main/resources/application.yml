@@ -20,6 +20,10 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      auto-offset-reset: latest
 
 # -----------------------------------------------------------------------------
 # Modo de despliegue del broker. El servidor on-premise esta saturado, asi que
@@ -53,6 +57,14 @@ ia:
     timeout-ms: ${IA_TIMEOUT_MS:8000}
     # Zero-retention: cabecera que pide al proveedor no retener prompts.
     zero-retention: ${IA_ZERO_RETENTION:true}
+  iam:
+    # Caja 7 · Identity (IAM). Deshabilitado por defecto (demo abierta). Con enabled=true toda llamada a
+    # /api/** exige Bearer JWT; la identidad y los roles (OPERADOR, PROSUMIDOR, AGENTE_IA) salen del token.
+    enabled: ${IA_IAM_ENABLED:false}
+    algoritmo: ${IA_IAM_ALGORITMO:HS256}      # HS256 (secreto compartido) | RS256 (clave pública del IdP, p. ej. WSO2)
+    hs256-secret: ${IA_IAM_HS256_SECRET:}     # SECRETO (>= 32 caracteres): solo por variable de entorno
+    rs256-public-key: ${IA_IAM_RS256_PUBLIC_KEY:}
+    issuer: ${IA_IAM_ISSUER:}
   human-in-the-loop:
     # Umbral (COP) por encima del cual la recomendacion EXIGE revision humana.
     umbral-aprobacion-humana: ${IA_UMBRAL_HUMANO:3000000}
@@ -85,6 +97,11 @@ ia:
     blockchain-url: ${IA_TOOL_BLOCKCHAIN_URL:https://voltera-blockchain-gateway.onrender.com}
     # Capa de telemetría DER (caja 3 · MCP). On-premise; en nube no alcanzable.
     telemetria-url: ${IA_TOOL_TELEMETRIA_URL:http://telemetria-core-service:8098}
+    # Servicios de negocio como herramientas MCP de solo lectura (caja 3).
+    tarifas-url: ${IA_TOOL_TARIFAS_URL:http://tarifas-service:8084}
+    facturacion-url: ${IA_TOOL_FACTURACION_URL:http://facturacion-service:8088}
+    pagos-url: ${IA_TOOL_PAGOS_URL:http://pagos-service:8085}
+    certificados-url: ${IA_TOOL_CERTIFICADOS_URL:http://certificados-renovables-service:8103}
     enabled: ${IA_TOOLS_ENABLED:true}
     timeout-ms: ${IA_TOOLS_TIMEOUT_MS:3000}
 

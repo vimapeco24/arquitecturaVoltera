@@ -8,7 +8,7 @@
 > (b) por consola con `Microservicios/experimento-ia-der.sh` (guarda evidencia JSON),
 > (c) por los tests automatizados (`ia-service` JUnit + `MultiFirmaAccionDER` Hardhat).
 >
-> **Última corrida local: 68/68 criterios** (bloques Pre, A–L, N y O; sin el bloque M on-chain) · producción anterior: 55/55 (ia-service local con los endpoints nuevos; Render 44/44 antes de redesplegar B7)
+> **Última corrida local: 74/74 criterios** (bloques Pre, A–L, N, O y Q; sin el bloque M on-chain) · producción anterior: 55/55 (ia-service local con los endpoints nuevos; Render 44/44 antes de redesplegar B7)
 > (incluye el bloque M on-chain; con `--con-tests` suma además JUnit + Hardhat). Genera evidencia en JSON, Markdown y HTML.
 > El front `/ia` ejecuta los bloques P, A–L (con B5/B6) agrupados por bloque, con barra de progreso y descarga de evidencia JSON.
 
@@ -191,6 +191,29 @@ Estados de `/ia/capacidades`: **OPERATIVO** (funciona de punta a punta), **LOCAL
 | KPI del caso | MTTD medido < 5 min (línea base 45 min) y latencia de los 8 pasos del flujo | `GET /ia/observabilidad` |
 
 El experimento deja el registro como estaba (promueve v4 y hace rollback a v3) y registra una revisión **de acuerdo**, para que repetirlo no cambie el resultado. Una corrección de SoH hecha desde el front sí hace fallar a v3 en la siguiente corrida: es el comportamiento esperado de Human Review → Evals.
+
+---
+
+## Experimento Q · Eventos y herramientas de negocio (taller `IA/`, paso 2)
+
+Cierra lo que el taller pide en «Lo que ya construyeron»: qué evento dispara a la IA, si el RAG se mantiene con
+eventos y qué microservicios usa como herramientas. El puente `POST /api/v1/ia/eventos/*` entrega el mismo evento
+que consume Kafka on-premise (`topic.notificaciones`, `topic.ia.conocimiento`).
+
+| Criterio | Resultado |
+|---|---|
+| `MedidorSinReporte` dispara el diagnóstico (MEDIDOR, 45 min sin señal → DESPACHAR_TECNICO, actor `evento:telemetria-core`) | ✓ |
+| El mismo evento repetido se ignora (idempotente, HTTP 202) | ✓ |
+| El diagnóstico cita las 4 herramientas MCP de negocio: tarifas, facturación, pagos, certificados renovables | ✓ |
+| `DocumentoConocimientoPublicado` deja el documento buscable en el RAG | ✓ |
+| `DocumentoConocimientoRetirado` lo saca del índice (supresión propagada) | ✓ |
+| Evento de conocimiento desconocido → HTTP 400 | ✓ |
+
+Verificación adicional (JUnit): `EventosKafkaConsumerIT` envía los eventos a un broker Kafka embebido y comprueba que
+el consumidor ingesta y retira documentos del RAG; `IamTest` cubre JWT HS256/RS256, token vencido, firma mala, `alg=none`,
+identidad tomada del token (no del cuerpo) y 403 al firmar sin el rol.
+
+Límite declarado: el −40 % de incidentes que afectan facturación no se mide aquí (requiere datos reales de operación).
 
 ---
 

@@ -1216,3 +1216,20 @@ Origen: informe `.agents/tasks/REVISION_BACKEND_COMPLETO.md` (20 negocio + 1 reg
 
 ### Credenciales WSO2 (cierre de brechas)
 Se vaciaron consumerKey/consumerSecret en `environment.ts` (ya vacios en `environment.prod.ts`, `api/token.js`, `api/obs.js`). Siguen en el historial de git: hay que rotar las credenciales OAuth2 de WSO2.
+
+## 2026-11-19 · Verificación de las 8 cajas GenAI contra el código
+Se verificó que las 8 cajas amarillas del mapa de referencia (Human Review, RAG, MCP, Agent Registry A2A,
+Guardrails, Prompt & Model Registry, IAM, Audit & Retention) existen en `ia-service` y ya figuran en
+`Modificados/Voltera_Arquitectura_Completa.drawio` (nodos `ia-gw`, `ia-rag`, `ia-guard`, `ia-human`, `ia-tools-nota`).
+Detalle y brechas en `MAPEO_ARQUITECTURA_REFERENCIA_GENAI.md`. Diagrama sin cambios (sin cambio de topología); XML validado.
+Brecha principal: IAM es identidad propagada por campo, sin validación de token; registros y auditoría en memoria.
+Validación contra `IA/` (13 PDF, 5 páginas arquibook): ver sección 4 de `MAPEO_ARQUITECTURA_REFERENCIA_GENAI.md`.
+Brechas abiertas: sin consumidor Kafka en ia-service (disparo y ingesta RAG por evento), sin MCP a tarifas/pagos/facturación,
+nota del taller dice "consulta certificados renovables" pero el código usa la cadena para gobernanza; −40 % facturación no medido.
+
+## 2026-11-20 · Cierre de brechas GenAI contra `IA/`
+- `ia-service`: `McpNegocioAdapter` (MCP solo lectura a tarifas :8084, facturación :8088, pagos :8085, certificados renovables :8103; engancha en `McpDerAdapter`), `EventosEntrantesService` + `EventosKafkaConsumer` (`topic.notificaciones` → diagnóstico por MedidorSinReporte, idempotente; `topic.ia.conocimiento` → ingesta/supresión del RAG; `@Lazy(false)`, solo con `voltera.kafka.enabled=true`) y `EventosController` (puente HTTP `POST /api/v1/ia/eventos/{medidor-sin-reporte|conocimiento}` para la nube).
+- JUnit del ia-service: 54/54 (+4). Experimento: bloque Q (6 criterios), corrida local 74/74 con `--sin-onchain`. `render.yaml` con 4 URLs opcionales nuevas (`IA_TOOL_*_URL`).
+- Diagrama vivo (`Modificados/Voltera_Arquitectura_Completa.drawio`): nota `ia-tools-nota` actualizada (MCP Negocio, topics consumidos, puente HTTP). XML validado.
+- Pendiente declarado: −40 % facturación (meta sin datos reales), consumidores Kafka sin probar contra broker real, IAM sin token, registros en memoria, sin SLM/LLM de frontera. No se desplegó a Render ni se hizo commit.
+- 2ª pasada (2026-11-20): `EventosKafkaConsumerIT` (broker Kafka embebido, `spring-kafka-test`) valida los consumidores; IAM real opt-in (`IA_IAM_ENABLED`, `JwtVerificador` HS256/RS256, `IamFilter`, rol exigido al firmar; 5 tests). JUnit ia-service 60/60. Diagrama: nodo `ia-guard` actualizado (IAM). Sin activar IAM en Render (falta clave del IdP y token en el front).

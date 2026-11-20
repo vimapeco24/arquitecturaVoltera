@@ -86,3 +86,19 @@ services:
         sync: false               # opcional: URL pública si se expone el servicio
       - key: IA_TOOL_TELEMETRIA_URL
         sync: false               # opcional: URL pública de telemetria-service
+      # Caja 7 · IAM (opcional). Con IA_IAM_ENABLED=true toda llamada a /api/** exige Bearer JWT.
+      - key: IA_IAM_ENABLED
+        value: "false"
+      - key: IA_IAM_HS256_SECRET
+        sync: false               # SECRETO (>= 32 caracteres) si el algoritmo es HS256
+      - key: IA_IAM_RS256_PUBLIC_KEY
+        sync: false               # clave pública PEM del IdP si se usa RS256
+      # MCP de negocio (solo lectura). Opcionales: sin URL pública el agente cita "no verificable".
+      - key: IA_TOOL_TARIFAS_URL
+        sync: false
+      - key: IA_TOOL_FACTURACION_URL
+        sync: false
+      - key: IA_TOOL_PAGOS_URL
+        sync: false
+      - key: IA_TOOL_CERTIFICADOS_URL
+        sync: false

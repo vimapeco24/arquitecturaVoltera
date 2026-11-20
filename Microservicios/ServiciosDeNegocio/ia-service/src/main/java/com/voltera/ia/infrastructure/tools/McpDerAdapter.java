@@ -35,12 +35,15 @@ public class McpDerAdapter implements HerramientasDerPort {
     private final boolean enabled;
     private final Duration timeout;
     private final WebClient telemetriaClient;
+    private final McpNegocioAdapter negocio;
 
     public McpDerAdapter(
             @Value("${ia.tools.enabled:true}") boolean enabled,
             @Value("${ia.tools.timeout-ms:3000}") long timeoutMs,
             @Value("${ia.tools.telemetria-url:http://telemetria-core-service:8098}") String telemetriaUrl,
-            WebClient.Builder builder) {
+            WebClient.Builder builder,
+            McpNegocioAdapter negocio) {
+        this.negocio = negocio;
         this.enabled = enabled;
         this.timeout = Duration.ofMillis(timeoutMs);
         this.telemetriaClient = builder.clone().baseUrl(telemetriaUrl).build();
@@ -78,6 +81,9 @@ public class McpDerAdapter implements HerramientasDerPort {
                 "Topología de red · comunidad " + a.comunidadId(),
                 "El activo " + a.activoId() + " cuelga del gateway de la comunidad " + a.comunidadId()
                         + "; aguas abajo no hay otros activos afectados reportando anomalía simultánea."));
+
+        // Herramientas 4-7: servicios de negocio (tarifas, facturación, pagos, certificados), solo lectura.
+        out.addAll(negocio.consultar(a));
 
         return out;
     }

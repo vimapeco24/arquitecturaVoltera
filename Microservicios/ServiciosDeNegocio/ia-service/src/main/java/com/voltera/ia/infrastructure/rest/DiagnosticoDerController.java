@@ -45,7 +45,10 @@ public class DiagnosticoDerController {
     @PostMapping("/diagnostico/der")
     public ResponseEntity<DiagnosticoResponse> diagnosticar(@Valid @RequestBody DiagnosticarRequest req) {
         java.time.Instant llegada = java.time.Instant.now();
-        var alerta = req.aDominio();
+        var base = req.aDominio();
+        var alerta = new com.voltera.ia.domain.model.der.AlertaTelemetria(base.activoId(), base.tipoActivo(),
+                base.comunidadId(), base.metrica(), base.valor(), base.umbral(), base.minutosSinSenal(),
+                base.descripcion(), com.voltera.ia.infrastructure.security.IamContexto.identidadO(base.usuario()));
         DiagnosticoDer d = diagnostico.diagnosticar(alerta);
         java.time.Instant observado = req.observadoEn() != null && req.observadoEn().isBefore(llegada) ? req.observadoEn() : llegada;
         alertas.guardar(d.diagnosticoId(), alerta, observado, d.generadoEn());

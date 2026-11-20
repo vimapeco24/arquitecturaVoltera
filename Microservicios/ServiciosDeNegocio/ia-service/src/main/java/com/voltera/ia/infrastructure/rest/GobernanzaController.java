@@ -144,9 +144,11 @@ public class GobernanzaController {
     }
 
     private ResponseEntity<PropuestaResponse> aprobar(String id, Firmante f, FirmaRequest req) {
-        PropuestaAccion p = gobernanza.aprobar(UUID.fromString(id), f, req.identidad(), req.razon(),
+        com.voltera.ia.infrastructure.security.IamContexto.exigirRol(f.name());
+        String quien = com.voltera.ia.infrastructure.security.IamContexto.identidadO(req.identidad());
+        PropuestaAccion p = gobernanza.aprobar(UUID.fromString(id), f, quien, req.razon(),
                 req.direccion(), req.firma());
-        auditoria.registrar("FIRMA", req.identidad(), id, f + " aprueba · " + p.firmasResumen() + " · " + p.estado()
+        auditoria.registrar("FIRMA", quien, id, f + " aprueba · " + p.firmasResumen() + " · " + p.estado()
                 + (req.firma() != null && !req.firma().isBlank() ? " · billetera" : " · clave custodiada"), p.versionPrompt());
         if (p.estado() == com.voltera.ia.domain.model.gobernanza.EstadoPropuesta.EJECUTADA) {
             auditoria.registrar("EJECUCION", "agente-accion@voltera", id, p.comando() + " ejecutado con 3/3", p.versionPrompt());
@@ -155,9 +157,11 @@ public class GobernanzaController {
     }
 
     private ResponseEntity<PropuestaResponse> rechazar(String id, Firmante f, FirmaRequest req) {
-        PropuestaAccion p = gobernanza.rechazar(UUID.fromString(id), f, req.identidad(), req.razon(),
+        com.voltera.ia.infrastructure.security.IamContexto.exigirRol(f.name());
+        String quien = com.voltera.ia.infrastructure.security.IamContexto.identidadO(req.identidad());
+        PropuestaAccion p = gobernanza.rechazar(UUID.fromString(id), f, quien, req.razon(),
                 req.direccion(), req.firma());
-        auditoria.registrar("RECHAZO", req.identidad(), id, f + " rechaza · " + p.estado(), p.versionPrompt());
+        auditoria.registrar("RECHAZO", quien, id, f + " rechaza · " + p.estado(), p.versionPrompt());
         return ResponseEntity.ok(PropuestaResponse.desde(p));
     }
 }
